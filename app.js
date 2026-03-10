@@ -21,7 +21,6 @@ const params = {
   colorMode: "speed",
   colormap: "turbo",
   solidColor: "#4cd3b6",
-  colorTint: "#ffffff",
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
@@ -60,6 +59,7 @@ const dom = {
   chartSpeedLive: document.getElementById("chart-speed-live"),
   chartNeighborsLive: document.getElementById("chart-neighbors-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
+  appletTabs: document.querySelectorAll("[data-applet-item]"),
   runState: document.getElementById("run-state"),
   togglePause: document.getElementById("toggle-pause"),
   resetSim: document.getElementById("reset-sim"),
@@ -70,7 +70,6 @@ const dom = {
   boundaryMode: document.getElementById("boundary-mode"),
   colorMode: document.getElementById("color-mode"),
   colormap: document.getElementById("colormap"),
-  colorTint: document.getElementById("color-tint"),
   solidColor: document.getElementById("solid-color"),
   colormapControlWrap: document.getElementById("colormap-control-wrap"),
   singleColorWrap: document.getElementById("single-color-wrap"),
@@ -104,6 +103,9 @@ const panelWidthState = {
   right: 320,
 };
 
+const compactRangeRegistry = new Map();
+const compactSectionState = {};
+
 let themeManager = null;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -123,6 +125,9 @@ const cameraController = createCameraController({
     pitch: dom.cameraPitch,
     yaw: dom.cameraYaw,
   },
+  onFovChange: (value) => {
+    setControlValue("camera-fov", value, "camera-fov-value", (next) => `${Math.round(next)}°`);
+  },
 });
 
 const perspectiveCamera = cameraController.perspectiveCamera;
@@ -133,15 +138,15 @@ const onKeyUp = cameraController.onKeyUp;
 
 const boidGeometry = new THREE.ConeGeometry(0.7, 2.6, 10);
 boidGeometry.rotateX(Math.PI / 2);
-const boidMaterial = new THREE.MeshStandardMaterial({
+const boidMaterial = new THREE.MeshPhongMaterial({
   color: 0xffffff,
-  emissive: 0x202020,
-  emissiveIntensity: 0.5,
-  roughness: 0.72,
-  metalness: 0.0,
-  flatShading: false,
+  specular: 0x222222,
+  shininess: 34,
+  flatShading: true,
   side: THREE.DoubleSide,
-  vertexColors: true,
+  // For InstancedMesh setColorAt(), rely on instancing color, not geometry vertex color.
+  vertexColors: false,
+  toneMapped: false,
 });
 
 const boids = [];
@@ -166,8 +171,6 @@ const instanceColor = new THREE.Color();
 const colormapLerpA = new THREE.Color();
 const colormapLerpB = new THREE.Color();
 const solidColorValue = new THREE.Color(params.solidColor);
-const tintColorValue = new THREE.Color(params.colorTint);
-const pureRedDebug = new THREE.Color(1, 0, 0);
 
 const colormapStops = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -196,6 +199,7 @@ updateOrthographicCamera(true);
 applyCameraInteractivity();
 rebuildBoundsAndGrid();
 spawnBoids(params.boidCount);
+setupCompactSectionSliders();
 setupControls();
 setupPanelToggles();
 setupPanelResizers();
@@ -262,9 +266,9 @@ function spawnBoids(count) {
 
     boids.push({
       position: new THREE.Vector3(
-        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeX),
-        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeY),
-        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeZ),
+        THREE.MathUtils.randFloatSpread(spawnRangeX),
+        THREE.MathUtils.randFloatSpread(spawnRangeY),
+        THREE.MathUtils.randFloatSpread(spawnRangeZ),
       ),
       velocity: startVelocity,
       acceleration: new THREE.Vector3(),
@@ -290,6 +294,12 @@ function rebuildBoidMeshForCurrentBoids() {
   boidMesh = new THREE.InstancedMesh(boidGeometry, boidMaterial, capacity);
   boidMesh.count = boids.length;
   boidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  boidMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+  boidMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < capacity; i += 1) {
+    boidMesh.instanceColor.setXYZ(i, 1, 1, 1);
+  }
+  boidMaterial.needsUpdate = true;
   scene.add(boidMesh);
 }
 
@@ -421,14 +431,7 @@ function syncBoidInstances() {
       const liftedFactor = 0.08 + factor * 0.84;
       applyColormap(liftedFactor, instanceColor);
     }
-    tintColorValue.set(params.colorTint);
-    instanceColor.multiply(tintColorValue);
     ensureVisibleColor(instanceColor, 0.25);
-
-    // Debug probe: force first 20 boids to pure red to verify per-instance color writes.
-    if (i < 20) {
-      instanceColor.copy(pureRedDebug);
-    }
 
     boidMesh.setColorAt(i, instanceColor);
   }
@@ -698,20 +701,44 @@ function setupControls() {
     params.cameraFov = value;
     perspectiveCamera.fov = value;
     perspectiveCamera.updateProjectionMatrix();
+    updateOrthographicCamera(false);
     return `${Math.round(value)}°`;
   });
 
   const boidCountInput = document.getElementById("boid-count");
   const boidCountValue = document.getElementById("boid-count-value");
+  registerCompactRangeControl(boidCountInput, boidCountValue);
   boidCountInput.addEventListener("input", () => {
     boidCountValue.textContent = boidCountInput.value;
     params.boidCount = Number(boidCountInput.value);
     spawnBoids(params.boidCount);
+    syncCompactSectionSlider("boid-count");
   });
+  activateCompactRangeControl("boid-count");
 
   dom.togglePause.addEventListener("click", () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
+  });
+
+  dom.runState?.addEventListener("click", () => {
+    params.paused = !params.paused;
+    updateSimulationStateUI();
+  });
+
+  dom.appletTabs?.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const mode = tab.getAttribute("data-applet-item");
+      if (mode !== "boid") {
+        return;
+      }
+
+      dom.appletTabs.forEach((item) => {
+        const active = item === tab;
+        item.classList.toggle("is-active", active);
+        item.setAttribute("aria-selected", String(active));
+      });
+    });
   });
 
   dom.resetSim.addEventListener("click", () => {
@@ -768,11 +795,6 @@ function setupControls() {
     syncBoidInstances();
   });
 
-  dom.colorTint?.addEventListener("input", () => {
-    params.colorTint = dom.colorTint.value;
-    syncBoidInstances();
-  });
-
   if (dom.cameraProjectionToggle) {
     dom.cameraProjectionToggle.addEventListener("click", () => {
       if (params.projectionMode === "perspective") {
@@ -799,6 +821,7 @@ function setupControls() {
 
       perspectiveCamera.fov = params.cameraFov;
       perspectiveCamera.updateProjectionMatrix();
+      updateOrthographicCamera(false);
       cameraController.resetOrientationKeepPosition();
       applyCameraInteractivity();
       updateCameraTelemetry();
@@ -822,9 +845,6 @@ function setupControls() {
   dom.colormap.value = params.colormap;
   if (dom.solidColor) {
     dom.solidColor.value = params.solidColor;
-  }
-  if (dom.colorTint) {
-    dom.colorTint.value = params.colorTint;
   }
   updateColorControlVisibility();
   updateColormapLegend();
@@ -855,11 +875,15 @@ function updateSimulationStateUI() {
   if (params.paused) {
     dom.togglePause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
     dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i><span>Paused</span>';
+    dom.runState.setAttribute("title", "Resume simulation");
+    dom.runState.setAttribute("aria-pressed", "true");
     return;
   }
 
   dom.togglePause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
   dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i><span>Running</span>';
+  dom.runState.setAttribute("title", "Pause simulation");
+  dom.runState.setAttribute("aria-pressed", "false");
 }
 
 function setupThemeToggle() {
@@ -876,13 +900,7 @@ function setupThemeToggle() {
 
 function applySceneTheme(theme) {
   world.applyTheme(theme);
-  if (theme === "light") {
-    boidMaterial.emissive.set(0x1e1e1e);
-    boidMaterial.emissiveIntensity = 0.42;
-  } else {
-    boidMaterial.emissive.set(0x202020);
-    boidMaterial.emissiveIntensity = 0.5;
-  }
+  boidMaterial.specular.set(theme === "light" ? 0x2c2c2c : 0x1c1c1c);
 }
 
 function setupPanelToggles() {
@@ -1319,11 +1337,17 @@ function pushTrendValue(series, value) {
 function bindRange(inputId, valueId, applyValue) {
   const input = document.getElementById(inputId);
   const output = document.getElementById(valueId);
+  if (!input || !output) {
+    return;
+  }
+
+  registerCompactRangeControl(input, output);
 
   const handle = () => {
     const value = Number(input.value);
     const display = applyValue(value);
     output.textContent = display;
+    syncCompactSectionSlider(inputId);
     updateColormapLegend();
   };
 
@@ -1334,8 +1358,146 @@ function bindRange(inputId, valueId, applyValue) {
 function setControlValue(inputId, value, valueId, formatter) {
   const input = document.getElementById(inputId);
   const output = document.getElementById(valueId);
+  if (!input || !output) {
+    return;
+  }
   input.value = String(value);
   output.textContent = formatter(value);
+  syncCompactSectionSlider(inputId);
+}
+
+function setupCompactSectionSliders() {
+  const sliderHubs = document.querySelectorAll("[data-slider-hub]");
+  sliderHubs.forEach((hub) => {
+    const sectionKey = hub.getAttribute("data-slider-hub");
+    const slider = hub.querySelector("[data-section-slider]");
+    const title = hub.querySelector("[data-section-slider-title]");
+    const value = hub.querySelector("[data-section-slider-value]");
+    if (!sectionKey || !slider || !title || !value) {
+      return;
+    }
+
+    compactSectionState[sectionKey] = {
+      hub,
+      slider,
+      title,
+      value,
+      activeInputId: null,
+    };
+
+    slider.addEventListener("input", () => {
+      const activeInputId = compactSectionState[sectionKey].activeInputId;
+      if (!activeInputId) {
+        return;
+      }
+
+      const binding = compactRangeRegistry.get(activeInputId);
+      if (!binding) {
+        return;
+      }
+
+      binding.input.value = slider.value;
+      binding.input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  });
+}
+
+function registerCompactRangeControl(inputRef, outputRef) {
+  const input = typeof inputRef === "string" ? document.getElementById(inputRef) : inputRef;
+  const output = typeof outputRef === "string" ? document.getElementById(outputRef) : outputRef;
+  if (!input || !output || !input.id) {
+    return;
+  }
+
+  const section = input.closest("[data-control-section]");
+  const sectionKey = section?.getAttribute("data-control-section");
+  const sectionState = sectionKey ? compactSectionState[sectionKey] : null;
+  if (!sectionKey || !sectionState) {
+    return;
+  }
+
+  const labelEl = section.querySelector(`label[for="${input.id}"]`);
+  const labelNameEl = labelEl?.querySelector(".label-name");
+  const labelText = labelNameEl ? labelNameEl.textContent.trim() : input.id;
+
+  compactRangeRegistry.set(input.id, {
+    input,
+    output,
+    sectionKey,
+    labelEl,
+    labelText,
+  });
+
+  input.classList.add("compact-source-slider");
+  output.classList.add("compact-value-trigger");
+  output.setAttribute("role", "button");
+  output.setAttribute("tabindex", "0");
+  output.setAttribute("aria-label", `Edit ${labelText}`);
+
+  const activate = (event) => {
+    if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    if (event.type === "keydown") {
+      event.preventDefault();
+    }
+
+    activateCompactRangeControl(input.id);
+  };
+
+  output.addEventListener("click", activate);
+  output.addEventListener("keydown", activate);
+
+  if (!sectionState.activeInputId) {
+    activateCompactRangeControl(input.id);
+  } else {
+    syncCompactSectionSlider(input.id);
+  }
+}
+
+function activateCompactRangeControl(inputId) {
+  const binding = compactRangeRegistry.get(inputId);
+  if (!binding) {
+    return;
+  }
+
+  const sectionState = compactSectionState[binding.sectionKey];
+  if (!sectionState) {
+    return;
+  }
+
+  sectionState.activeInputId = inputId;
+  sectionState.title.textContent = binding.labelText;
+  sectionState.slider.min = binding.input.min;
+  sectionState.slider.max = binding.input.max;
+  sectionState.slider.step = binding.input.step || "1";
+  sectionState.slider.value = binding.input.value;
+  sectionState.value.textContent = binding.output.textContent;
+  if (sectionState.hub && binding.labelEl && binding.labelEl.parentElement) {
+    binding.labelEl.insertAdjacentElement("afterend", sectionState.hub);
+  }
+
+  for (const item of compactRangeRegistry.values()) {
+    if (item.sectionKey === binding.sectionKey) {
+      item.output.classList.toggle("is-active-control", item.input.id === inputId);
+    }
+  }
+}
+
+function syncCompactSectionSlider(inputId) {
+  const binding = compactRangeRegistry.get(inputId);
+  if (!binding) {
+    return;
+  }
+
+  const sectionState = compactSectionState[binding.sectionKey];
+  if (!sectionState || sectionState.activeInputId !== inputId) {
+    return;
+  }
+
+  sectionState.slider.value = binding.input.value;
+  sectionState.value.textContent = binding.output.textContent;
 }
 
 function setPerspectiveCameraFromParams(forceSnap = false) {

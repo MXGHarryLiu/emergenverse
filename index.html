@@ -36,13 +36,46 @@
     </script>
   </head>
   <body>
+    <script>
+      (() => {
+        const storageKey = "emergenverse-theme-mode";
+        let mode = "auto";
+        try {
+          const stored = window.localStorage.getItem(storageKey);
+          if (stored === "auto" || stored === "dark" || stored === "light") {
+            mode = stored;
+          }
+        } catch (error) {
+          // Ignore storage access issues and keep auto fallback.
+        }
+
+        const prefersDark =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const effectiveTheme = mode === "auto" ? (prefersDark ? "dark" : "light") : mode;
+
+        document.body.setAttribute("data-theme", effectiveTheme);
+        document.documentElement.style.colorScheme = effectiveTheme === "dark" ? "dark" : "light";
+      })();
+    </script>
     <nav class="navbar top-nav px-3 px-lg-4">
       <div class="container-fluid g-0">
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3 nav-brand-group">
           <span class="brand-mark">E</span>
           <div>
             <div class="brand-title">Emergenverse</div>
-            <div class="brand-subtitle">3D Emergence Lab</div>
+            <div class="brand-subtitle">Discover patterns from simple rules</div>
+          </div>
+          <div class="applet-nav" role="tablist" aria-label="Applet mode">
+            <button
+              class="applet-tab is-active"
+              type="button"
+              data-applet-item="boid"
+              aria-selected="true"
+              title="Boid applet"
+            >
+              Boid
+            </button>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -54,26 +87,40 @@
             <i class="bi bi-info-circle" aria-hidden="true"></i>
             <span>Controls</span>
           </button>
-          <span class="chip status-chip" id="run-state">
+          <button class="chip chip-button status-chip run-chip" id="run-state" type="button" title="Pause simulation">
             <i class="bi bi-play-fill state-icon" aria-hidden="true"></i>
             <span>Running</span>
-          </span>
+          </button>
         </div>
       </div>
     </nav>
 
     <main class="app-shell">
       <aside id="left-panel" class="panel left-panel">
-        <section class="left-panel-top">
+        <section class="control-section" data-control-section="information-introduction">
           <div class="sidebar-head">
             <h2 class="panel-title sidebar-title">
-              <i class="bi bi-info-circle-fill panel-head-icon" aria-hidden="true"></i>
-              <span>Introduction</span>
+              <i class="bi bi-info-square-fill panel-head-icon" aria-hidden="true"></i>
+              <span>Information</span>
             </h2>
             <button class="icon-btn" id="hide-left-panel" type="button" aria-label="Hide left panel">
               <i class="bi bi-chevron-bar-left" aria-hidden="true"></i>
             </button>
           </div>
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle introduction section"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-journal-text panel-head-icon" aria-hidden="true"></i>
+              <span>Introduction</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
           <p class="panel-copy">
             This applet implements the 3D Reynolds flocking model as a discrete-time multi-agent system in SI units.
             Each boid state is position <em>x</em><sub>i</sub> (m) and velocity <em>v</em><sub>i</sub> (m/s), advanced
@@ -99,10 +146,24 @@
               <li><strong>Alignment / Cohesion / Separation Weight</strong> map to w<sub>a</sub>, w<sub>c</sub>, w<sub>s</sub> in the steering equation.</li>
             </ul>
           </div>
+          </div>
         </section>
 
-        <section class="left-panel-bottom mt-4">
-          <h2 class="panel-title mb-3">Stats</h2>
+        <section class="control-section" data-control-section="information-stats">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle stats section"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-bar-chart-line-fill panel-head-icon" aria-hidden="true"></i>
+              <span>Stats</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
           <div class="stat-grid mb-3">
             <div class="stat-card">
               <div class="stat-inline">
@@ -136,6 +197,7 @@
               </button>
               <canvas id="chart-neighbors" class="trend-chart" width="260" height="96" aria-label="neighbor trend chart"></canvas>
             </div>
+          </div>
           </div>
         </section>
       </aside>
@@ -176,7 +238,7 @@
           </button>
         </div>
 
-        <div class="control-section" data-control-section>
+        <div class="control-section" data-control-section="simulation">
           <button
             class="section-toggle"
             type="button"
@@ -192,6 +254,21 @@
           </button>
 
           <div class="control-section-body">
+          <div class="section-slider-hub" data-slider-hub="simulation" aria-label="Active simulation slider">
+            <div class="section-slider-head">
+              <span class="section-slider-title" data-section-slider-title>Count</span>
+              <span class="section-slider-value" data-section-slider-value>220</span>
+            </div>
+            <input
+              class="form-range section-active-slider"
+              type="range"
+              data-section-slider
+              min="30"
+              max="650"
+              step="10"
+              value="220"
+            />
+          </div>
           <label class="form-label" for="boid-count">
             <span class="label-name"><i class="bi bi-people-fill" aria-hidden="true"></i>Count</span>
             <span class="label-value" id="boid-count-value">220</span>
@@ -199,7 +276,7 @@
           <input class="form-range" type="range" id="boid-count" min="30" max="650" step="10" value="220" />
 
           <label class="form-label" for="boid-scale">
-            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Cone Length Scale</span>
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Object Size</span>
             <span class="label-value" id="boid-scale-value">1.4 m</span>
           </label>
           <input class="form-range" type="range" id="boid-scale" min="0.6" max="3.2" step="0.1" value="1.4" />
@@ -246,32 +323,6 @@
           </label>
           <input class="form-range" type="range" id="separation-weight" min="0" max="4" step="0.05" value="1.35" />
 
-          <label class="form-label" for="world-size-x">
-            <span class="label-name"><i class="bi bi-arrows-expand" aria-hidden="true"></i>World Size X</span>
-            <span class="label-value" id="world-size-x-value">120 m</span>
-          </label>
-          <input class="form-range" type="range" id="world-size-x" min="40" max="320" step="2" value="120" />
-
-          <label class="form-label" for="world-size-y">
-            <span class="label-name"><i class="bi bi-arrows-vertical" aria-hidden="true"></i>World Size Y</span>
-            <span class="label-value" id="world-size-y-value">120 m</span>
-          </label>
-          <input class="form-range" type="range" id="world-size-y" min="40" max="320" step="2" value="120" />
-
-          <label class="form-label" for="world-size-z">
-            <span class="label-name"><i class="bi bi-arrows-collapse" aria-hidden="true"></i>World Size Z</span>
-            <span class="label-value" id="world-size-z-value">120 m</span>
-          </label>
-          <input class="form-range" type="range" id="world-size-z" min="30" max="260" step="2" value="120" />
-
-          <label class="form-label mt-1" for="boundary-mode">
-            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
-          </label>
-          <select class="form-select form-select-sm theme-select" id="boundary-mode">
-            <option value="cyclic" selected>Cyclic (default)</option>
-            <option value="lost">Lost (remove out-of-bounds)</option>
-          </select>
-
           <label class="form-label mt-3" for="color-mode">
             <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
           </label>
@@ -282,11 +333,6 @@
             <option value="neighbors">Neighbor Count</option>
             <option value="heading">Heading (z component)</option>
           </select>
-
-          <label class="form-label mt-2" for="color-tint">
-            <span class="label-name"><i class="bi bi-droplet-half" aria-hidden="true"></i>Color Tint</span>
-          </label>
-          <input type="color" class="form-control form-control-color theme-color-input" id="color-tint" value="#ffffff" />
 
           <div id="colormap-control-wrap">
             <label class="form-label mt-2" for="colormap">
@@ -327,7 +373,7 @@
           </div>
         </div>
 
-        <div class="control-section mt-4" data-control-section>
+        <div class="control-section mt-4" data-control-section="camera">
           <button
             class="section-toggle"
             type="button"
@@ -343,6 +389,21 @@
           </button>
 
           <div class="control-section-body">
+          <div class="section-slider-hub" data-slider-hub="camera" aria-label="Active camera slider">
+            <div class="section-slider-head">
+              <span class="section-slider-title" data-section-slider-title>FOV</span>
+              <span class="section-slider-value" data-section-slider-value>50°</span>
+            </div>
+            <input
+              class="form-range section-active-slider"
+              type="range"
+              data-section-slider
+              min="20"
+              max="90"
+              step="1"
+              value="50"
+            />
+          </div>
           <div class="camera-dof-grid mt-1" aria-label="Camera 6-DOF telemetry">
             <div class="camera-dof-card">
               <div class="camera-dof-name">X</div>
@@ -377,11 +438,6 @@
           <input class="form-range" type="range" id="camera-fov" min="20" max="90" step="1" value="50" />
 
           <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="show-bounds" checked />
-            <label class="form-check-label" for="show-bounds">Show Bounds</label>
-          </div>
-
-          <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" id="camera-locked" />
             <label class="form-check-label" for="camera-locked">Camera Lock</label>
           </div>
@@ -403,6 +459,71 @@
           </div>
           </div>
         </div>
+
+        <div class="control-section mt-4" data-control-section="world">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle world controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-globe2 panel-head-icon" aria-hidden="true"></i>
+              <span>World</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+
+          <div class="control-section-body">
+          <div class="section-slider-hub" data-slider-hub="world" aria-label="Active world slider">
+            <div class="section-slider-head">
+              <span class="section-slider-title" data-section-slider-title>World Size X</span>
+              <span class="section-slider-value" data-section-slider-value>120 m</span>
+            </div>
+            <input
+              class="form-range section-active-slider"
+              type="range"
+              data-section-slider
+              min="40"
+              max="320"
+              step="2"
+              value="120"
+            />
+          </div>
+
+          <label class="form-label" for="world-size-x">
+            <span class="label-name"><i class="bi bi-arrows-expand" aria-hidden="true"></i>World Size X</span>
+            <span class="label-value" id="world-size-x-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-x" min="40" max="320" step="2" value="120" />
+
+          <label class="form-label" for="world-size-y">
+            <span class="label-name"><i class="bi bi-arrows-vertical" aria-hidden="true"></i>World Size Y</span>
+            <span class="label-value" id="world-size-y-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-y" min="40" max="320" step="2" value="120" />
+
+          <label class="form-label" for="world-size-z">
+            <span class="label-name"><i class="bi bi-arrows-collapse" aria-hidden="true"></i>World Size Z</span>
+            <span class="label-value" id="world-size-z-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-z" min="30" max="260" step="2" value="120" />
+
+          <label class="form-label mt-1" for="boundary-mode">
+            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="boundary-mode">
+            <option value="cyclic" selected>Cyclic (default)</option>
+            <option value="lost">Lost (remove out-of-bounds)</option>
+          </select>
+
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="show-bounds" checked />
+            <label class="form-check-label" for="show-bounds">Show Bounds</label>
+          </div>
+          </div>
+        </div>
       </aside>
     </main>
 
@@ -420,17 +541,12 @@
         <div class="controls-modal-body">
           <p class="controls-modal-subtitle">6-DOF camera control (when camera lock is off)</p>
           <ul class="controls-list">
-            <li><strong>Translate</strong>: `A/S/D/Q/W/E` for camera-relative XYZ translation</li>
-            <li><strong>Yaw</strong>: `ArrowLeft` / `ArrowRight`</li>
-            <li><strong>Pitch</strong>: `ArrowUp` / `ArrowDown`</li>
-            <li><strong>Roll</strong>: `[` / `]`</li>
-            <li><strong>Boost</strong>: Hold `Shift`</li>
-          </ul>
-          <p class="controls-modal-subtitle mt-3">Mouse control</p>
-          <ul class="controls-list">
-            <li><strong>Rotate camera angles</strong>: Hold left mouse and drag</li>
-            <li><strong>Translate camera</strong>: Hold right mouse and drag</li>
-            <li><strong>Scroll zoom</strong>: Disabled for now</li>
+            <li><strong>Translate (keyboard/mouse)</strong>: `A/S/D/Q/W/E` for camera-relative XYZ movement, or hold right mouse and drag.</li>
+            <li><strong>Yaw (keyboard/mouse)</strong>: `ArrowLeft` / `ArrowRight`, or left-drag horizontally (perspective mode).</li>
+            <li><strong>Pitch (keyboard/mouse)</strong>: `ArrowUp` / `ArrowDown`, or left-drag vertically (perspective mode).</li>
+            <li><strong>Roll (keyboard)</strong>: `[` / `]`.</li>
+            <li><strong>Boost (keyboard)</strong>: Hold `Shift` while translating.</li>
+            <li><strong>Zoom / View Scale (mouse)</strong>: Scroll wheel changes FOV in perspective and zoom level in top orthographic.</li>
           </ul>
         </div>
       </section>

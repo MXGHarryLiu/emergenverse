@@ -5,14 +5,14 @@ export function createWorldManager({ params, getBoids, onWorldGeometryChanged } 
   scene.background = new THREE.Color(0x030713);
   scene.fog = new THREE.FogExp2(0x050a17, 0.0022);
 
-  const ambientLight = new THREE.AmbientLight(0x9cb7eb, 1.15);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.75);
   scene.add(ambientLight);
 
-  const keyLight = new THREE.DirectionalLight(0xbef5ff, 1.1);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
   keyLight.position.set(70, -70, 130);
   scene.add(keyLight);
 
-  const fillLight = new THREE.DirectionalLight(0x53d7ba, 0.72);
+  const fillLight = new THREE.DirectionalLight(0xcfe8ff, 0.9);
   fillLight.position.set(-80, 95, -55);
   scene.add(fillLight);
 

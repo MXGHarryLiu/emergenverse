@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-export function createCameraController({ sceneHost, params, telemetry }) {
+export function createCameraController({ sceneHost, params, telemetry, onFovChange }) {
   const worldUp = new THREE.Vector3(0, 0, 1);
 
   const perspectiveCamera = new THREE.PerspectiveCamera(params.cameraFov, 1, 0.1, 3000);
@@ -100,7 +100,9 @@ export function createCameraController({ sceneHost, params, telemetry }) {
     const height = Math.max(1, sceneHost.clientHeight);
     const aspect = width / height;
 
-    const verticalSpan = Math.max(params.worldSizeX, params.worldSizeY, params.worldSizeZ) * 0.62;
+    const baseSpan = Math.max(params.worldSizeX, params.worldSizeY, params.worldSizeZ) * 0.62;
+    const zoomScale = THREE.MathUtils.clamp(params.cameraFov / 50, 0.35, 2.4);
+    const verticalSpan = baseSpan * zoomScale;
     orthographicCamera.left = -verticalSpan * aspect;
     orthographicCamera.right = verticalSpan * aspect;
     orthographicCamera.top = verticalSpan;
@@ -117,6 +119,32 @@ export function createCameraController({ sceneHost, params, telemetry }) {
 
     orthographicCamera.lookAt(controls.target);
     orthographicCamera.updateProjectionMatrix();
+  }
+
+  function onWheel(event) {
+    if (params.cameraLocked) {
+      return;
+    }
+
+    const delta = THREE.MathUtils.clamp(event.deltaY, -120, 120);
+    if (Math.abs(delta) < 0.001) {
+      return;
+    }
+
+    params.cameraFov = THREE.MathUtils.clamp(params.cameraFov + delta * 0.04, 20, 90);
+
+    if (params.projectionMode === "perspective") {
+      perspectiveCamera.fov = params.cameraFov;
+      perspectiveCamera.updateProjectionMatrix();
+    } else {
+      updateOrthographicCamera(false);
+    }
+
+    if (typeof onFovChange === "function") {
+      onFovChange(params.cameraFov);
+    }
+
+    event.preventDefault();
   }
 
   function applyCameraInteractivity() {
@@ -201,15 +229,17 @@ export function createCameraController({ sceneHost, params, telemetry }) {
   }
 
   function updateKeyboardTranslation(dt) {
-    if (params.cameraLocked || params.projectionMode !== "perspective") {
+    if (params.cameraLocked) {
       return;
     }
 
+    const perspectiveMode = params.projectionMode === "perspective";
+    const activeMoveCamera = perspectiveMode ? perspectiveCamera : orthographicCamera;
     moveDelta.set(0, 0, 0);
 
-    forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
-    rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
-    upMove.set(0, 1, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    forwardMove.set(0, 0, -1).applyQuaternion(activeMoveCamera.quaternion).normalize();
+    rightMove.set(1, 0, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
+    upMove.set(0, 1, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
 
     if (keyState.KeyW) {
       moveDelta.add(forwardMove);
@@ -232,9 +262,27 @@ export function createCameraController({ sceneHost, params, telemetry }) {
 
     const speedFactor = keyState.ShiftLeft || keyState.ShiftRight ? 2.0 : 1.0;
     if (moveDelta.lengthSq() > 0.000001) {
+      const orthographicLookDistance = perspectiveMode
+        ? 0
+        : Math.max(1, orthographicCamera.position.z - controls.target.z);
       moveDelta.normalize().multiplyScalar(params.keyboardMoveSpeed * speedFactor * dt);
-      perspectiveCamera.position.add(moveDelta);
+      activeMoveCamera.position.add(moveDelta);
       controls.target.add(moveDelta);
+
+      if (!perspectiveMode) {
+        // Keep orthographic camera locked to top-down view while translating.
+        orthographicCamera.up.set(0, 1, 0);
+        controls.target.set(
+          orthographicCamera.position.x,
+          orthographicCamera.position.y,
+          orthographicCamera.position.z - orthographicLookDistance,
+        );
+        orthographicCamera.lookAt(controls.target);
+      }
+    }
+
+    if (!perspectiveMode) {
+      return;
     }
 
     const rotationSpeed = 1.45;
@@ -370,6 +418,7 @@ export function createCameraController({ sceneHost, params, telemetry }) {
   sceneHost.addEventListener("pointerup", endPointerDrag);
   sceneHost.addEventListener("pointercancel", endPointerDrag);
   sceneHost.addEventListener("pointerleave", endPointerDrag);
+  sceneHost.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("blur", () => endPointerDrag());
 
   return {
