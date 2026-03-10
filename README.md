@@ -1,36 +1,39 @@
 # Emergenverse
 
-This first module is a pure static site:
+Emergenverse is a browser-based lab for exploring emergent behavior from simple local rules.
+
+Goal: provide interactive, scientifically grounded simulations that make pattern formation, collective dynamics, and rule-to-structure transitions directly observable in real time.
+
+This project is intentionally static-first:
 - No backend
 - No npm/node build step
-- Runs from `index.html` + `styles.css` + `app.js`
+- Runs directly in the browser
 
-## Simulation Applets
+## Simulations
 
-This section tracks simulation applets in Emergenverse. More applets will be added over time.
-
-### 1. 3D Boids
+### Boids
 
 - Concept: Emergent flocking from local interaction rules.
 - Scientific explanation: Each boid follows three local behaviors, alignment (match nearby velocity), cohesion (move toward nearby center), and separation (avoid crowding). No global leader is required; coordinated flock motion emerges from decentralized updates.
 - Reference implementation inspiration: https://boids.dan.onl/
 - Foundational paper (Reynolds, 1987): https://www.red3d.com/cwr/papers/1987/boids.html
-- Wikipedia overview: https://en.wikipedia.org/wiki/Boids
+- Wikipedia: [Boids](https://en.wikipedia.org/wiki/Boids)
+
+### Ant Trail Simulation
+
+- Concept: Collective path formation from local pheromone deposition, sensing, and reinforcement.
+- Scientific explanation: Individual ants move using local rules and bias their motion toward stronger pheromone signals. At the colony level, positive feedback (trail reinforcement) and negative feedback (evaporation/diffusion and stochastic exploration) produce emergent trail networks and shortest-path selection.
+- Reference implementation inspiration: https://github.com/iai6203/ant-simulation/blob/main/README.en.md
+- Seminal biological paper (Deneubourg et al., 1990): https://doi.org/10.1007/BF01417909
+- Related seminal optimization paper (Dorigo et al., 1996, Ant System): https://doi.org/10.1109/3477.484436
+- Wikipedia: [Trail pheromone](https://en.wikipedia.org/wiki/Trail_pheromone), [Ant colony optimization algorithms](https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms)
 
 ## Deploy to Static Hosting
 
-Upload these files to any static host root (for example GitHub Pages, Netlify, Cloudflare Pages, Vercel static output):
-- `index.html`
-- `styles.css`
-- `app.js`
+Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).
+Use `index.html` as the entry point.
 
 The app pulls Bootstrap and Three.js directly from CDN at runtime.
-
-## Notes
-
-- The right panel controls simulation and camera behavior.
-- The middle panel renders a real-time 3D boid scene with orbit camera controls.
-- The left panel shows scene summary and live stats.
 
 ## Disclaimer
 

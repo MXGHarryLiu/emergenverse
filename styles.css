@@ -146,6 +146,11 @@ body[data-theme="light"] .top-nav {
   font-size: 0.88rem;
 }
 
+.chip-button:disabled {
+  opacity: 0.66;
+  cursor: not-allowed;
+}
+
 body[data-theme="light"] .chip-button:hover,
 body[data-theme="light"] .chip-button:focus-visible {
   color: #21324f;
@@ -723,6 +728,43 @@ body[data-theme="light"] #scene-host::after {
   height: 100%;
 }
 
+.applet-empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 0.65rem;
+  padding: 1.4rem;
+  text-align: center;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(90, 164, 255, 0.16), transparent 52%),
+    radial-gradient(circle at 72% 70%, rgba(76, 211, 182, 0.14), transparent 54%),
+    linear-gradient(160deg, rgba(6, 14, 29, 0.92), rgba(7, 18, 36, 0.9));
+}
+
+body[data-theme="light"] .applet-empty-state {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(101, 136, 198, 0.16), transparent 52%),
+    radial-gradient(circle at 72% 70%, rgba(65, 153, 169, 0.12), transparent 54%),
+    linear-gradient(160deg, rgba(229, 238, 251, 0.96), rgba(218, 231, 249, 0.94));
+}
+
+.applet-empty-title {
+  margin: 0;
+  color: var(--title-color);
+  font-family: "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 1.1rem;
+}
+
+.applet-empty-copy {
+  margin: 0 auto;
+  max-width: 40ch;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
 .panel-reveal {
   position: absolute;
   top: 0.72rem;
@@ -835,6 +877,15 @@ body[data-theme="light"] .section-slider-hub {
   color: var(--title-color);
   font-size: 0.78rem;
   letter-spacing: 0.02em;
+}
+
+.right-panel .form-label .label-name sub,
+.section-slider-title sub {
+  font-size: 0.72em;
+  vertical-align: baseline;
+  position: relative;
+  bottom: -0.28em;
+  line-height: 1;
 }
 
 .section-slider-value {
@@ -1070,6 +1121,12 @@ body[data-theme="light"] .section-toggle:focus-visible {
   padding-top: 1.15rem;
 }
 
+.control-section.is-first-visible {
+  border-top: none !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+
 .right-panel .control-section + .control-section {
   margin-top: 0.8rem !important;
 }
@@ -1186,6 +1243,18 @@ body[data-theme="light"] .controls-modal {
   padding-left: 1rem;
   color: var(--text-main);
   line-height: 1.45;
+}
+
+.about-links a {
+  color: var(--accent-2);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(90, 164, 255, 0.45);
+}
+
+.about-links a:hover,
+.about-links a:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .camera-dof-grid {

@@ -2,6 +2,10 @@ import * as THREE from "three";
 import { createCameraController } from "./camera.js";
 import { createThemeManager } from "./theme.js";
 import { createWorldManager } from "./world.js";
+import { BoidSimulation } from "./boid.js";
+import { AntSimulation } from "./ant.js";
+import { SimulationManager } from "./simulationManager.js";
+import { createVisualControls } from "./visualControls.js";
 
 const params = {
   boidCount: 220,
@@ -21,6 +25,9 @@ const params = {
   colorMode: "speed",
   colormap: "turbo",
   solidColor: "#4cd3b6",
+  antColorMode: "state",
+  antColormap: "turbo",
+  antSolidColor: "#62d6f9",
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
@@ -29,6 +36,21 @@ const params = {
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
   paused: false,
+  antCount: 260,
+  antScale: 0.95,
+  antSpeed: 7.5,
+  antSensorDistance: 6,
+  antSensorAngle: 35,
+  antTurnGain: 2.2,
+  antGoalBias: 0.35,
+  antDepositRate: 18,
+  antDiffusionRate: 0.34,
+  antEvapRate: 0.12,
+  antNoiseStrength: 0.45,
+  antFoodPlacementEnabled: false,
+  antFoodAddMassUg: 5000,
+  antPickupMassUg: 1,
+  antFoodSourceMassUg: 8000,
 };
 
 const cameraDefaults = {
@@ -54,15 +76,27 @@ const dom = {
   chartCount: document.getElementById("chart-count"),
   chartSpeed: document.getElementById("chart-speed"),
   chartNeighbors: document.getElementById("chart-neighbors"),
+  chartAntTrips: document.getElementById("chart-ant-trips"),
+  chartAntPheromone: document.getElementById("chart-ant-pheromone"),
   fpsLive: document.getElementById("fps-live"),
   chartCountLive: document.getElementById("chart-count-live"),
   chartSpeedLive: document.getElementById("chart-speed-live"),
   chartNeighborsLive: document.getElementById("chart-neighbors-live"),
+  antsFpsLive: document.getElementById("ants-fps-live"),
+  antsCountLive: document.getElementById("ants-count-live"),
+  antsCarryingLive: document.getElementById("ants-carrying-live"),
+  antsTripsLive: document.getElementById("ants-trips-live"),
+  antsPheromoneLive: document.getElementById("ants-pheromone-live"),
+  chartAntTripsLive: document.getElementById("chart-ant-trips-live"),
+  chartAntPheromoneLive: document.getElementById("chart-ant-pheromone-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
+  appVisibleElements: document.querySelectorAll("[data-app-visible]"),
   runState: document.getElementById("run-state"),
   togglePause: document.getElementById("toggle-pause"),
   resetSim: document.getElementById("reset-sim"),
+  toggleAntPause: document.getElementById("toggle-ant-pause"),
+  resetAntSim: document.getElementById("reset-ant-sim"),
   resetCamera: document.getElementById("reset-camera"),
   homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
@@ -73,6 +107,11 @@ const dom = {
   solidColor: document.getElementById("solid-color"),
   colormapControlWrap: document.getElementById("colormap-control-wrap"),
   singleColorWrap: document.getElementById("single-color-wrap"),
+  antColorMode: document.getElementById("ant-color-mode"),
+  antColormap: document.getElementById("ant-colormap"),
+  antSolidColor: document.getElementById("ant-solid-color"),
+  antColormapControlWrap: document.getElementById("ant-colormap-control-wrap"),
+  antSingleColorWrap: document.getElementById("ant-single-color-wrap"),
   colormapLegend: document.getElementById("colormap-legend"),
   colormapLegendBar: document.getElementById("colormap-legend-bar"),
   colormapCmin: document.getElementById("colormap-cmin"),
@@ -84,7 +123,12 @@ const dom = {
   controlsInfoOpen: document.getElementById("controls-info-open"),
   controlsInfoClose: document.getElementById("controls-info-close"),
   controlsInfoBackdrop: document.getElementById("controls-info-backdrop"),
+  aboutInfoOpen: document.getElementById("about-info-open"),
+  aboutInfoClose: document.getElementById("about-info-close"),
+  aboutInfoBackdrop: document.getElementById("about-info-backdrop"),
   controlSectionToggles: document.querySelectorAll("[data-control-toggle]"),
+  antFoodPlacementEnabled: document.getElementById("ant-food-placement-enabled"),
+  antFoodAddMass: document.getElementById("ant-food-add-mass"),
   cameraPosX: document.getElementById("camera-pos-x"),
   cameraPosY: document.getElementById("camera-pos-y"),
   cameraPosZ: document.getElementById("camera-pos-z"),
@@ -105,13 +149,22 @@ const panelWidthState = {
 
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
+const APPLET_IDS = new Set(["boid", "ants"]);
+
+let activeApplet = "boid";
+let boidPausedPreference = params.paused;
+let antsPausedPreference = params.paused;
+const appletProjectionInitialized = {
+  boid: false,
+  ants: false,
+};
 
 let themeManager = null;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.domElement.setAttribute("aria-label", "3D boids simulation canvas");
+renderer.domElement.setAttribute("aria-label", "3D simulation canvas");
 dom.sceneHost.appendChild(renderer.domElement);
 
 const cameraController = createCameraController({
@@ -149,17 +202,105 @@ const boidMaterial = new THREE.MeshPhongMaterial({
   toneMapped: false,
 });
 
+const antGeometry = new THREE.ConeGeometry(0.45, 1.05, 8);
+const antMaterial = new THREE.MeshPhongMaterial({
+  color: 0xffffff,
+  shininess: 28,
+  specular: 0x1d1d1d,
+  flatShading: true,
+  side: THREE.DoubleSide,
+  vertexColors: false,
+  toneMapped: false,
+});
+
 const boids = [];
 let boidMesh = null;
 const tempObject = new THREE.Object3D();
 const forwardVector = new THREE.Vector3(0, 0, 1);
 
+const ants = [];
+let antMesh = null;
+let antPheromonePlane = null;
+const antTempObject = new THREE.Object3D();
+const antColor = new THREE.Color();
+const antNest = new THREE.Vector2(0, 0);
+let antFoodSources = [];
+const antPheromoneFieldSize = 128;
+let antFoodField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
+let antHomeField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
+let antNextFoodField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
+let antNextHomeField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
+const antPheromoneTextureData = new Uint8Array(antPheromoneFieldSize * antPheromoneFieldSize * 4);
+const antPheromoneTexture = new THREE.DataTexture(
+  antPheromoneTextureData,
+  antPheromoneFieldSize,
+  antPheromoneFieldSize,
+  THREE.RGBAFormat,
+);
+antPheromoneTexture.flipY = false;
+antPheromoneTexture.colorSpace = THREE.SRGBColorSpace;
+antPheromoneTexture.needsUpdate = true;
+const antPheromoneMaterial = new THREE.MeshBasicMaterial({
+  map: antPheromoneTexture,
+  transparent: true,
+  opacity: 0.72,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+});
+const antStats = {
+  trips: 0,
+  carrying: 0,
+  meanPheromone: 0,
+  maxPheromone: 0,
+};
+
 const world = createWorldManager({
   params,
-  getBoids: () => boids,
-  onWorldGeometryChanged: () => updateOrthographicCamera(false),
+  getBoids: () => boidSimulation.boids,
+  onWorldGeometryChanged: () => {
+    updateOrthographicCamera(false);
+    simulationManager.onWorldGeometryChanged();
+  },
 });
 const scene = world.scene;
+
+const simulationManager = new SimulationManager();
+
+let lastBoidStats = {
+  count: 0,
+  speedSum: 0,
+  neighborSum: 0,
+};
+
+let lastAntStats = {
+  count: 0,
+  carrying: 0,
+  trips: 0,
+  meanPheromone: 0,
+  maxPheromone: 0,
+};
+
+const boidSimulation = new BoidSimulation({
+  scene,
+  params,
+  world,
+  onStats: (stats) => {
+    lastBoidStats = stats;
+    updateBoidStats(stats);
+  },
+});
+
+const antSimulation = new AntSimulation({
+  scene,
+  params,
+  onStats: (stats) => {
+    lastAntStats = stats;
+    updateAntStats(stats);
+  },
+});
+
+simulationManager.register("boid", boidSimulation);
+simulationManager.register("ants", antSimulation);
 
 const separationDelta = new THREE.Vector3();
 const alignment = new THREE.Vector3();
@@ -189,16 +330,22 @@ const colormapGradients = buildColormapGradients(colormapStops);
 const speedHistory = [];
 const countHistory = [];
 const neighborHistory = [];
+const antTripsHistory = [];
+const antPheromoneHistory = [];
 const chartMaxPoints = 160;
-let chartFrameCounter = 0;
+let boidChartFrameCounter = 0;
+let antChartFrameCounter = 0;
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
+const antFoodRaycaster = new THREE.Raycaster();
+const antFoodPointerNdc = new THREE.Vector2();
+const antFoodPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 setPerspectiveCameraFromParams(false);
 updateOrthographicCamera(true);
 applyCameraInteractivity();
 rebuildBoundsAndGrid();
-spawnBoids(params.boidCount);
+simulationManager.initAll();
 setupCompactSectionSliders();
 setupControls();
 setupPanelToggles();
@@ -206,8 +353,11 @@ setupPanelResizers();
 setupControlSectionCollapses();
 setupThemeToggle();
 setupControlsInfoPopup();
+setupAboutPopup();
+setupAntFoodPlacementInteraction();
 setupTrendCharts();
 setupChartCollapses();
+setupAppRouting();
 handleViewportResize();
 
 const resizeObserver = new ResizeObserver(() => handleViewportResize());
@@ -225,7 +375,7 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   updateFpsMetric(dt);
   if (!params.paused) {
-    stepSimulation(dt);
+    simulationManager.step(dt);
   }
 
   updateKeyboardTranslation(dt);
@@ -237,7 +387,7 @@ function animate() {
 }
 
 function updateFpsMetric(dt) {
-  if (!dom.fpsLive || dt <= 0) {
+  if (dt <= 0) {
     return;
   }
 
@@ -249,7 +399,12 @@ function updateFpsMetric(dt) {
   }
 
   fpsUiAccumulator = 0;
-  dom.fpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  if (dom.fpsLive) {
+    dom.fpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  }
+  if (dom.antsFpsLive) {
+    dom.antsFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  }
 }
 
 function spawnBoids(count) {
@@ -279,9 +434,9 @@ function spawnBoids(count) {
 
   rebuildBoidMeshForCurrentBoids();
 
-  resetTrendCharts();
+  resetBoidTrendCharts();
   syncBoidInstances();
-  updateStats(0, 0);
+  updateBoidStats(0, 0);
 }
 
 function rebuildBoidMeshForCurrentBoids() {
@@ -301,6 +456,422 @@ function rebuildBoidMeshForCurrentBoids() {
   }
   boidMaterial.needsUpdate = true;
   scene.add(boidMesh);
+  applySceneObjectVisibility(activeApplet);
+}
+
+function initializeAntSimulationAssets() {
+  if (!antPheromonePlane) {
+    const pheromoneGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    antPheromonePlane = new THREE.Mesh(pheromoneGeometry, antPheromoneMaterial);
+    antPheromonePlane.renderOrder = 2;
+    antPheromonePlane.position.z = -params.worldSizeZ * 0.5 + 0.08;
+    scene.add(antPheromonePlane);
+  }
+
+  rebuildAntMeshForCurrentAnts();
+  updateAntPheromonePlaneTransform();
+}
+
+function resetAntSimulation() {
+  ants.length = 0;
+  antStats.trips = 0;
+  antStats.carrying = 0;
+  antStats.meanPheromone = 0;
+  antStats.maxPheromone = 0;
+
+  antFoodField.fill(0);
+  antHomeField.fill(0);
+  antNextFoodField.fill(0);
+  antNextHomeField.fill(0);
+
+  antFoodSources = buildAntFoodSources();
+
+  const spawnRadius = Math.max(3.5, Math.min(params.worldSizeX, params.worldSizeY) * 0.06);
+  for (let i = 0; i < params.antCount; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * spawnRadius;
+    ants.push({
+      position: new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius),
+      heading: Math.random() * Math.PI * 2,
+      carrying: false,
+      lost: false,
+    });
+  }
+
+  rebuildAntMeshForCurrentAnts();
+  syncAntInstances();
+  updateAntPheromoneTexture();
+  resetAntTrendCharts();
+  updateAntStats();
+}
+
+function rebuildAntMeshForCurrentAnts() {
+  if (antMesh) {
+    scene.remove(antMesh);
+    antMesh = null;
+  }
+
+  const capacity = Math.max(ants.length, 1);
+  antMesh = new THREE.InstancedMesh(antGeometry, antMaterial, capacity);
+  antMesh.count = ants.length;
+  antMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  antMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
+  antMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < capacity; i += 1) {
+    antMesh.instanceColor.setXYZ(i, 1, 1, 1);
+  }
+  scene.add(antMesh);
+  applySceneObjectVisibility(activeApplet);
+}
+
+function updateAntPheromonePlaneTransform() {
+  if (!antPheromonePlane) {
+    return;
+  }
+
+  antPheromonePlane.scale.set(params.worldSizeX, params.worldSizeY, 1);
+  antPheromonePlane.position.z = -params.worldSizeZ * 0.5 + 0.06;
+}
+
+function buildAntFoodSources() {
+  const rx = params.worldSizeX * 0.34;
+  const ry = params.worldSizeY * 0.32;
+  return [
+    new THREE.Vector2(-rx, ry * 0.9),
+    new THREE.Vector2(rx * 0.9, -ry),
+    new THREE.Vector2(rx * 0.25, ry * 0.24),
+  ];
+}
+
+function stepAntSimulation(dt) {
+  const sensorAngleRad = THREE.MathUtils.degToRad(params.antSensorAngle);
+  const sensorDistance = Math.max(0.2, params.antSensorDistance);
+  const nestRadius = Math.max(2.2, sensorDistance * 0.5);
+  const foodRadius = Math.max(2.6, sensorDistance * 0.58);
+  const turnGain = Math.max(0, params.antTurnGain);
+  const goalBias = Math.max(0, params.antGoalBias);
+  const depositRate = Math.max(0, params.antDepositRate);
+  const speed = Math.max(0, params.antSpeed);
+
+  for (let i = 0; i < ants.length; i += 1) {
+    const ant = ants[i];
+    const trackField = ant.carrying ? antHomeField : antFoodField;
+
+    const leftSignal = sampleAntField(
+      trackField,
+      ant.position.x + Math.cos(ant.heading + sensorAngleRad) * sensorDistance,
+      ant.position.y + Math.sin(ant.heading + sensorAngleRad) * sensorDistance,
+    );
+    const rightSignal = sampleAntField(
+      trackField,
+      ant.position.x + Math.cos(ant.heading - sensorAngleRad) * sensorDistance,
+      ant.position.y + Math.sin(ant.heading - sensorAngleRad) * sensorDistance,
+    );
+
+    const target = ant.carrying ? antNest : getClosestFoodSource(ant.position);
+    const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
+    const headingError = shortestAngleDelta(desiredHeading - ant.heading);
+    const stochastic = (Math.random() * 2 - 1) * params.antNoiseStrength;
+
+    ant.heading = wrapAngle(
+      ant.heading +
+        ((rightSignal - leftSignal) * turnGain + headingError * goalBias + stochastic) * dt,
+    );
+
+    ant.position.x += Math.cos(ant.heading) * speed * dt;
+    ant.position.y += Math.sin(ant.heading) * speed * dt;
+
+    if (!applyAntBoundaryConditions(ant)) {
+      continue;
+    }
+
+    const toNestSq = ant.position.distanceToSquared(antNest);
+    if (!ant.carrying && isNearAnyFoodSource(ant.position, foodRadius)) {
+      ant.carrying = true;
+      ant.heading = wrapAngle(ant.heading + Math.PI);
+    } else if (ant.carrying && toNestSq < nestRadius * nestRadius) {
+      ant.carrying = false;
+      ant.heading = wrapAngle(ant.heading + Math.PI);
+      antStats.trips += 1;
+    }
+
+    const depositField = ant.carrying ? antFoodField : antHomeField;
+    depositAntField(depositField, ant.position.x, ant.position.y, depositRate * dt);
+
+  }
+
+  if (params.boundaryMode === "lost") {
+    removeLostAnts();
+  }
+
+  diffuseAndEvaporateAntFields(dt);
+  updateAntPheromoneTexture();
+  syncAntInstances();
+
+  updateAntStats();
+}
+
+function removeLostAnts() {
+  let removed = false;
+  for (let i = ants.length - 1; i >= 0; i -= 1) {
+    if (ants[i].lost) {
+      ants.splice(i, 1);
+      removed = true;
+    }
+  }
+
+  if (removed) {
+    rebuildAntMeshForCurrentAnts();
+  }
+}
+
+function syncAntInstances() {
+  if (!antMesh) {
+    return;
+  }
+
+  const floorZ = -params.worldSizeZ * 0.5 + 0.82;
+  for (let i = 0; i < ants.length; i += 1) {
+    const ant = ants[i];
+    antTempObject.position.set(ant.position.x, ant.position.y, floorZ);
+    antTempObject.rotation.set(0, 0, ant.heading - Math.PI * 0.5);
+    antTempObject.scale.setScalar(0.95);
+    antTempObject.updateMatrix();
+    antMesh.setMatrixAt(i, antTempObject.matrix);
+
+    if (ant.carrying) {
+      antColor.setRGB(0.98, 0.69, 0.26);
+    } else {
+      antColor.setRGB(0.37, 0.84, 0.98);
+    }
+    antMesh.setColorAt(i, antColor);
+  }
+
+  antMesh.count = ants.length;
+  antMesh.instanceMatrix.needsUpdate = true;
+  if (antMesh.instanceColor) {
+    antMesh.instanceColor.needsUpdate = true;
+  }
+}
+
+function updateAntPheromoneTexture() {
+  let maxCombined = 0;
+  let totalCombined = 0;
+  const cellCount = antPheromoneFieldSize * antPheromoneFieldSize;
+
+  for (let i = 0; i < cellCount; i += 1) {
+    const combined = antFoodField[i] + antHomeField[i];
+    if (combined > maxCombined) {
+      maxCombined = combined;
+    }
+    totalCombined += combined;
+  }
+
+  antStats.meanPheromone = cellCount > 0 ? totalCombined / cellCount : 0;
+  antStats.maxPheromone = maxCombined;
+  const invMax = maxCombined > 0.000001 ? 1 / maxCombined : 0;
+
+  for (let i = 0; i < cellCount; i += 1) {
+    const i4 = i * 4;
+    const food = antFoodField[i] * invMax;
+    const home = antHomeField[i] * invMax;
+    const combined = THREE.MathUtils.clamp(food + home, 0, 1);
+
+    antPheromoneTextureData[i4] = Math.round(210 * food + 28 * home);
+    antPheromoneTextureData[i4 + 1] = Math.round(168 * combined + 18);
+    antPheromoneTextureData[i4 + 2] = Math.round(225 * home + 42 * food);
+    antPheromoneTextureData[i4 + 3] = Math.round(230 * combined);
+  }
+
+  antPheromoneTexture.needsUpdate = true;
+}
+
+function diffuseAndEvaporateAntFields(dt) {
+  const size = antPheromoneFieldSize;
+  const diffusion = THREE.MathUtils.clamp(params.antDiffusionRate * dt, 0, 0.45);
+  const decay = THREE.MathUtils.clamp(params.antEvapRate * dt, 0, 0.95);
+
+  for (let y = 0; y < size; y += 1) {
+    const yUp = y === 0 ? (params.boundaryMode === "cyclic" ? size - 1 : 0) : y - 1;
+    const yDown = y === size - 1 ? (params.boundaryMode === "cyclic" ? 0 : size - 1) : y + 1;
+
+    for (let x = 0; x < size; x += 1) {
+      const xLeft = x === 0 ? (params.boundaryMode === "cyclic" ? size - 1 : 0) : x - 1;
+      const xRight = x === size - 1 ? (params.boundaryMode === "cyclic" ? 0 : size - 1) : x + 1;
+
+      const idx = y * size + x;
+      const idxL = y * size + xLeft;
+      const idxR = y * size + xRight;
+      const idxU = yUp * size + x;
+      const idxD = yDown * size + x;
+
+      const food = antFoodField[idx];
+      const home = antHomeField[idx];
+
+      const foodNeighborAvg = (antFoodField[idxL] + antFoodField[idxR] + antFoodField[idxU] + antFoodField[idxD]) * 0.25;
+      const homeNeighborAvg = (antHomeField[idxL] + antHomeField[idxR] + antHomeField[idxU] + antHomeField[idxD]) * 0.25;
+
+      antNextFoodField[idx] = Math.max(0, food * (1 - decay) + (foodNeighborAvg - food) * diffusion);
+      antNextHomeField[idx] = Math.max(0, home * (1 - decay) + (homeNeighborAvg - home) * diffusion);
+    }
+  }
+
+  const tmpFood = antFoodField;
+  antFoodField = antNextFoodField;
+  antNextFoodField = tmpFood;
+
+  const tmpHome = antHomeField;
+  antHomeField = antNextHomeField;
+  antNextHomeField = tmpHome;
+}
+
+function depositAntField(field, x, y, amount) {
+  if (amount <= 0) {
+    return;
+  }
+
+  const size = antPheromoneFieldSize;
+  const u = ((x / Math.max(params.worldSizeX, 1)) + 0.5) * (size - 1);
+  const v = ((y / Math.max(params.worldSizeY, 1)) + 0.5) * (size - 1);
+  const ix = THREE.MathUtils.clamp(Math.round(u), 0, size - 1);
+  const iy = THREE.MathUtils.clamp(Math.round(v), 0, size - 1);
+
+  const center = iy * size + ix;
+  field[center] += amount;
+
+  if (ix > 0) {
+    field[center - 1] += amount * 0.35;
+  }
+  if (ix < size - 1) {
+    field[center + 1] += amount * 0.35;
+  }
+  if (iy > 0) {
+    field[center - size] += amount * 0.35;
+  }
+  if (iy < size - 1) {
+    field[center + size] += amount * 0.35;
+  }
+}
+
+function sampleAntField(field, x, y) {
+  const size = antPheromoneFieldSize;
+  const u = ((x / Math.max(params.worldSizeX, 1)) + 0.5) * (size - 1);
+  const v = ((y / Math.max(params.worldSizeY, 1)) + 0.5) * (size - 1);
+  const ix = THREE.MathUtils.clamp(Math.round(u), 0, size - 1);
+  const iy = THREE.MathUtils.clamp(Math.round(v), 0, size - 1);
+  return field[iy * size + ix];
+}
+
+function isNearAnyFoodSource(position, radius) {
+  const radiusSq = radius * radius;
+  for (let i = 0; i < antFoodSources.length; i += 1) {
+    if (position.distanceToSquared(antFoodSources[i]) <= radiusSq) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getClosestFoodSource(position) {
+  let best = antFoodSources[0] || antNest;
+  let bestDistSq = position.distanceToSquared(best);
+
+  for (let i = 1; i < antFoodSources.length; i += 1) {
+    const distanceSq = position.distanceToSquared(antFoodSources[i]);
+    if (distanceSq < bestDistSq) {
+      bestDistSq = distanceSq;
+      best = antFoodSources[i];
+    }
+  }
+
+  return best;
+}
+
+function applyAntBoundaryConditions(ant) {
+  const halfX = params.worldSizeX * 0.5;
+  const halfY = params.worldSizeY * 0.5;
+
+  if (params.boundaryMode === "cyclic") {
+    ant.position.x = wrapAxisLocal(ant.position.x, halfX);
+    ant.position.y = wrapAxisLocal(ant.position.y, halfY);
+    ant.lost = false;
+    return true;
+  }
+
+  const outOfBounds = Math.abs(ant.position.x) > halfX || Math.abs(ant.position.y) > halfY;
+  ant.lost = outOfBounds;
+  return !outOfBounds;
+}
+
+function wrapAxisLocal(value, halfExtent) {
+  const span = halfExtent * 2;
+  if (span <= 0) {
+    return 0;
+  }
+  if (value > halfExtent || value < -halfExtent) {
+    return ((((value + halfExtent) % span) + span) % span) - halfExtent;
+  }
+  return value;
+}
+
+function shortestAngleDelta(value) {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function wrapAngle(value) {
+  return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function updateAntStats(stats) {
+  if (!stats) {
+    return;
+  }
+
+  const antCount = stats.count ?? 0;
+  const carryingCount = stats.carrying ?? 0;
+  const trips = stats.trips ?? 0;
+  const meanPheromone = stats.meanPheromone ?? 0;
+
+  if (dom.antsCountLive) {
+    dom.antsCountLive.textContent = String(antCount);
+  }
+  if (dom.antsCarryingLive) {
+    dom.antsCarryingLive.textContent = String(carryingCount);
+  }
+  if (dom.antsTripsLive) {
+    dom.antsTripsLive.textContent = String(trips);
+  }
+  if (dom.antsPheromoneLive) {
+    dom.antsPheromoneLive.textContent = meanPheromone.toFixed(2);
+  }
+  if (dom.chartAntTripsLive) {
+    dom.chartAntTripsLive.textContent = String(trips);
+  }
+  if (dom.chartAntPheromoneLive) {
+    dom.chartAntPheromoneLive.textContent = meanPheromone.toFixed(2);
+  }
+
+  antChartFrameCounter += 1;
+  if (antChartFrameCounter % 3 === 0) {
+    pushTrendValue(antTripsHistory, trips);
+    pushTrendValue(antPheromoneHistory, meanPheromone);
+    drawTrendCharts();
+  }
+}
+
+function refreshAntWorldGeometry() {
+  antFoodSources = buildAntFoodSources();
+  updateAntPheromonePlaneTransform();
+
+  for (let i = 0; i < ants.length; i += 1) {
+    applyAntBoundaryConditions(ants[i]);
+  }
+
+  if (params.boundaryMode === "lost") {
+    removeLostAnts();
+  }
+
+  syncAntInstances();
 }
 
 function stepSimulation(dt) {
@@ -397,7 +968,7 @@ function stepSimulation(dt) {
   }
 
   syncBoidInstances();
-  updateStats(speedSum, neighborSum);
+  updateBoidStats(speedSum, neighborSum);
 }
 
 function syncBoidInstances() {
@@ -626,12 +1197,6 @@ function updateColormapLegend() {
   dom.colormapCmax.textContent = `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`;
 }
 
-function updateColorControlVisibility() {
-  const useSingleColor = params.colorMode === "none";
-  dom.colormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
-  dom.singleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-}
-
 function rebuildBoundsAndGrid() {
   world.rebuildBoundsAndGrid();
 }
@@ -654,7 +1219,7 @@ function setupControls() {
 
   bindRange("max-speed", "max-speed-value", (value) => {
     params.maxSpeed = value;
-    syncBoidInstances();
+    boidSimulation.syncInstances();
     return `${value.toFixed(1)} m/s`;
   });
 
@@ -693,7 +1258,6 @@ function setupControls() {
   bindRange("world-size-z", "world-size-z-value", (value) => {
     params.worldSizeZ = value;
     rebuildBoundsAndGrid();
-    syncBoidInstances();
     return `${Math.round(value)} m`;
   });
 
@@ -711,38 +1275,110 @@ function setupControls() {
   boidCountInput.addEventListener("input", () => {
     boidCountValue.textContent = boidCountInput.value;
     params.boidCount = Number(boidCountInput.value);
-    spawnBoids(params.boidCount);
+    boidSimulation.setCount(params.boidCount);
+    resetBoidTrendCharts();
     syncCompactSectionSlider("boid-count");
   });
   activateCompactRangeControl("boid-count");
 
-  dom.togglePause.addEventListener("click", () => {
-    params.paused = !params.paused;
-    updateSimulationStateUI();
+  bindRange("ant-speed", "ant-speed-value", (value) => {
+    params.antSpeed = value;
+    return `${value.toFixed(1)} m/s`;
   });
 
-  dom.runState?.addEventListener("click", () => {
+  bindRange("ant-scale", "ant-scale-value", (value) => {
+    params.antScale = value;
+    antSimulation.syncInstances();
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("ant-sensor-distance", "ant-sensor-distance-value", (value) => {
+    params.antSensorDistance = value;
+    return `${value.toFixed(1)} m`;
+  });
+
+  bindRange("ant-sensor-angle", "ant-sensor-angle-value", (value) => {
+    params.antSensorAngle = value;
+    return `${Math.round(value)}°`;
+  });
+
+  bindRange("ant-turn-gain", "ant-turn-gain-value", (value) => {
+    params.antTurnGain = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("ant-goal-bias", "ant-goal-bias-value", (value) => {
+    params.antGoalBias = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("ant-deposit-rate", "ant-deposit-rate-value", (value) => {
+    params.antDepositRate = value;
+    return value.toFixed(1);
+  });
+
+  bindRange("ant-diffusion-rate", "ant-diffusion-rate-value", (value) => {
+    params.antDiffusionRate = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("ant-evap-rate", "ant-evap-rate-value", (value) => {
+    params.antEvapRate = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("ant-food-add-mass", "ant-food-add-mass-value", (value) => {
+    params.antFoodAddMassUg = value;
+    return `${Math.round(value)} ug`;
+  });
+
+  const antCountInput = document.getElementById("ant-count");
+  const antCountValue = document.getElementById("ant-count-value");
+  if (antCountInput && antCountValue) {
+    registerCompactRangeControl(antCountInput, antCountValue);
+    antCountInput.addEventListener("input", () => {
+      antCountValue.textContent = antCountInput.value;
+      params.antCount = Number(antCountInput.value);
+      antSimulation.setCount(params.antCount);
+      resetAntTrendCharts();
+      syncCompactSectionSlider("ant-count");
+    });
+    activateCompactRangeControl("ant-count");
+  }
+
+  const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
-  });
+  };
+
+  dom.togglePause.addEventListener("click", toggleCurrentSimulationPause);
+  dom.toggleAntPause?.addEventListener("click", toggleCurrentSimulationPause);
+  dom.runState?.addEventListener("click", toggleCurrentSimulationPause);
 
   dom.appletTabs?.forEach((tab) => {
     tab.addEventListener("click", () => {
       const mode = tab.getAttribute("data-applet-item");
-      if (mode !== "boid") {
+      if (!mode) {
         return;
       }
-
-      dom.appletTabs.forEach((item) => {
-        const active = item === tab;
-        item.classList.toggle("is-active", active);
-        item.setAttribute("aria-selected", String(active));
-      });
+      applyAppletMode(mode, { updateUrl: true, replaceHistory: false });
     });
   });
 
   dom.resetSim.addEventListener("click", () => {
-    spawnBoids(params.boidCount);
+    if (activeApplet !== "boid") {
+      return;
+    }
+    boidSimulation.reset();
+    resetBoidTrendCharts();
+  });
+
+  dom.resetAntSim?.addEventListener("click", () => {
+    if (activeApplet !== "ants") {
+      return;
+    }
+    antSimulation.reset();
+    resetAntTrendCharts();
   });
 
   dom.showBounds.addEventListener("change", () => {
@@ -757,42 +1393,7 @@ function setupControls() {
 
   dom.boundaryMode.addEventListener("change", () => {
     params.boundaryMode = dom.boundaryMode.value;
-
-    for (let i = 0; i < boids.length; i += 1) {
-      applyBoundaryConditions(boids[i]);
-    }
-
-    if (params.boundaryMode === "lost") {
-      removeLostBoids();
-    }
-
-    let speedSum = 0;
-    let neighborSum = 0;
-    for (let i = 0; i < boids.length; i += 1) {
-      speedSum += boids[i].velocity.length();
-      neighborSum += boids[i].neighbors;
-    }
-
-    syncBoidInstances();
-    updateStats(speedSum, neighborSum);
-  });
-
-  dom.colorMode.addEventListener("change", () => {
-    params.colorMode = dom.colorMode.value;
-    updateColorControlVisibility();
-    syncBoidInstances();
-    updateColormapLegend();
-  });
-
-  dom.colormap.addEventListener("change", () => {
-    params.colormap = dom.colormap.value;
-    syncBoidInstances();
-    updateColormapLegend();
-  });
-
-  dom.solidColor?.addEventListener("input", () => {
-    params.solidColor = dom.solidColor.value;
-    syncBoidInstances();
+    simulationManager.onBoundaryModeChanged();
   });
 
   if (dom.cameraProjectionToggle) {
@@ -841,17 +1442,156 @@ function setupControls() {
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
   dom.boundaryMode.value = params.boundaryMode;
-  dom.colorMode.value = params.colorMode;
-  dom.colormap.value = params.colormap;
-  if (dom.solidColor) {
-    dom.solidColor.value = params.solidColor;
+  if (dom.antFoodPlacementEnabled) {
+    dom.antFoodPlacementEnabled.checked = params.antFoodPlacementEnabled;
+    dom.antFoodPlacementEnabled.addEventListener("change", () => {
+      params.antFoodPlacementEnabled = dom.antFoodPlacementEnabled.checked;
+    });
   }
-  updateColorControlVisibility();
-  updateColormapLegend();
+
+  const visualControls = createVisualControls({
+    params,
+    dom,
+    boidSimulation,
+    antSimulation,
+    updateBoidColormapLegend: updateColormapLegend,
+  });
+  visualControls.bind();
+  visualControls.syncFromParams();
+
   updateSimulationStateUI();
   updateProjectionToggleUI();
 
   switchToPerspective();
+}
+
+function setupAppRouting() {
+  const initial = getAppletFromUrl();
+  applyAppletMode(initial, { updateUrl: true, replaceHistory: true });
+
+  window.addEventListener("popstate", () => {
+    applyAppletMode(getAppletFromUrl(), { updateUrl: false, replaceHistory: true });
+  });
+}
+
+function normalizeAppletId(value) {
+  if (typeof value !== "string") {
+    return "boid";
+  }
+
+  const normalized = value.toLowerCase().trim();
+  return APPLET_IDS.has(normalized) ? normalized : "boid";
+}
+
+function getAppletFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    return normalizeAppletId(url.searchParams.get("app"));
+  } catch (error) {
+    return "boid";
+  }
+}
+
+function setAppletInUrl(appletId, replaceHistory) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("app", appletId);
+  const historyMethod = replaceHistory ? "replaceState" : "pushState";
+  window.history[historyMethod]?.({ app: appletId }, "", url);
+}
+
+function applyDefaultProjectionForApplet(appletId) {
+  if (appletProjectionInitialized[appletId]) {
+    return;
+  }
+
+  if (appletId === "ants") {
+    params.projectionMode = "orthographic";
+    switchToOrthographicTop();
+  } else {
+    params.projectionMode = "perspective";
+    switchToPerspective();
+  }
+
+  appletProjectionInitialized[appletId] = true;
+  updateProjectionToggleUI();
+}
+
+function applyAppletVisibility(appletId) {
+  dom.appVisibleElements?.forEach((element) => {
+    const visibleValue = element.getAttribute("data-app-visible");
+    const visibleOnApps = visibleValue
+      ? visibleValue
+          .split(/[,\s]+/)
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+    const isVisible = visibleOnApps.includes(appletId);
+    element.classList.toggle("is-hidden", !isVisible);
+  });
+
+  refreshVisibleSectionDividers();
+}
+
+function refreshVisibleSectionDividers() {
+  const panels = [dom.leftPanel, dom.rightPanel];
+
+  panels.forEach((panel) => {
+    if (!panel) {
+      return;
+    }
+
+    const sections = panel.querySelectorAll("[data-control-section]");
+    let firstVisibleFound = false;
+
+    sections.forEach((section) => {
+      const hidden = section.classList.contains("is-hidden");
+      const isFirstVisible = !hidden && !firstVisibleFound;
+      section.classList.toggle("is-first-visible", isFirstVisible);
+      if (isFirstVisible) {
+        firstVisibleFound = true;
+      }
+    });
+  });
+}
+
+function applySceneObjectVisibility(appletId) {
+  simulationManager.setActive(appletId);
+}
+
+function applyAppletMode(appletId, options = {}) {
+  const normalizedId = normalizeAppletId(appletId);
+  const { updateUrl = false, replaceHistory = false } = options;
+
+  activeApplet = normalizedId;
+
+  dom.appletTabs?.forEach((tab) => {
+    const tabApplet = tab.getAttribute("data-applet-item");
+    const isActive = tabApplet === normalizedId;
+    tab.classList.toggle("is-active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  });
+
+  applyAppletVisibility(normalizedId);
+  applySceneObjectVisibility(normalizedId);
+  applyDefaultProjectionForApplet(normalizedId);
+
+  if (normalizedId === "boid") {
+    antsPausedPreference = params.paused;
+    params.paused = boidPausedPreference;
+    updateBoidStats(lastBoidStats);
+  } else {
+    boidPausedPreference = params.paused;
+    params.paused = antsPausedPreference;
+    updateAntStats(lastAntStats);
+  }
+
+  updateSimulationStateUI();
+  updateViewportLabel();
+  handleViewportResize();
+
+  if (updateUrl) {
+    setAppletInUrl(normalizedId, replaceHistory);
+  }
 }
 
 function updateProjectionToggleUI() {
@@ -874,16 +1614,24 @@ function updateProjectionToggleUI() {
 function updateSimulationStateUI() {
   if (params.paused) {
     dom.togglePause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
+    if (dom.toggleAntPause) {
+      dom.toggleAntPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
+    }
     dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i><span>Paused</span>';
     dom.runState.setAttribute("title", "Resume simulation");
     dom.runState.setAttribute("aria-pressed", "true");
+    dom.runState.disabled = false;
     return;
   }
 
   dom.togglePause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
+  if (dom.toggleAntPause) {
+    dom.toggleAntPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
+  }
   dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i><span>Running</span>';
   dom.runState.setAttribute("title", "Pause simulation");
   dom.runState.setAttribute("aria-pressed", "false");
+  dom.runState.disabled = false;
 }
 
 function setupThemeToggle() {
@@ -900,7 +1648,7 @@ function setupThemeToggle() {
 
 function applySceneTheme(theme) {
   world.applyTheme(theme);
-  boidMaterial.specular.set(theme === "light" ? 0x2c2c2c : 0x1c1c1c);
+  simulationManager.applyTheme(theme);
 }
 
 function setupPanelToggles() {
@@ -1084,6 +1832,73 @@ function setupControlsInfoPopup() {
   });
 }
 
+function setupAboutPopup() {
+  if (!dom.aboutInfoOpen || !dom.aboutInfoBackdrop || !dom.aboutInfoClose) {
+    return;
+  }
+
+  const openPopup = () => {
+    dom.aboutInfoBackdrop.classList.remove("is-hidden");
+    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "false");
+  };
+
+  const closePopup = () => {
+    dom.aboutInfoBackdrop.classList.add("is-hidden");
+    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "true");
+  };
+
+  dom.aboutInfoOpen.addEventListener("click", openPopup);
+  dom.aboutInfoClose.addEventListener("click", closePopup);
+
+  dom.aboutInfoBackdrop.addEventListener("click", (event) => {
+    if (event.target === dom.aboutInfoBackdrop) {
+      closePopup();
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !dom.aboutInfoBackdrop.classList.contains("is-hidden")) {
+      closePopup();
+    }
+  });
+}
+
+function setupAntFoodPlacementInteraction() {
+  const canvas = renderer?.domElement;
+  if (!canvas) {
+    return;
+  }
+
+  canvas.addEventListener("dblclick", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    if (activeApplet !== "ants" || !params.antFoodPlacementEnabled) {
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) {
+      return;
+    }
+
+    antFoodPointerNdc.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+
+    antFoodRaycaster.setFromCamera(antFoodPointerNdc, cameraController.getActiveCamera());
+    const floorZ = -params.worldSizeZ * 0.5 + 0.06;
+    antFoodPlane.constant = -floorZ;
+    const hitPoint = new THREE.Vector3();
+    if (!antFoodRaycaster.ray.intersectPlane(antFoodPlane, hitPoint)) {
+      return;
+    }
+
+    antSimulation.addFoodAt(hitPoint.x, hitPoint.y, params.antFoodAddMassUg);
+  });
+}
+
 function handleViewportResize() {
   resizeRenderer();
   resizeTrendCharts();
@@ -1091,7 +1906,8 @@ function handleViewportResize() {
 
 function setupTrendCharts() {
   resizeTrendCharts();
-  resetTrendCharts();
+  resetBoidTrendCharts();
+  resetAntTrendCharts();
 }
 
 function setupChartCollapses() {
@@ -1113,11 +1929,18 @@ function setupChartCollapses() {
   });
 }
 
-function resetTrendCharts() {
+function resetBoidTrendCharts() {
   countHistory.length = 0;
   speedHistory.length = 0;
   neighborHistory.length = 0;
-  chartFrameCounter = 0;
+  boidChartFrameCounter = 0;
+  drawTrendCharts();
+}
+
+function resetAntTrendCharts() {
+  antTripsHistory.length = 0;
+  antPheromoneHistory.length = 0;
+  antChartFrameCounter = 0;
   drawTrendCharts();
 }
 
@@ -1125,6 +1948,8 @@ function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartCount);
   resizeCanvasBackingStore(dom.chartSpeed);
   resizeCanvasBackingStore(dom.chartNeighbors);
+  resizeCanvasBackingStore(dom.chartAntTrips);
+  resizeCanvasBackingStore(dom.chartAntPheromone);
   drawTrendCharts();
 }
 
@@ -1165,6 +1990,20 @@ function drawTrendCharts() {
     fill: "rgba(90, 164, 255, 0.14)",
     axisLabel: "count",
     tickFormatter: (value) => (value >= 10 ? value.toFixed(0) : value.toFixed(1)),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartAntTrips, antTripsHistory, {
+    stroke: "#f1b55b",
+    fill: "rgba(241, 181, 91, 0.18)",
+    axisLabel: "trips",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartAntPheromone, antPheromoneHistory, {
+    stroke: "#79d2ff",
+    fill: "rgba(121, 210, 255, 0.18)",
+    axisLabel: "a.u.",
+    tickFormatter: (value) => value.toFixed(2),
     forceZeroMin: true,
   });
 }
@@ -1419,6 +2258,14 @@ function registerCompactRangeControl(inputRef, outputRef) {
   const labelEl = section.querySelector(`label[for="${input.id}"]`);
   const labelNameEl = labelEl?.querySelector(".label-name");
   const labelText = labelNameEl ? labelNameEl.textContent.trim() : input.id;
+  let labelTitleNode = null;
+  if (labelNameEl) {
+    const labelClone = labelNameEl.cloneNode(true);
+    labelClone.querySelectorAll("i").forEach((iconEl) => iconEl.remove());
+    // Avoid inheriting the flex label layout in compact header text.
+    labelClone.classList.remove("label-name");
+    labelTitleNode = labelClone;
+  }
 
   compactRangeRegistry.set(input.id, {
     input,
@@ -1426,6 +2273,7 @@ function registerCompactRangeControl(inputRef, outputRef) {
     sectionKey,
     labelEl,
     labelText,
+    labelTitleNode,
   });
 
   input.classList.add("compact-source-slider");
@@ -1468,7 +2316,11 @@ function activateCompactRangeControl(inputId) {
   }
 
   sectionState.activeInputId = inputId;
-  sectionState.title.textContent = binding.labelText;
+  if (binding.labelTitleNode) {
+    sectionState.title.replaceChildren(binding.labelTitleNode.cloneNode(true));
+  } else {
+    sectionState.title.textContent = binding.labelText;
+  }
   sectionState.slider.min = binding.input.min;
   sectionState.slider.max = binding.input.max;
   sectionState.slider.step = binding.input.step || "1";
@@ -1544,18 +2396,25 @@ function updateViewportLabel() {
 
   const width = Math.max(1, Math.floor(dom.sceneHost.clientWidth));
   const height = Math.max(1, Math.floor(dom.sceneHost.clientHeight));
+  const appLabel = activeApplet === "ants" ? "Ant Trails" : "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
 
-  dom.frameSize.textContent = `Viewport: ${width} x ${height} | ${projectionLabel}`;
+  dom.frameSize.textContent = `Viewport: ${width} x ${height} | ${appLabel} | ${projectionLabel}`;
 }
 
 function updateCameraTelemetry() {
   cameraController.updateTelemetry();
 }
 
-function updateStats(speedSum, neighborSum) {
-  const boidCount = boids.length;
+function updateBoidStats(stats) {
+  if (!stats) {
+    return;
+  }
+
+  const boidCount = stats.count ?? 0;
+  const speedSum = stats.speedSum ?? 0;
+  const neighborSum = stats.neighborSum ?? 0;
   const avgSpeed = boidCount > 0 ? speedSum / boidCount : 0;
   const avgNeighbors = boidCount > 0 ? neighborSum / boidCount : 0;
 
@@ -1569,8 +2428,8 @@ function updateStats(speedSum, neighborSum) {
     dom.chartNeighborsLive.textContent = avgNeighbors.toFixed(2);
   }
 
-  chartFrameCounter += 1;
-  if (chartFrameCounter % 3 === 0) {
+  boidChartFrameCounter += 1;
+  if (boidChartFrameCounter % 3 === 0) {
     pushTrendValue(countHistory, boidCount);
     pushTrendValue(speedHistory, avgSpeed);
     pushTrendValue(neighborHistory, avgNeighbors);
