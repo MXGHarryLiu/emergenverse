@@ -20,6 +20,11 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+      crossorigin="anonymous"
+    />
     <link rel="stylesheet" href="./styles.css" />
     <script type="importmap">
       {
@@ -45,8 +50,10 @@
             <i class="bi bi-circle-half" id="theme-toggle-icon" aria-hidden="true"></i>
             <span id="theme-toggle-label">Auto</span>
           </button>
-          <span class="chip">Boids</span>
-          <span class="chip">3D</span>
+          <button class="chip chip-button" id="controls-info-open" type="button" title="Controls info">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <span>Controls</span>
+          </button>
           <span class="chip status-chip" id="run-state">
             <i class="bi bi-play-fill state-icon" aria-hidden="true"></i>
             <span>Running</span>
@@ -68,22 +75,42 @@
             </button>
           </div>
           <p class="panel-copy">
-            Classic boids in 3D with metric units (m, m/s, m/s²). The default boundary mode is cyclic wrapping.
+            This applet implements the 3D Reynolds flocking model as a discrete-time multi-agent system in SI units.
+            Each boid state is position <em>x</em><sub>i</sub> (m) and velocity <em>v</em><sub>i</sub> (m/s), advanced
+            by steering acceleration with bounded speed and acceleration.
           </p>
 
+          <div class="model-box mt-3">
+            <h3 class="tips-title">Model Equations</h3>
+            <div class="math-block">
+              <div class="math-line">$$\mathbf{x}_i(t+\Delta t)=\mathbf{x}_i(t)+\mathbf{v}_i(t)\,\Delta t$$</div>
+              <div class="math-line">$$\mathbf{v}_i(t+\Delta t)=\mathrm{clip}\!\left(\mathbf{v}_i(t)+\mathbf{a}_i(t)\,\Delta t\right)$$</div>
+              <div class="math-line">$$v_{\min}\le \|\mathbf{v}_i\|\le v_{\max}$$</div>
+              <div class="math-line">$$\mathbf{a}_i=w_{a}\mathbf{a}_{\mathrm{align}}+w_{c}\mathbf{a}_{\mathrm{cohesion}}+w_{s}\mathbf{a}_{\mathrm{separation}}$$</div>
+              <div class="math-line">$$\|\mathbf{a}_i\|\le a_{\max}$$</div>
+            </div>
+          </div>
+
           <div class="tips-box mt-4">
-            <h3 class="tips-title">How To Read It</h3>
+            <h3 class="tips-title">Parameter Mapping</h3>
             <ul class="tips-list">
-              <li>Hold left-drag to rotate and right-drag to translate camera (scroll zoom is disabled).</li>
-              <li>Set a color mode to map speed/altitude/neighbors/heading to cone color.</li>
-              <li>Turn off camera lock, then use ASDQWE for camera-relative XYZ translation.</li>
-              <li>Use ArrowLeft/ArrowRight for yaw, ArrowUp/ArrowDown for pitch, and [ ] for roll (spaceship style).</li>
+              <li><strong>Perception Radius</strong> controls which neighbors contribute to alignment/cohesion.</li>
+              <li><strong>Separation Distance</strong> controls near-field repulsion.</li>
+              <li><strong>Alignment / Cohesion / Separation Weight</strong> map to w<sub>a</sub>, w<sub>c</sub>, w<sub>s</sub> in the steering equation.</li>
             </ul>
           </div>
         </section>
 
         <section class="left-panel-bottom mt-4">
-          <h2 class="panel-title mb-3">Stats & Charts</h2>
+          <h2 class="panel-title mb-3">Stats</h2>
+          <div class="stat-grid mb-3">
+            <div class="stat-card">
+              <div class="stat-inline">
+                <span class="stat-inline-label">FPS</span>
+                <span class="stat-inline-value" id="fps-live">--</span>
+              </div>
+            </div>
+          </div>
           <div class="chart-stack mt-3">
             <div class="chart-card" data-chart-card>
               <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle count chart">
@@ -112,6 +139,13 @@
           </div>
         </section>
       </aside>
+      <div
+        class="panel-resizer panel-resizer-left"
+        id="left-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize left panel"
+      ></div>
 
       <section class="viewport-panel">
         <button class="panel-reveal panel-reveal-left is-hidden" id="show-left-panel" type="button" aria-label="Show left panel">
@@ -123,6 +157,13 @@
         <div id="scene-host" aria-label="3D boid simulation viewport"></div>
         <div class="overlay-corner" id="frame-size">Viewport: -- x --</div>
       </section>
+      <div
+        class="panel-resizer panel-resizer-right"
+        id="right-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize right panel"
+      ></div>
 
       <aside id="right-panel" class="panel right-panel">
         <div class="sidebar-head">
@@ -232,29 +273,48 @@
           </select>
 
           <label class="form-label mt-3" for="color-mode">
-            <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Cone Color Mode</span>
+            <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
           </label>
           <select class="form-select form-select-sm theme-select" id="color-mode">
+            <option value="none">None (single color)</option>
             <option value="speed" selected>Speed (m/s)</option>
             <option value="altitude">Altitude (z, m)</option>
             <option value="neighbors">Neighbor Count</option>
             <option value="heading">Heading (z component)</option>
-            <option value="solid">Solid Color</option>
           </select>
 
-          <div class="d-flex align-items-center gap-2 mt-2">
-            <div class="w-100">
-              <label class="form-label mb-1" for="color-low">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color A</span>
-              </label>
-              <input class="form-control form-control-color theme-color-input" type="color" id="color-low" value="#4cd3b6" />
+          <label class="form-label mt-2" for="color-tint">
+            <span class="label-name"><i class="bi bi-droplet-half" aria-hidden="true"></i>Color Tint</span>
+          </label>
+          <input type="color" class="form-control form-control-color theme-color-input" id="color-tint" value="#ffffff" />
+
+          <div id="colormap-control-wrap">
+            <label class="form-label mt-2" for="colormap">
+              <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+            </label>
+            <select class="form-select form-select-sm theme-select" id="colormap">
+              <option value="turbo" selected>Turbo</option>
+              <option value="viridis">Viridis</option>
+              <option value="plasma">Plasma</option>
+              <option value="magma">Magma</option>
+              <option value="inferno">Inferno</option>
+              <option value="cividis">Cividis</option>
+              <option value="coolwarm">Coolwarm</option>
+              <option value="greys">Greys</option>
+            </select>
+            <div class="colormap-legend mt-2" id="colormap-legend" aria-label="Colormap legend">
+              <div class="colormap-legend-bar" id="colormap-legend-bar"></div>
+              <div class="colormap-legend-meta">
+                <span id="colormap-cmin">cmin: 0.0 m/s</span>
+                <span id="colormap-cmax">cmax: 8.0 m/s</span>
+              </div>
             </div>
-            <div class="w-100">
-              <label class="form-label mb-1" for="color-high">
-                <span class="label-name"><i class="bi bi-brush-fill" aria-hidden="true"></i>Color B</span>
-              </label>
-              <input class="form-control form-control-color theme-color-input" type="color" id="color-high" value="#5aa4ff" />
-            </div>
+          </div>
+          <div id="single-color-wrap" class="is-hidden">
+            <label class="form-label mt-2" for="solid-color">
+              <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
+            </label>
+            <input type="color" class="form-control form-control-color theme-color-input" id="solid-color" value="#4cd3b6" />
           </div>
 
           <div class="d-flex gap-2 mt-3">
@@ -283,34 +343,38 @@
           </button>
 
           <div class="control-section-body">
-          <label class="form-label" for="camera-distance">
-            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Distance</span>
-            <span class="label-value" id="camera-distance-value">185 m</span>
-          </label>
-          <input class="form-range" type="range" id="camera-distance" min="40" max="420" step="1" value="185" />
-
-          <label class="form-label" for="camera-height">
-            <span class="label-name"><i class="bi bi-arrows-move" aria-hidden="true"></i>Height (Z)</span>
-            <span class="label-value" id="camera-height-value">80 m</span>
-          </label>
-          <input class="form-range" type="range" id="camera-height" min="-80" max="260" step="1" value="80" />
+          <div class="camera-dof-grid mt-1" aria-label="Camera 6-DOF telemetry">
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">X</div>
+              <div class="camera-dof-value" id="camera-pos-x">0.0 m</div>
+            </div>
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">Y</div>
+              <div class="camera-dof-value" id="camera-pos-y">0.0 m</div>
+            </div>
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">Z</div>
+              <div class="camera-dof-value" id="camera-pos-z">0.0 m</div>
+            </div>
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">Roll</div>
+              <div class="camera-dof-value" id="camera-roll">0.0°</div>
+            </div>
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">Pitch</div>
+              <div class="camera-dof-value" id="camera-pitch">0.0°</div>
+            </div>
+            <div class="camera-dof-card">
+              <div class="camera-dof-name">Yaw</div>
+              <div class="camera-dof-value" id="camera-yaw">0.0°</div>
+            </div>
+          </div>
 
           <label class="form-label" for="camera-fov">
             <span class="label-name"><i class="bi bi-camera" aria-hidden="true"></i>FOV</span>
             <span class="label-value" id="camera-fov-value">50°</span>
           </label>
           <input class="form-range" type="range" id="camera-fov" min="20" max="90" step="1" value="50" />
-
-          <label class="form-label" for="auto-rotate-speed">
-            <span class="label-name"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Auto Rotate Speed</span>
-            <span class="label-value" id="auto-rotate-speed-value">0.35</span>
-          </label>
-          <input class="form-range" type="range" id="auto-rotate-speed" min="0" max="3" step="0.05" value="0.35" />
-
-          <div class="form-check form-switch mt-2">
-            <input class="form-check-input" type="checkbox" role="switch" id="auto-rotate" />
-            <label class="form-check-label" for="auto-rotate">Auto Rotate</label>
-          </div>
 
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" role="switch" id="show-bounds" checked />
@@ -322,18 +386,67 @@
             <label class="form-check-label" for="camera-locked">Camera Lock</label>
           </div>
 
-          <div class="d-flex gap-2 mt-3">
-            <button class="btn btn-sm btn-outline-theme flex-fill" id="camera-top-ortho">Top Orthographic (Z+)</button>
-            <button class="btn btn-sm btn-outline-theme flex-fill" id="camera-perspective">Perspective</button>
-          </div>
+          <button class="btn btn-sm btn-outline-theme w-100 mt-3" id="camera-projection-toggle">
+            <i class="bi bi-bounding-box-circles me-1" aria-hidden="true"></i>
+            <span>Top Orthographic (Z+)</span>
+          </button>
 
-          <button class="btn btn-sm btn-outline-theme w-100 mt-3" id="reset-camera">Reset Camera</button>
-          <p class="control-note mt-2 mb-0">6-DOF keys while camera lock is off: ASDQWE translate, ArrowLeft/ArrowRight yaw, ArrowUp/ArrowDown pitch, [ ] roll, Shift boost.</p>
+          <div class="d-flex gap-2 mt-2">
+            <button class="btn btn-sm btn-outline-theme flex-fill" id="reset-camera">
+              <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>
+              <span>Reset</span>
+            </button>
+            <button class="btn btn-sm btn-outline-theme flex-fill" id="home-camera">
+              <i class="bi bi-house-door me-1" aria-hidden="true"></i>
+              <span>Home</span>
+            </button>
+          </div>
           </div>
         </div>
       </aside>
     </main>
 
+    <div class="controls-modal-backdrop is-hidden" id="controls-info-backdrop" aria-hidden="true">
+      <section class="controls-modal" role="dialog" aria-modal="true" aria-labelledby="controls-info-title">
+        <header class="controls-modal-head">
+          <h2 class="panel-title controls-modal-title" id="controls-info-title">
+            <i class="bi bi-joystick panel-head-icon" aria-hidden="true"></i>
+            <span>Key And Mouse Controls</span>
+          </h2>
+          <button class="icon-btn" id="controls-info-close" type="button" aria-label="Close controls info">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="controls-modal-body">
+          <p class="controls-modal-subtitle">6-DOF camera control (when camera lock is off)</p>
+          <ul class="controls-list">
+            <li><strong>Translate</strong>: `A/S/D/Q/W/E` for camera-relative XYZ translation</li>
+            <li><strong>Yaw</strong>: `ArrowLeft` / `ArrowRight`</li>
+            <li><strong>Pitch</strong>: `ArrowUp` / `ArrowDown`</li>
+            <li><strong>Roll</strong>: `[` / `]`</li>
+            <li><strong>Boost</strong>: Hold `Shift`</li>
+          </ul>
+          <p class="controls-modal-subtitle mt-3">Mouse control</p>
+          <ul class="controls-list">
+            <li><strong>Rotate camera angles</strong>: Hold left mouse and drag</li>
+            <li><strong>Translate camera</strong>: Hold right mouse and drag</li>
+            <li><strong>Scroll zoom</strong>: Disabled for now</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+      crossorigin="anonymous"
+      onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}],throwOnError:false});"
+    ></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

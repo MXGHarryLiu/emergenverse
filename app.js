@@ -1,5 +1,7 @@
-﻿import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import * as THREE from "three";
+import { createCameraController } from "./camera.js";
+import { createThemeManager } from "./theme.js";
+import { createWorldManager } from "./world.js";
 
 const params = {
   boidCount: 220,
@@ -17,13 +19,12 @@ const params = {
   worldSizeZ: 120,
   boundaryMode: "cyclic",
   colorMode: "speed",
-  colorLow: "#4cd3b6",
-  colorHigh: "#5aa4ff",
+  colormap: "turbo",
+  solidColor: "#4cd3b6",
+  colorTint: "#ffffff",
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
-  autoRotate: false,
-  autoRotateSpeed: 0.35,
   showBounds: true,
   cameraLocked: false,
   projectionMode: "perspective",
@@ -35,8 +36,6 @@ const cameraDefaults = {
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
-  autoRotate: false,
-  autoRotateSpeed: 0.35,
   cameraLocked: false,
   projectionMode: "perspective",
 };
@@ -49,11 +48,14 @@ const dom = {
   hideRightPanel: document.getElementById("hide-right-panel"),
   showLeftPanel: document.getElementById("show-left-panel"),
   showRightPanel: document.getElementById("show-right-panel"),
+  leftResizer: document.getElementById("left-resizer"),
+  rightResizer: document.getElementById("right-resizer"),
   sceneHost: document.getElementById("scene-host"),
   frameSize: document.getElementById("frame-size"),
   chartCount: document.getElementById("chart-count"),
   chartSpeed: document.getElementById("chart-speed"),
   chartNeighbors: document.getElementById("chart-neighbors"),
+  fpsLive: document.getElementById("fps-live"),
   chartCountLive: document.getElementById("chart-count-live"),
   chartSpeedLive: document.getElementById("chart-speed-live"),
   chartNeighborsLive: document.getElementById("chart-neighbors-live"),
@@ -62,19 +64,34 @@ const dom = {
   togglePause: document.getElementById("toggle-pause"),
   resetSim: document.getElementById("reset-sim"),
   resetCamera: document.getElementById("reset-camera"),
-  autoRotate: document.getElementById("auto-rotate"),
+  homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
   colorMode: document.getElementById("color-mode"),
-  colorLow: document.getElementById("color-low"),
-  colorHigh: document.getElementById("color-high"),
-  cameraTopOrtho: document.getElementById("camera-top-ortho"),
-  cameraPerspective: document.getElementById("camera-perspective"),
+  colormap: document.getElementById("colormap"),
+  colorTint: document.getElementById("color-tint"),
+  solidColor: document.getElementById("solid-color"),
+  colormapControlWrap: document.getElementById("colormap-control-wrap"),
+  singleColorWrap: document.getElementById("single-color-wrap"),
+  colormapLegend: document.getElementById("colormap-legend"),
+  colormapLegendBar: document.getElementById("colormap-legend-bar"),
+  colormapCmin: document.getElementById("colormap-cmin"),
+  colormapCmax: document.getElementById("colormap-cmax"),
+  cameraProjectionToggle: document.getElementById("camera-projection-toggle"),
   themeToggle: document.getElementById("theme-toggle"),
   themeToggleLabel: document.getElementById("theme-toggle-label"),
   themeToggleIcon: document.getElementById("theme-toggle-icon"),
+  controlsInfoOpen: document.getElementById("controls-info-open"),
+  controlsInfoClose: document.getElementById("controls-info-close"),
+  controlsInfoBackdrop: document.getElementById("controls-info-backdrop"),
   controlSectionToggles: document.querySelectorAll("[data-control-toggle]"),
+  cameraPosX: document.getElementById("camera-pos-x"),
+  cameraPosY: document.getElementById("camera-pos-y"),
+  cameraPosZ: document.getElementById("camera-pos-z"),
+  cameraRoll: document.getElementById("camera-roll"),
+  cameraPitch: document.getElementById("camera-pitch"),
+  cameraYaw: document.getElementById("camera-yaw"),
 };
 
 const uiState = {
@@ -82,15 +99,12 @@ const uiState = {
   rightPanelVisible: true,
 };
 
-const themeModes = ["auto", "dark", "light"];
-const prefersDarkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-let themeMode = loadThemeMode();
+const panelWidthState = {
+  left: 270,
+  right: 320,
+};
 
-const worldUp = new THREE.Vector3(0, 0, 1);
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x030713);
-scene.fog = new THREE.FogExp2(0x050a17, 0.0022);
+let themeManager = null;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -98,53 +112,35 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.domElement.setAttribute("aria-label", "3D boids simulation canvas");
 dom.sceneHost.appendChild(renderer.domElement);
 
-const perspectiveCamera = new THREE.PerspectiveCamera(params.cameraFov, 1, 0.1, 3000);
-perspectiveCamera.up.copy(worldUp);
+const cameraController = createCameraController({
+  sceneHost: renderer.domElement,
+  params,
+  telemetry: {
+    x: dom.cameraPosX,
+    y: dom.cameraPosY,
+    z: dom.cameraPosZ,
+    roll: dom.cameraRoll,
+    pitch: dom.cameraPitch,
+    yaw: dom.cameraYaw,
+  },
+});
 
-const orthographicCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 3000);
-orthographicCamera.up.set(0, 1, 0);
-
-let activeCamera = perspectiveCamera;
-
-const controls = new OrbitControls(activeCamera, renderer.domElement);
-controls.target.set(0, 0, 0);
-controls.enableDamping = true;
-controls.dampingFactor = 0.07;
-controls.minDistance = 20;
-controls.maxDistance = 1200;
-controls.autoRotateSpeed = params.autoRotateSpeed;
-controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-controls.mouseButtons.MIDDLE = THREE.MOUSE.NONE;
-controls.enableZoom = false;
-controls.mouseButtons.WHEEL = THREE.MOUSE.NONE;
-
-const ambientLight = new THREE.AmbientLight(0x9cb7eb, 1.15);
-scene.add(ambientLight);
-
-const keyLight = new THREE.DirectionalLight(0xbef5ff, 1.1);
-keyLight.position.set(70, -70, 130);
-scene.add(keyLight);
-
-const fillLight = new THREE.DirectionalLight(0x53d7ba, 0.72);
-fillLight.position.set(-80, 95, -55);
-scene.add(fillLight);
-
-const starField = buildStarField(900, 680);
-scene.add(starField);
-
-let boundsLines = null;
-let floorGrid = null;
+const perspectiveCamera = cameraController.perspectiveCamera;
+const orthographicCamera = cameraController.orthographicCamera;
+const controls = cameraController.controls;
+const onKeyDown = cameraController.onKeyDown;
+const onKeyUp = cameraController.onKeyUp;
 
 const boidGeometry = new THREE.ConeGeometry(0.7, 2.6, 10);
 boidGeometry.rotateX(Math.PI / 2);
 const boidMaterial = new THREE.MeshStandardMaterial({
-  color: 0xeafffa,
-  emissive: 0x1b6d62,
-  emissiveIntensity: 0.95,
-  roughness: 0.26,
-  metalness: 0.06,
-  flatShading: true,
+  color: 0xffffff,
+  emissive: 0x202020,
+  emissiveIntensity: 0.5,
+  roughness: 0.72,
+  metalness: 0.0,
+  flatShading: false,
+  side: THREE.DoubleSide,
   vertexColors: true,
 });
 
@@ -153,45 +149,47 @@ let boidMesh = null;
 const tempObject = new THREE.Object3D();
 const forwardVector = new THREE.Vector3(0, 0, 1);
 
+const world = createWorldManager({
+  params,
+  getBoids: () => boids,
+  onWorldGeometryChanged: () => updateOrthographicCamera(false),
+});
+const scene = world.scene;
+
 const separationDelta = new THREE.Vector3();
 const alignment = new THREE.Vector3();
 const cohesion = new THREE.Vector3();
 const separation = new THREE.Vector3();
 const velocityDir = new THREE.Vector3();
 
-const forwardMove = new THREE.Vector3();
-const rightMove = new THREE.Vector3();
-const upMove = new THREE.Vector3();
-const moveDelta = new THREE.Vector3();
-const lookOffset = new THREE.Vector3();
-const rotationQuat = new THREE.Quaternion();
-
-const lowColor = new THREE.Color(params.colorLow);
-const highColor = new THREE.Color(params.colorHigh);
 const instanceColor = new THREE.Color();
+const colormapLerpA = new THREE.Color();
+const colormapLerpB = new THREE.Color();
+const solidColorValue = new THREE.Color(params.solidColor);
+const tintColorValue = new THREE.Color(params.colorTint);
+const pureRedDebug = new THREE.Color(1, 0, 0);
 
-const keyState = {
-  KeyA: false,
-  KeyS: false,
-  KeyD: false,
-  KeyQ: false,
-  KeyW: false,
-  KeyE: false,
-  ArrowLeft: false,
-  ArrowRight: false,
-  ArrowUp: false,
-  ArrowDown: false,
-  BracketLeft: false,
-  BracketRight: false,
-  ShiftLeft: false,
-  ShiftRight: false,
+const colormapStops = {
+  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
+  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
+  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
+  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
+  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
+  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
+  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
+  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
 };
+
+const colormaps = buildColormapLUT(colormapStops);
+const colormapGradients = buildColormapGradients(colormapStops);
 
 const speedHistory = [];
 const countHistory = [];
 const neighborHistory = [];
 const chartMaxPoints = 160;
 let chartFrameCounter = 0;
+let fpsSmoothed = 0;
+let fpsUiAccumulator = 0;
 
 setPerspectiveCameraFromParams(false);
 updateOrthographicCamera(true);
@@ -200,8 +198,10 @@ rebuildBoundsAndGrid();
 spawnBoids(params.boidCount);
 setupControls();
 setupPanelToggles();
+setupPanelResizers();
 setupControlSectionCollapses();
 setupThemeToggle();
+setupControlsInfoPopup();
 setupTrendCharts();
 setupChartCollapses();
 handleViewportResize();
@@ -219,20 +219,33 @@ function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.05);
+  updateFpsMetric(dt);
   if (!params.paused) {
     stepSimulation(dt);
   }
 
   updateKeyboardTranslation(dt);
 
-  controls.autoRotate =
-    params.autoRotate &&
-    !params.cameraLocked &&
-    params.projectionMode === "perspective";
-  controls.autoRotateSpeed = params.autoRotateSpeed;
   controls.update();
+  updateCameraTelemetry();
 
-  renderer.render(scene, activeCamera);
+  renderer.render(scene, cameraController.getActiveCamera());
+}
+
+function updateFpsMetric(dt) {
+  if (!dom.fpsLive || dt <= 0) {
+    return;
+  }
+
+  const fps = 1 / dt;
+  fpsSmoothed = fpsSmoothed === 0 ? fps : fpsSmoothed * 0.9 + fps * 0.1;
+  fpsUiAccumulator += dt;
+  if (fpsUiAccumulator < 0.2) {
+    return;
+  }
+
+  fpsUiAccumulator = 0;
+  dom.fpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
 }
 
 function spawnBoids(count) {
@@ -249,9 +262,9 @@ function spawnBoids(count) {
 
     boids.push({
       position: new THREE.Vector3(
-        THREE.MathUtils.randFloatSpread(spawnRangeX),
-        THREE.MathUtils.randFloatSpread(spawnRangeY),
-        THREE.MathUtils.randFloatSpread(spawnRangeZ),
+        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeX),
+        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeY),
+        i < 20 ? THREE.MathUtils.randFloatSpread(14) : THREE.MathUtils.randFloatSpread(spawnRangeZ),
       ),
       velocity: startVelocity,
       acceleration: new THREE.Vector3(),
@@ -270,7 +283,7 @@ function spawnBoids(count) {
 function rebuildBoidMeshForCurrentBoids() {
   if (boidMesh) {
     scene.remove(boidMesh);
-    boidMesh.dispose();
+    boidMesh = null;
   }
 
   const capacity = Math.max(boids.length, 1);
@@ -379,6 +392,8 @@ function stepSimulation(dt) {
 
 function syncBoidInstances() {
   const halfZ = params.worldSizeZ * 0.5;
+  const colorBounds =
+    params.colorMode === "none" ? null : getColorScalarBounds(halfZ);
 
   for (let i = 0; i < boids.length; i += 1) {
     const boid = boids[i];
@@ -396,11 +411,25 @@ function syncBoidInstances() {
     tempObject.updateMatrix();
     boidMesh.setMatrixAt(i, tempObject.matrix);
 
-    if (params.colorMode === "solid") {
-      instanceColor.copy(lowColor);
+    if (params.colorMode === "none") {
+      solidColorValue.set(params.solidColor);
+      instanceColor.copy(solidColorValue);
     } else {
-      instanceColor.copy(lowColor).lerp(highColor, computeColorFactor(boid, halfZ));
+      const scalar = computeColorScalar(boid, halfZ);
+      const span = Math.max((colorBounds?.max ?? 1) - (colorBounds?.min ?? 0), 0.000001);
+      const factor = THREE.MathUtils.clamp((scalar - (colorBounds?.min ?? 0)) / span, 0, 1);
+      const liftedFactor = 0.08 + factor * 0.84;
+      applyColormap(liftedFactor, instanceColor);
     }
+    tintColorValue.set(params.colorTint);
+    instanceColor.multiply(tintColorValue);
+    ensureVisibleColor(instanceColor, 0.25);
+
+    // Debug probe: force first 20 boids to pure red to verify per-instance color writes.
+    if (i < 20) {
+      instanceColor.copy(pureRedDebug);
+    }
+
     boidMesh.setColorAt(i, instanceColor);
   }
 
@@ -410,91 +439,198 @@ function syncBoidInstances() {
   }
 }
 
-function computeColorFactor(boid, halfZ) {
+function computeColorScalar(boid, halfZ) {
   if (params.colorMode === "speed") {
-    return THREE.MathUtils.clamp(boid.velocity.length() / Math.max(params.maxSpeed, 0.001), 0, 1);
+    return boid.velocity.length();
   }
 
   if (params.colorMode === "altitude") {
-    return THREE.MathUtils.clamp((boid.position.z + halfZ) / Math.max(params.worldSizeZ, 0.001), 0, 1);
+    return boid.position.z;
   }
 
   if (params.colorMode === "neighbors") {
-    return THREE.MathUtils.clamp(boid.neighbors / 16, 0, 1);
+    return boid.neighbors;
   }
 
   if (params.colorMode === "heading") {
     velocityDir.copy(boid.velocity);
     if (velocityDir.lengthSq() < 0.00001) {
-      return 0.5;
+      return 0;
     }
     velocityDir.normalize();
-    return THREE.MathUtils.clamp(velocityDir.z * 0.5 + 0.5, 0, 1);
+    return velocityDir.z;
   }
 
-  return 0.5;
+  return 0;
+}
+
+function getColorScalarBounds(halfZ) {
+  if (params.colorMode === "altitude") {
+    return { min: -halfZ, max: halfZ };
+  }
+
+  if (params.colorMode === "heading") {
+    return { min: -1, max: 1 };
+  }
+
+  if (boids.length === 0) {
+    return params.colorMode === "neighbors"
+      ? { min: 0, max: 16 }
+      : { min: 0, max: Math.max(params.maxSpeed, 1) };
+  }
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < boids.length; i += 1) {
+    const scalar = computeColorScalar(boids[i], halfZ);
+    if (scalar < min) {
+      min = scalar;
+    }
+    if (scalar > max) {
+      max = scalar;
+    }
+  }
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return params.colorMode === "neighbors"
+      ? { min: 0, max: 16 }
+      : { min: 0, max: Math.max(params.maxSpeed, 1) };
+  }
+
+  if (max - min < 0.0001) {
+    return { min: min - 0.5, max: max + 0.5 };
+  }
+
+  return { min, max };
+}
+
+function buildColormapLUT(stopMap) {
+  const lut = {};
+  for (const [name, stops] of Object.entries(stopMap)) {
+    lut[name] = stops.map((hex) => new THREE.Color(hex));
+  }
+  return lut;
+}
+
+function buildColormapGradients(stopMap) {
+  const gradients = {};
+  for (const [name, stops] of Object.entries(stopMap)) {
+    gradients[name] = `linear-gradient(90deg, ${stops
+      .map((hex) => `#${hex.toString(16).padStart(6, "0")}`)
+      .join(", ")})`;
+  }
+  return gradients;
+}
+
+function applyColormap(value, outColor) {
+  const colors = colormaps[params.colormap] || colormaps.turbo;
+  if (!colors || colors.length === 0) {
+    return outColor.setRGB(1, 1, 1);
+  }
+
+  const clamped = THREE.MathUtils.clamp(value, 0, 1);
+  if (colors.length === 1) {
+    return outColor.copy(colors[0]);
+  }
+
+  const scaled = clamped * (colors.length - 1);
+  const index = Math.min(colors.length - 2, Math.floor(scaled));
+  const t = scaled - index;
+
+  colormapLerpA.copy(colors[index]);
+  colormapLerpB.copy(colors[index + 1]);
+  return outColor.copy(colormapLerpA).lerp(colormapLerpB, t);
+}
+
+function ensureVisibleColor(color, minLuminance) {
+  const luminance =
+    0.2126 * color.r +
+    0.7152 * color.g +
+    0.0722 * color.b;
+
+  if (luminance >= minLuminance) {
+    return color;
+  }
+
+  const deficiency = THREE.MathUtils.clamp((minLuminance - luminance) / Math.max(minLuminance, 0.0001), 0, 1);
+  return color.lerp(new THREE.Color(1, 1, 1), deficiency * 0.55);
+}
+
+function getColorModeRange() {
+  if (params.colorMode === "speed") {
+    return {
+      min: 0,
+      max: params.maxSpeed,
+      unit: "m/s",
+      digits: 1,
+    };
+  }
+
+  if (params.colorMode === "altitude") {
+    const halfZ = params.worldSizeZ * 0.5;
+    return {
+      min: -halfZ,
+      max: halfZ,
+      unit: "m",
+      digits: 1,
+    };
+  }
+
+  if (params.colorMode === "neighbors") {
+    return {
+      min: 0,
+      max: 16,
+      unit: "",
+      digits: 0,
+    };
+  }
+
+  return {
+    min: -1,
+    max: 1,
+    unit: "",
+    digits: 2,
+  };
+}
+
+function formatLegendValue(value, unit, digits) {
+  const prefix = value >= 0 ? "" : "-";
+  const absolute = Math.abs(value).toFixed(digits);
+  return `${prefix}${absolute}${unit ? ` ${unit}` : ""}`;
+}
+
+function updateColormapLegend() {
+  if (!dom.colormapLegendBar || !dom.colormapCmin || !dom.colormapCmax) {
+    return;
+  }
+
+  if (params.colorMode === "none") {
+    if (dom.colormapLegend) {
+      dom.colormapLegend.classList.add("is-hidden");
+    }
+    return;
+  }
+
+  if (dom.colormapLegend) {
+    dom.colormapLegend.classList.remove("is-hidden");
+  }
+
+  const gradient = colormapGradients[params.colormap] || colormapGradients.turbo;
+  dom.colormapLegendBar.style.background = gradient;
+
+  const range = getColorModeRange();
+  dom.colormapCmin.textContent = `cmin: ${formatLegendValue(range.min, range.unit, range.digits)}`;
+  dom.colormapCmax.textContent = `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`;
+}
+
+function updateColorControlVisibility() {
+  const useSingleColor = params.colorMode === "none";
+  dom.colormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
+  dom.singleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
 }
 
 function rebuildBoundsAndGrid() {
-  if (boundsLines) {
-    scene.remove(boundsLines);
-    boundsLines.geometry.dispose();
-    boundsLines.material.dispose();
-  }
-
-  if (floorGrid) {
-    scene.remove(floorGrid);
-    floorGrid.geometry.dispose();
-    if (Array.isArray(floorGrid.material)) {
-      floorGrid.material.forEach((material) => material.dispose());
-    } else {
-      floorGrid.material.dispose();
-    }
-  }
-
-  const boundsGeometry = new THREE.EdgesGeometry(
-    new THREE.BoxGeometry(params.worldSizeX, params.worldSizeY, params.worldSizeZ),
-  );
-  const boundsMaterial = new THREE.LineBasicMaterial({
-    color: 0x4d7dd8,
-    transparent: true,
-    opacity: 0.4,
-  });
-
-  boundsLines = new THREE.LineSegments(boundsGeometry, boundsMaterial);
-  boundsLines.visible = params.showBounds;
-  scene.add(boundsLines);
-
-  const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
-  floorGrid = new THREE.GridHelper(
-    groundBase,
-    Math.max(10, Math.floor(groundBase / 6)),
-    0x4269b2,
-    0x1a3558,
-  );
-  floorGrid.rotation.x = Math.PI / 2;
-  floorGrid.scale.set(
-    params.worldSizeX / Math.max(groundBase, 1),
-    1,
-    params.worldSizeY / Math.max(groundBase, 1),
-  );
-  floorGrid.position.z = -params.worldSizeZ * 0.5;
-
-  const gridMaterials = Array.isArray(floorGrid.material)
-    ? floorGrid.material
-    : [floorGrid.material];
-  gridMaterials.forEach((material) => {
-    material.transparent = true;
-    material.opacity = 0.2;
-  });
-
-  scene.add(floorGrid);
-
-  for (let i = 0; i < boids.length; i += 1) {
-    applyBoundaryConditions(boids[i]);
-  }
-
-  updateOrthographicCamera(false);
+  world.rebuildBoundsAndGrid();
 }
 
 function setupControls() {
@@ -515,6 +651,7 @@ function setupControls() {
 
   bindRange("max-speed", "max-speed-value", (value) => {
     params.maxSpeed = value;
+    syncBoidInstances();
     return `${value.toFixed(1)} m/s`;
   });
 
@@ -553,24 +690,7 @@ function setupControls() {
   bindRange("world-size-z", "world-size-z-value", (value) => {
     params.worldSizeZ = value;
     rebuildBoundsAndGrid();
-    return `${Math.round(value)} m`;
-  });
-
-  bindRange("camera-distance", "camera-distance-value", (value) => {
-    params.cameraDistance = value;
-    if (params.projectionMode === "perspective") {
-      setPerspectiveCameraFromParams(true);
-    } else {
-      updateOrthographicCamera(true);
-    }
-    return `${Math.round(value)} m`;
-  });
-
-  bindRange("camera-height", "camera-height-value", (value) => {
-    params.cameraHeight = value;
-    if (params.projectionMode === "perspective") {
-      setPerspectiveCameraFromParams(true);
-    }
+    syncBoidInstances();
     return `${Math.round(value)} m`;
   });
 
@@ -579,11 +699,6 @@ function setupControls() {
     perspectiveCamera.fov = value;
     perspectiveCamera.updateProjectionMatrix();
     return `${Math.round(value)}°`;
-  });
-
-  bindRange("auto-rotate-speed", "auto-rotate-speed-value", (value) => {
-    params.autoRotateSpeed = value;
-    return value.toFixed(2);
   });
 
   const boidCountInput = document.getElementById("boid-count");
@@ -603,15 +718,9 @@ function setupControls() {
     spawnBoids(params.boidCount);
   });
 
-  dom.autoRotate.addEventListener("change", () => {
-    params.autoRotate = dom.autoRotate.checked;
-  });
-
   dom.showBounds.addEventListener("change", () => {
     params.showBounds = dom.showBounds.checked;
-    if (boundsLines) {
-      boundsLines.visible = params.showBounds;
-    }
+    world.setBoundsVisibility(params.showBounds);
   });
 
   dom.cameraLocked.addEventListener("change", () => {
@@ -643,72 +752,103 @@ function setupControls() {
 
   dom.colorMode.addEventListener("change", () => {
     params.colorMode = dom.colorMode.value;
+    updateColorControlVisibility();
+    syncBoidInstances();
+    updateColormapLegend();
+  });
+
+  dom.colormap.addEventListener("change", () => {
+    params.colormap = dom.colormap.value;
+    syncBoidInstances();
+    updateColormapLegend();
+  });
+
+  dom.solidColor?.addEventListener("input", () => {
+    params.solidColor = dom.solidColor.value;
     syncBoidInstances();
   });
 
-  dom.colorLow.addEventListener("input", () => {
-    params.colorLow = dom.colorLow.value;
-    lowColor.set(params.colorLow);
+  dom.colorTint?.addEventListener("input", () => {
+    params.colorTint = dom.colorTint.value;
     syncBoidInstances();
   });
 
-  dom.colorHigh.addEventListener("input", () => {
-    params.colorHigh = dom.colorHigh.value;
-    highColor.set(params.colorHigh);
-    syncBoidInstances();
-  });
+  if (dom.cameraProjectionToggle) {
+    dom.cameraProjectionToggle.addEventListener("click", () => {
+      if (params.projectionMode === "perspective") {
+        params.projectionMode = "orthographic";
+        switchToOrthographicTop();
+      } else {
+        params.projectionMode = "perspective";
+        switchToPerspective();
+      }
+      updateProjectionToggleUI();
+      updateViewportLabel();
+    });
+  }
 
-  dom.cameraTopOrtho.addEventListener("click", () => {
-    params.projectionMode = "orthographic";
-    switchToOrthographicTop();
-    updateViewportLabel();
-  });
+  if (dom.resetCamera) {
+    dom.resetCamera.addEventListener("click", () => {
+      params.cameraDistance = cameraDefaults.cameraDistance;
+      params.cameraHeight = cameraDefaults.cameraHeight;
+      params.cameraFov = cameraDefaults.cameraFov;
+      params.cameraLocked = cameraDefaults.cameraLocked;
 
-  dom.cameraPerspective.addEventListener("click", () => {
-    params.projectionMode = "perspective";
-    switchToPerspective();
-    updateViewportLabel();
-  });
+      setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
+      dom.cameraLocked.checked = params.cameraLocked;
 
-  dom.resetCamera.addEventListener("click", () => {
-    params.cameraDistance = cameraDefaults.cameraDistance;
-    params.cameraHeight = cameraDefaults.cameraHeight;
-    params.cameraFov = cameraDefaults.cameraFov;
-    params.autoRotate = cameraDefaults.autoRotate;
-    params.autoRotateSpeed = cameraDefaults.autoRotateSpeed;
-    params.cameraLocked = cameraDefaults.cameraLocked;
-    params.projectionMode = cameraDefaults.projectionMode;
+      perspectiveCamera.fov = params.cameraFov;
+      perspectiveCamera.updateProjectionMatrix();
+      cameraController.resetOrientationKeepPosition();
+      applyCameraInteractivity();
+      updateCameraTelemetry();
+      updateProjectionToggleUI();
+      updateViewportLabel();
+    });
+  }
 
-    setControlValue("camera-distance", params.cameraDistance, "camera-distance-value", (value) => `${Math.round(value)} m`);
-    setControlValue("camera-height", params.cameraHeight, "camera-height-value", (value) => `${Math.round(value)} m`);
-    setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
-    setControlValue(
-      "auto-rotate-speed",
-      params.autoRotateSpeed,
-      "auto-rotate-speed-value",
-      (value) => value.toFixed(2),
-    );
+  if (dom.homeCamera) {
+    dom.homeCamera.addEventListener("click", () => {
+      cameraController.moveActiveCameraToOrigin();
+      updateCameraTelemetry();
+      updateViewportLabel();
+    });
+  }
 
-    dom.autoRotate.checked = params.autoRotate;
-    dom.cameraLocked.checked = params.cameraLocked;
-
-    perspectiveCamera.fov = params.cameraFov;
-    perspectiveCamera.updateProjectionMatrix();
-    switchToPerspective();
-    applyCameraInteractivity();
-    updateViewportLabel();
-  });
-
-  dom.autoRotate.checked = params.autoRotate;
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
   dom.boundaryMode.value = params.boundaryMode;
   dom.colorMode.value = params.colorMode;
-  dom.colorLow.value = params.colorLow;
-  dom.colorHigh.value = params.colorHigh;
+  dom.colormap.value = params.colormap;
+  if (dom.solidColor) {
+    dom.solidColor.value = params.solidColor;
+  }
+  if (dom.colorTint) {
+    dom.colorTint.value = params.colorTint;
+  }
+  updateColorControlVisibility();
+  updateColormapLegend();
   updateSimulationStateUI();
+  updateProjectionToggleUI();
 
   switchToPerspective();
+}
+
+function updateProjectionToggleUI() {
+  if (!dom.cameraProjectionToggle) {
+    return;
+  }
+
+  if (params.projectionMode === "orthographic") {
+    dom.cameraProjectionToggle.innerHTML =
+      '<i class="bi bi-camera-video me-1" aria-hidden="true"></i><span>Perspective</span>';
+    dom.cameraProjectionToggle.setAttribute("aria-label", "Switch to perspective view");
+    return;
+  }
+
+  dom.cameraProjectionToggle.innerHTML =
+    '<i class="bi bi-bounding-box-circles me-1" aria-hidden="true"></i><span>Top Orthographic (Z+)</span>';
+  dom.cameraProjectionToggle.setAttribute("aria-label", "Switch to top orthographic view");
 }
 
 function updateSimulationStateUI() {
@@ -723,101 +863,25 @@ function updateSimulationStateUI() {
 }
 
 function setupThemeToggle() {
-  if (!dom.themeToggle) {
-    applyThemeMode();
-    return;
-  }
-
-  dom.themeToggle.addEventListener("click", () => {
-    const currentIndex = themeModes.indexOf(themeMode);
-    const nextIndex = (currentIndex + 1) % themeModes.length;
-    themeMode = themeModes[nextIndex];
-    saveThemeMode(themeMode);
-    applyThemeMode();
+  themeManager = createThemeManager({
+    toggleButton: dom.themeToggle,
+    labelEl: dom.themeToggleLabel,
+    iconEl: dom.themeToggleIcon,
+    onThemeChange: (effectiveTheme) => {
+      applySceneTheme(effectiveTheme);
+      drawTrendCharts();
+    },
   });
-
-  if (typeof prefersDarkQuery.addEventListener === "function") {
-    prefersDarkQuery.addEventListener("change", () => {
-      if (themeMode === "auto") {
-        applyThemeMode();
-      }
-    });
-  } else if (typeof prefersDarkQuery.addListener === "function") {
-    prefersDarkQuery.addListener(() => {
-      if (themeMode === "auto") {
-        applyThemeMode();
-      }
-    });
-  }
-
-  applyThemeMode();
-}
-
-function loadThemeMode() {
-  try {
-    const stored = window.localStorage.getItem("emergenverse-theme-mode");
-    if (stored && themeModes.includes(stored)) {
-      return stored;
-    }
-  } catch (error) {
-    // Ignore storage failures and fallback to auto mode.
-  }
-
-  return "auto";
-}
-
-function saveThemeMode(mode) {
-  try {
-    window.localStorage.setItem("emergenverse-theme-mode", mode);
-  } catch (error) {
-    // Ignore storage failures.
-  }
-}
-
-function getEffectiveTheme(mode) {
-  if (mode === "auto") {
-    return prefersDarkQuery.matches ? "dark" : "light";
-  }
-  return mode;
-}
-
-function applyThemeMode() {
-  const effectiveTheme = getEffectiveTheme(themeMode);
-  document.body.setAttribute("data-theme", effectiveTheme);
-  updateThemeToggleVisual(themeMode, effectiveTheme);
-  applySceneTheme(effectiveTheme);
-}
-
-function updateThemeToggleVisual(mode, effectiveTheme) {
-  if (!dom.themeToggleLabel || !dom.themeToggleIcon) {
-    return;
-  }
-
-  const iconMap = {
-    auto: "bi-circle-half",
-    dark: "bi-moon-stars-fill",
-    light: "bi-sun-fill",
-  };
-
-  dom.themeToggleLabel.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-  dom.themeToggle.setAttribute("aria-label", `Theme: ${mode}`);
-  dom.themeToggleIcon.className = `bi ${iconMap[mode] || "bi-circle-half"}`;
-  dom.themeToggle.dataset.effectiveTheme = effectiveTheme;
 }
 
 function applySceneTheme(theme) {
+  world.applyTheme(theme);
   if (theme === "light") {
-    scene.background.set(0xdfe8f8);
-    scene.fog.color.set(0xd8e2f5);
-    scene.fog.density = 0.0017;
-    boidMaterial.emissive.set(0x2e7f73);
-    boidMaterial.emissiveIntensity = 0.72;
+    boidMaterial.emissive.set(0x1e1e1e);
+    boidMaterial.emissiveIntensity = 0.42;
   } else {
-    scene.background.set(0x030713);
-    scene.fog.color.set(0x050a17);
-    scene.fog.density = 0.0022;
-    boidMaterial.emissive.set(0x1b6d62);
-    boidMaterial.emissiveIntensity = 0.95;
+    boidMaterial.emissive.set(0x202020);
+    boidMaterial.emissiveIntensity = 0.5;
   }
 }
 
@@ -843,6 +907,93 @@ function setupPanelToggles() {
   });
 
   applyPanelVisibility();
+}
+
+function setupPanelResizers() {
+  if (!dom.appShell || !dom.leftResizer || !dom.rightResizer) {
+    return;
+  }
+
+  const minViewportWidth = 360;
+  const resizerWidth = 10;
+  const limits = {
+    leftMin: 200,
+    leftMax: 520,
+    rightMin: 240,
+    rightMax: 580,
+  };
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+  const applyWidths = () => {
+    dom.appShell.style.setProperty("--left-panel-w", `${panelWidthState.left}px`);
+    dom.appShell.style.setProperty("--right-panel-w", `${panelWidthState.right}px`);
+  };
+
+  const beginDrag = (side, pointerDownEvent) => {
+    if (pointerDownEvent.button !== 0) {
+      return;
+    }
+
+    const shellRect = dom.appShell.getBoundingClientRect();
+    const pointerId = pointerDownEvent.pointerId;
+
+    const onPointerMove = (moveEvent) => {
+      if (!uiState.leftPanelVisible && !uiState.rightPanelVisible) {
+        return;
+      }
+
+      if (side === "left" && uiState.leftPanelVisible) {
+        const dynamicLeftMax = Math.max(
+          limits.leftMin,
+          shellRect.width - panelWidthState.right - minViewportWidth - resizerWidth * 2,
+        );
+        panelWidthState.left = clamp(
+          moveEvent.clientX - shellRect.left,
+          limits.leftMin,
+          Math.min(limits.leftMax, dynamicLeftMax),
+        );
+      } else if (side === "right" && uiState.rightPanelVisible) {
+        const dynamicRightMax = Math.max(
+          limits.rightMin,
+          shellRect.width - panelWidthState.left - minViewportWidth - resizerWidth * 2,
+        );
+        panelWidthState.right = clamp(
+          shellRect.right - moveEvent.clientX,
+          limits.rightMin,
+          Math.min(limits.rightMax, dynamicRightMax),
+        );
+      }
+
+      applyWidths();
+      handleViewportResize();
+    };
+
+    const onPointerEnd = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      if (pointerId !== undefined) {
+        dom.leftResizer.releasePointerCapture?.(pointerId);
+        dom.rightResizer.releasePointerCapture?.(pointerId);
+      }
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+
+    if (pointerId !== undefined) {
+      if (side === "left") {
+        dom.leftResizer.setPointerCapture?.(pointerId);
+      } else {
+        dom.rightResizer.setPointerCapture?.(pointerId);
+      }
+    }
+  };
+
+  dom.leftResizer.addEventListener("pointerdown", (event) => beginDrag("left", event));
+  dom.rightResizer.addEventListener("pointerdown", (event) => beginDrag("right", event));
+  applyWidths();
 }
 
 function setupControlSectionCollapses() {
@@ -871,6 +1022,8 @@ function applyPanelVisibility() {
   dom.rightPanel.classList.toggle("is-hidden", !uiState.rightPanelVisible);
   dom.appShell.classList.toggle("left-hidden", !uiState.leftPanelVisible);
   dom.appShell.classList.toggle("right-hidden", !uiState.rightPanelVisible);
+  dom.leftResizer?.classList.toggle("is-hidden", !uiState.leftPanelVisible);
+  dom.rightResizer?.classList.toggle("is-hidden", !uiState.rightPanelVisible);
 
   dom.showLeftPanel.classList.toggle("is-hidden", uiState.leftPanelVisible);
   dom.showRightPanel.classList.toggle("is-hidden", uiState.rightPanelVisible);
@@ -879,6 +1032,37 @@ function applyPanelVisibility() {
 
   requestAnimationFrame(() => {
     handleViewportResize();
+  });
+}
+
+function setupControlsInfoPopup() {
+  if (!dom.controlsInfoOpen || !dom.controlsInfoBackdrop || !dom.controlsInfoClose) {
+    return;
+  }
+
+  const openPopup = () => {
+    dom.controlsInfoBackdrop.classList.remove("is-hidden");
+    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "false");
+  };
+
+  const closePopup = () => {
+    dom.controlsInfoBackdrop.classList.add("is-hidden");
+    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "true");
+  };
+
+  dom.controlsInfoOpen.addEventListener("click", openPopup);
+  dom.controlsInfoClose.addEventListener("click", closePopup);
+
+  dom.controlsInfoBackdrop.addEventListener("click", (event) => {
+    if (event.target === dom.controlsInfoBackdrop) {
+      closePopup();
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !dom.controlsInfoBackdrop.classList.contains("is-hidden")) {
+      closePopup();
+    }
   });
 }
 
@@ -1019,9 +1203,19 @@ function drawTrendChart(canvas, values, options) {
   }
 
   const span = Math.max(maxValue - minValue, 0.001);
-  const gridColor = "rgba(166, 196, 245, 0.16)";
-  const axisColor = "rgba(166, 196, 245, 0.34)";
-  const labelColor = "rgba(183, 205, 242, 0.86)";
+  const theme = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const palette =
+    theme === "light"
+      ? {
+          grid: "rgba(88, 114, 156, 0.22)",
+          axis: "rgba(78, 104, 150, 0.48)",
+          label: "rgba(50, 72, 110, 0.95)",
+        }
+      : {
+          grid: "rgba(166, 196, 245, 0.16)",
+          axis: "rgba(166, 196, 245, 0.34)",
+          label: "rgba(183, 205, 242, 0.86)",
+        };
 
   ctx.font = `${Math.max(9, Math.round(9 * dpr))}px "Space Grotesk", "Segoe UI", sans-serif`;
   ctx.textAlign = "right";
@@ -1033,24 +1227,24 @@ function drawTrendChart(canvas, values, options) {
     const y = padTop + ratio * plotHeight;
     const value = maxValue - ratio * span;
 
-    ctx.strokeStyle = gridColor;
+    ctx.strokeStyle = palette.grid;
     ctx.lineWidth = Math.max(1, 0.85 * dpr);
     ctx.beginPath();
     ctx.moveTo(padLeft, y);
     ctx.lineTo(width - padRight, y);
     ctx.stroke();
 
-    ctx.strokeStyle = axisColor;
+    ctx.strokeStyle = palette.axis;
     ctx.beginPath();
     ctx.moveTo(padLeft - 4 * dpr, y);
     ctx.lineTo(padLeft, y);
     ctx.stroke();
 
-    ctx.fillStyle = labelColor;
+    ctx.fillStyle = palette.label;
     ctx.fillText(tickFormatter(value), padLeft - 6 * dpr, y);
   }
 
-  ctx.strokeStyle = axisColor;
+  ctx.strokeStyle = palette.axis;
   ctx.lineWidth = Math.max(1, 1.05 * dpr);
   ctx.beginPath();
   ctx.moveTo(padLeft, padTop);
@@ -1064,7 +1258,7 @@ function drawTrendChart(canvas, values, options) {
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = labelColor;
+    ctx.fillStyle = palette.label;
     ctx.fillText(axisLabel, 0, 0);
     ctx.restore();
   }
@@ -1130,6 +1324,7 @@ function bindRange(inputId, valueId, applyValue) {
     const value = Number(input.value);
     const display = applyValue(value);
     output.textContent = display;
+    updateColormapLegend();
   };
 
   input.addEventListener("input", handle);
@@ -1144,148 +1339,27 @@ function setControlValue(inputId, value, valueId, formatter) {
 }
 
 function setPerspectiveCameraFromParams(forceSnap = false) {
-  const azimuth = -Math.PI / 4;
-  const radius = params.cameraDistance;
-
-  perspectiveCamera.position.set(
-    Math.cos(azimuth) * radius,
-    Math.sin(azimuth) * radius,
-    params.cameraHeight,
-  );
-
-  perspectiveCamera.fov = params.cameraFov;
-  perspectiveCamera.updateProjectionMatrix();
-
-  if (forceSnap && activeCamera === perspectiveCamera) {
-    controls.update();
-  }
+  cameraController.setPerspectiveCameraFromParams(forceSnap);
 }
 
 function switchToPerspective() {
-  activeCamera = perspectiveCamera;
-  controls.object = activeCamera;
-  setPerspectiveCameraFromParams(false);
-  applyCameraInteractivity();
-  controls.update();
+  cameraController.switchToPerspective();
 }
 
 function switchToOrthographicTop() {
-  activeCamera = orthographicCamera;
-  controls.object = activeCamera;
-  updateOrthographicCamera(true);
-  applyCameraInteractivity();
-  controls.update();
+  cameraController.switchToOrthographicTop();
 }
 
 function updateOrthographicCamera(snapToTop) {
-  const width = Math.max(1, dom.sceneHost.clientWidth);
-  const height = Math.max(1, dom.sceneHost.clientHeight);
-  const aspect = width / height;
-
-  const verticalSpan = Math.max(params.worldSizeX, params.worldSizeY, params.worldSizeZ) * 0.62;
-  orthographicCamera.left = -verticalSpan * aspect;
-  orthographicCamera.right = verticalSpan * aspect;
-  orthographicCamera.top = verticalSpan;
-  orthographicCamera.bottom = -verticalSpan;
-  orthographicCamera.near = 0.1;
-  orthographicCamera.far = 5000;
-
-  if (snapToTop) {
-    const topHeight = Math.max(params.cameraDistance, params.worldSizeZ * 1.5);
-    orthographicCamera.position.set(0, 0, topHeight);
-    orthographicCamera.up.set(0, 1, 0);
-    controls.target.set(0, 0, 0);
-  }
-
-  orthographicCamera.lookAt(controls.target);
-  orthographicCamera.updateProjectionMatrix();
+  cameraController.updateOrthographicCamera(snapToTop);
 }
 
 function applyCameraInteractivity() {
-  const unlocked = !params.cameraLocked;
-  const perspectiveMode = params.projectionMode === "perspective";
-
-  controls.enableRotate = unlocked && perspectiveMode;
-  controls.enablePan = unlocked;
-  controls.enableZoom = false;
+  cameraController.applyCameraInteractivity();
 }
 
 function updateKeyboardTranslation(dt) {
-  if (params.cameraLocked || params.projectionMode !== "perspective") {
-    return;
-  }
-
-  moveDelta.set(0, 0, 0);
-
-  forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
-  rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
-  upMove.set(0, 1, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
-
-  if (keyState.KeyW) {
-    moveDelta.add(forwardMove);
-  }
-  if (keyState.KeyS) {
-    moveDelta.sub(forwardMove);
-  }
-  if (keyState.KeyD) {
-    moveDelta.add(rightMove);
-  }
-  if (keyState.KeyA) {
-    moveDelta.sub(rightMove);
-  }
-  if (keyState.KeyE) {
-    moveDelta.add(upMove);
-  }
-  if (keyState.KeyQ) {
-    moveDelta.sub(upMove);
-  }
-
-  const speedFactor = keyState.ShiftLeft || keyState.ShiftRight ? 2.0 : 1.0;
-  if (moveDelta.lengthSq() > 0.000001) {
-    moveDelta.normalize().multiplyScalar(params.keyboardMoveSpeed * speedFactor * dt);
-    perspectiveCamera.position.add(moveDelta);
-    controls.target.add(moveDelta);
-  }
-
-  const rotationSpeed = 1.45;
-  const yawInput = (keyState.ArrowRight ? 1 : 0) - (keyState.ArrowLeft ? 1 : 0);
-  const pitchInput = (keyState.ArrowUp ? 1 : 0) - (keyState.ArrowDown ? 1 : 0);
-  const rollInput = (keyState.BracketRight ? 1 : 0) - (keyState.BracketLeft ? 1 : 0);
-  if (yawInput === 0 && pitchInput === 0 && rollInput === 0) {
-    return;
-  }
-
-  lookOffset.subVectors(controls.target, perspectiveCamera.position);
-  if (lookOffset.lengthSq() < 0.000001) {
-    lookOffset.copy(forwardMove).multiplyScalar(40);
-  }
-
-  if (yawInput !== 0) {
-    rotationQuat.setFromAxisAngle(upMove, yawInput * rotationSpeed * dt);
-    lookOffset.applyQuaternion(rotationQuat);
-    perspectiveCamera.up.applyQuaternion(rotationQuat);
-  }
-
-  if (pitchInput !== 0) {
-    rotationQuat.setFromAxisAngle(rightMove, pitchInput * rotationSpeed * dt);
-    lookOffset.applyQuaternion(rotationQuat);
-    perspectiveCamera.up.applyQuaternion(rotationQuat);
-  }
-
-  if (rollInput !== 0) {
-    forwardMove.copy(lookOffset);
-    if (forwardMove.lengthSq() < 0.000001) {
-      forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion);
-    } else {
-      forwardMove.normalize();
-    }
-
-    rotationQuat.setFromAxisAngle(forwardMove, rollInput * rotationSpeed * dt);
-    perspectiveCamera.up.applyQuaternion(rotationQuat);
-  }
-
-  perspectiveCamera.up.normalize();
-  controls.target.copy(perspectiveCamera.position).add(lookOffset);
+  cameraController.updateKeyboardTranslation(dt);
 }
 
 function resizeRenderer() {
@@ -1312,6 +1386,10 @@ function updateViewportLabel() {
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
 
   dom.frameSize.textContent = `Viewport: ${width} x ${height} | ${projectionLabel}`;
+}
+
+function updateCameraTelemetry() {
+  cameraController.updateTelemetry();
 }
 
 function updateStats(speedSum, neighborSum) {
@@ -1355,38 +1433,7 @@ function removeLostBoids() {
 }
 
 function applyBoundaryConditions(boid) {
-  const halfX = params.worldSizeX * 0.5;
-  const halfY = params.worldSizeY * 0.5;
-  const halfZ = params.worldSizeZ * 0.5;
-
-  if (params.boundaryMode === "cyclic") {
-    boid.position.x = wrapAxis(boid.position.x, halfX);
-    boid.position.y = wrapAxis(boid.position.y, halfY);
-    boid.position.z = wrapAxis(boid.position.z, halfZ);
-    boid.lost = false;
-    return true;
-  }
-
-  const outOfBounds =
-    Math.abs(boid.position.x) > halfX ||
-    Math.abs(boid.position.y) > halfY ||
-    Math.abs(boid.position.z) > halfZ;
-
-  boid.lost = outOfBounds;
-  return !outOfBounds;
-}
-
-function wrapAxis(value, halfExtent) {
-  const worldSpan = halfExtent * 2;
-  if (worldSpan <= 0) {
-    return 0;
-  }
-
-  if (value > halfExtent || value < -halfExtent) {
-    return ((((value + halfExtent) % worldSpan) + worldSpan) % worldSpan) - halfExtent;
-  }
-
-  return value;
+  return world.applyBoundaryConditions(boid);
 }
 
 function limitVector(vector, maxLength) {
@@ -1430,49 +1477,3 @@ function randomDirection() {
 
   return direction.normalize();
 }
-
-function buildStarField(count, spread) {
-  const geometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const starColor = new THREE.Color();
-
-  for (let i = 0; i < count; i += 1) {
-    const i3 = i * 3;
-    positions[i3] = THREE.MathUtils.randFloatSpread(spread * 2.2);
-    positions[i3 + 1] = THREE.MathUtils.randFloatSpread(spread * 2.2);
-    positions[i3 + 2] = THREE.MathUtils.randFloat(-spread * 0.8, spread * 1.8);
-
-    starColor.setHSL(
-      THREE.MathUtils.randFloat(0.52, 0.64),
-      THREE.MathUtils.randFloat(0.28, 0.54),
-      THREE.MathUtils.randFloat(0.62, 0.96),
-    );
-
-    colors[i3] = starColor.r;
-    colors[i3 + 1] = starColor.g;
-    colors[i3 + 2] = starColor.b;
-  }
-
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-  const material = new THREE.PointsMaterial({
-    size: 1.75,
-    sizeAttenuation: true,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
-    vertexColors: true,
-  });
-
-  return new THREE.Points(geometry, material);
-}
-
-function onKeyDown(event) {
-  if (event.defaultPrevented || isTextEntryTarget(event.target)) {
-    return;
-  }
-
-  if (!(event.code in keyState)) {
-    retur
