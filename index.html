@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emergenverse | 3D Boids</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.181.1/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.181.1/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <nav class="navbar top-nav px-3 px-lg-4">
+      <div class="container-fluid g-0">
+        <div class="d-flex align-items-center gap-3">
+          <span class="brand-mark">E</span>
+          <div>
+            <div class="brand-title">Emergenverse</div>
+            <div class="brand-subtitle">3D Emergence Lab</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button class="chip chip-button theme-button" id="theme-toggle" type="button" title="Theme mode">
+            <i class="bi bi-circle-half" id="theme-toggle-icon" aria-hidden="true"></i>
+            <span id="theme-toggle-label">Auto</span>
+          </button>
+          <span class="chip">Boids</span>
+          <span class="chip">3D</span>
+          <span class="chip status-chip" id="run-state">
+            <i class="bi bi-play-fill state-icon" aria-hidden="true"></i>
+            <span>Running</span>
+          </span>
+        </div>
+      </div>
+    </nav>
+
+    <main class="app-shell">
+      <aside id="left-panel" class="panel left-panel">
+        <section class="left-panel-top">
+          <div class="sidebar-head">
+            <h2 class="panel-title sidebar-title">
+              <i class="bi bi-info-circle-fill panel-head-icon" aria-hidden="true"></i>
+              <span>Introduction</span>
+            </h2>
+            <button class="icon-btn" id="hide-left-panel" type="button" aria-label="Hide left panel">
+              <i class="bi bi-chevron-bar-left" aria-hidden="true"></i>
+            </button>
+          </div>
+          <p class="panel-copy">
+            Classic boids in 3D with metric units (m, m/s, m/s²). The default boundary mode is cyclic wrapping.
+          </p>
+
+          <div class="tips-box mt-4">
+            <h3 class="tips-title">How To Read It</h3>
+            <ul class="tips-list">
+              <li>Hold left-drag to rotate and right-drag to translate camera (scroll zoom is disabled).</li>
+              <li>Set a color mode to map speed/altitude/neighbors/heading to cone color.</li>
+              <li>Turn off camera lock, then use ASDQWE for camera-relative XYZ translation.</li>
+              <li>Use ArrowLeft/ArrowRight for yaw, ArrowUp/ArrowDown for pitch, and [ ] for roll (spaceship style).</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="left-panel-bottom mt-4">
+          <h2 class="panel-title mb-3">Stats & Charts</h2>
+          <div class="chart-stack mt-3">
+            <div class="chart-card" data-chart-card>
+              <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle count chart">
+                <span class="chart-title">Counts</span>
+                <span class="chart-live" id="chart-count-live">0</span>
+                <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+              </button>
+              <canvas id="chart-count" class="trend-chart" width="260" height="96" aria-label="count trend chart"></canvas>
+            </div>
+            <div class="chart-card" data-chart-card>
+              <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle speed chart">
+                <span class="chart-title">Speed</span>
+                <span class="chart-live" id="chart-speed-live">0.00 m/s</span>
+                <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+              </button>
+              <canvas id="chart-speed" class="trend-chart" width="260" height="96" aria-label="speed trend chart"></canvas>
+            </div>
+            <div class="chart-card mt-2" data-chart-card>
+              <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle neighbor chart">
+                <span class="chart-title">Neighbors</span>
+                <span class="chart-live" id="chart-neighbors-live">0.00</span>
+                <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+              </button>
+              <canvas id="chart-neighbors" class="trend-chart" width="260" height="96" aria-label="neighbor trend chart"></canvas>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="viewport-panel">
+        <button class="panel-reveal panel-reveal-left is-hidden" id="show-left-panel" type="button" aria-label="Show left panel">
+          <i class="bi bi-chevron-bar-right" aria-hidden="true"></i>
+        </button>
+        <button class="panel-reveal panel-reveal-right is-hidden" id="show-right-panel" type="button" aria-label="Show right panel">
+          <i class="bi bi-chevron-bar-left" aria-hidden="true"></i>
+        </button>
+        <div id="scene-host" aria-label="3D boid simulation viewport"></div>
+        <div class="overlay-corner" id="frame-size">Viewport: -- x --</div>
+      </section>
+
+      <aside id="right-panel" class="panel right-panel">
+        <div class="sidebar-head">
+          <h2 class="panel-title sidebar-title">
+            <i class="bi bi-sliders2-vertical panel-head-icon" aria-hidden="true"></i>
+            <span>Controls</span>
+          </h2>
+          <button class="icon-btn" id="hide-right-panel" type="button" aria-label="Hide right panel">
+            <i class="bi bi-chevron-bar-right" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="control-section" data-control-section>
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle simulation controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-sliders2 panel-head-icon" aria-hidden="true"></i>
+              <span>Simulation</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+
+          <div class="control-section-body">
+          <label class="form-label" for="boid-count">
+            <span class="label-name"><i class="bi bi-people-fill" aria-hidden="true"></i>Count</span>
+            <span class="label-value" id="boid-count-value">220</span>
+          </label>
+          <input class="form-range" type="range" id="boid-count" min="30" max="650" step="10" value="220" />
+
+          <label class="form-label" for="boid-scale">
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Cone Length Scale</span>
+            <span class="label-value" id="boid-scale-value">1.4 m</span>
+          </label>
+          <input class="form-range" type="range" id="boid-scale" min="0.6" max="3.2" step="0.1" value="1.4" />
+
+          <label class="form-label" for="perception-radius">
+            <span class="label-name"><i class="bi bi-eye-fill" aria-hidden="true"></i>Perception Radius</span>
+            <span class="label-value" id="perception-radius-value">18.0 m</span>
+          </label>
+          <input class="form-range" type="range" id="perception-radius" min="4" max="80" step="0.5" value="18" />
+
+          <label class="form-label" for="separation-distance">
+            <span class="label-name"><i class="bi bi-arrows-angle-contract" aria-hidden="true"></i>Separation Distance</span>
+            <span class="label-value" id="separation-distance-value">8.0 m</span>
+          </label>
+          <input class="form-range" type="range" id="separation-distance" min="2" max="40" step="0.5" value="8" />
+
+          <label class="form-label" for="max-speed">
+            <span class="label-name"><i class="bi bi-speedometer2" aria-hidden="true"></i>Max Speed</span>
+            <span class="label-value" id="max-speed-value">8.0 m/s</span>
+          </label>
+          <input class="form-range" type="range" id="max-speed" min="1" max="25" step="0.25" value="8" />
+
+          <label class="form-label" for="max-accel">
+            <span class="label-name"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>Max Acceleration</span>
+            <span class="label-value" id="max-accel-value">6.0 m/s²</span>
+          </label>
+          <input class="form-range" type="range" id="max-accel" min="0.5" max="30" step="0.25" value="6" />
+
+          <label class="form-label" for="alignment-weight">
+            <span class="label-name"><i class="bi bi-layout-three-columns" aria-hidden="true"></i>Alignment Weight</span>
+            <span class="label-value" id="alignment-weight-value">1.00</span>
+          </label>
+          <input class="form-range" type="range" id="alignment-weight" min="0" max="3" step="0.05" value="1" />
+
+          <label class="form-label" for="cohesion-weight">
+            <span class="label-name"><i class="bi bi-diagram-3-fill" aria-hidden="true"></i>Cohesion Weight</span>
+            <span class="label-value" id="cohesion-weight-value">0.90</span>
+          </label>
+          <input class="form-range" type="range" id="cohesion-weight" min="0" max="3" step="0.05" value="0.9" />
+
+          <label class="form-label" for="separation-weight">
+            <span class="label-name"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Separation Weight</span>
+            <span class="label-value" id="separation-weight-value">1.35</span>
+          </label>
+          <input class="form-range" type="range" id="separation-weight" min="0" max="4" step="0.05" value="1.35" />
+
+          <label class="form-label" for="world-size-x">
+            <span class="label-name"><i class="bi bi-arrows-expand" aria-hidden="true"></i>World Size X</span>
+            <span class="label-value" id="world-size-x-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-x" min="40" max="320" step="2" value="120" />
+
+          <label class="form-label" for="world-size-y">
+            <span class="label-name"><i class="bi bi-arrows-vertical" aria-hidden="true"></i>World Size Y</span>
+            <span class="label-value" id="world-size-y-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-y" min="40" max="320" step="2" value="120" />
+
+          <label class="form-label" for="world-size-z">
+            <span class="label-name"><i class="bi bi-arrows-collapse" aria-hidden="true"></i>World Size Z</span>
+            <span class="label-value" id="world-size-z-value">120 m</span>
+          </label>
+          <input class="form-range" type="range" id="world-size-z" min="30" max="260" step="2" value="120" />
+
+          <label class="form-label mt-1" for="boundary-mode">
+            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="boundary-mode">
+            <option value="cyclic" selected>Cyclic (default)</option>
+            <option value="lost">Lost (remove out-of-bounds)</option>
+          </select>
+
+          <label class="form-label mt-3" for="color-mode">
+            <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Cone Color Mode</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="color-mode">
+            <option value="speed" selected>Speed (m/s)</option>
+            <option value="altitude">Altitude (z, m)</option>
+            <option value="neighbors">Neighbor Count</option>
+            <option value="heading">Heading (z component)</option>
+            <option value="solid">Solid Color</option>
+          </select>
+
+          <div class="d-flex align-items-center gap-2 mt-2">
+            <div class="w-100">
+              <label class="form-label mb-1" for="color-low">
+                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color A</span>
+              </label>
+              <input class="form-control form-control-color theme-color-input" type="color" id="color-low" value="#4cd3b6" />
+            </div>
+            <div class="w-100">
+              <label class="form-label mb-1" for="color-high">
+                <span class="label-name"><i class="bi bi-brush-fill" aria-hidden="true"></i>Color B</span>
+              </label>
+              <input class="form-control form-control-color theme-color-input" type="color" id="color-high" value="#5aa4ff" />
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-sm btn-theme flex-fill" id="toggle-pause">
+              <i class="bi bi-pause-fill me-1" aria-hidden="true"></i>
+              <span>Pause</span>
+            </button>
+            <button class="btn btn-sm btn-outline-theme flex-fill" id="reset-sim">Reset</button>
+          </div>
+          </div>
+        </div>
+
+        <div class="control-section mt-4" data-control-section>
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle camera controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-camera-video panel-head-icon" aria-hidden="true"></i>
+              <span>Camera</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+
+          <div class="control-section-body">
+          <label class="form-label" for="camera-distance">
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Distance</span>
+            <span class="label-value" id="camera-distance-value">185 m</span>
+          </label>
+          <input class="form-range" type="range" id="camera-distance" min="40" max="420" step="1" value="185" />
+
+          <label class="form-label" for="camera-height">
+            <span class="label-name"><i class="bi bi-arrows-move" aria-hidden="true"></i>Height (Z)</span>
+            <span class="label-value" id="camera-height-value">80 m</span>
+          </label>
+          <input class="form-range" type="range" id="camera-height" min="-80" max="260" step="1" value="80" />
+
+          <label class="form-label" for="camera-fov">
+            <span class="label-name"><i class="bi bi-camera" aria-hidden="true"></i>FOV</span>
+            <span class="label-value" id="camera-fov-value">50°</span>
+          </label>
+          <input class="form-range" type="range" id="camera-fov" min="20" max="90" step="1" value="50" />
+
+          <label class="form-label" for="auto-rotate-speed">
+            <span class="label-name"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Auto Rotate Speed</span>
+            <span class="label-value" id="auto-rotate-speed-value">0.35</span>
+          </label>
+          <input class="form-range" type="range" id="auto-rotate-speed" min="0" max="3" step="0.05" value="0.35" />
+
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="auto-rotate" />
+            <label class="form-check-label" for="auto-rotate">Auto Rotate</label>
+          </div>
+
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="show-bounds" checked />
+            <label class="form-check-label" for="show-bounds">Show Bounds</label>
+          </div>
+
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="camera-locked" />
+            <label class="form-check-label" for="camera-locked">Camera Lock</label>
+          </div>
+
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-sm btn-outline-theme flex-fill" id="camera-top-ortho">Top Orthographic (Z+)</button>
+            <button class="btn btn-sm btn-outline-theme flex-fill" id="camera-perspective">Perspective</button>
+          </div>
+
+          <button class="btn btn-sm btn-outline-theme w-100 mt-3" id="reset-camera">Reset Camera</button>
+          <p class="control-note mt-2 mb-0">6-DOF keys while camera lock is off: ASDQWE translate, ArrowLeft/ArrowRight yaw, ArrowUp/ArrowDown pitch, [ ] roll, Shift boost.</p>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
