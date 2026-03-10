@@ -81,9 +81,9 @@
               type="button"
               data-applet-item="ants"
               aria-selected="false"
-              title="Ants applet"
+              title="Ant applet"
             >
-              Ants
+              Ant
             </button>
           </div>
         </div>
@@ -156,7 +156,7 @@
             <ul class="tips-list">
               <li><strong>Perception Radius</strong> controls which neighbors contribute to alignment/cohesion.</li>
               <li><strong>Separation Distance</strong> controls near-field repulsion.</li>
-              <li><strong>Alignment / Cohesion / Separation Weight</strong> map to w<sub>a</sub>, w<sub>c</sub>, w<sub>s</sub> in the steering equation.</li>
+              <li><strong>Alignment / Cohesion / Separation Weight</strong> map to wₐ, wᶜ, wₛ in the steering equation.</li>
             </ul>
           </div>
           </div>
@@ -285,19 +285,21 @@
               </div>
               <div class="stat-card">
                 <div class="stat-inline">
-                  <span class="stat-inline-label">Ants</span>
-                  <span class="stat-inline-value" id="ants-count-live">0</span>
-                </div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-inline">
-                  <span class="stat-inline-label">Carrying</span>
+                  <span class="stat-inline-label ant-carrying-label">Carrying</span>
                   <span class="stat-inline-value" id="ants-carrying-live">0</span>
                 </div>
               </div>
             </div>
             <div class="chart-stack mt-3">
               <div class="chart-card" data-chart-card>
+                <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle counts chart">
+                  <span class="chart-title">Counts</span>
+                  <span class="chart-live" id="chart-ant-count-live">0</span>
+                  <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+                </button>
+                <canvas id="chart-ant-count" class="trend-chart" width="260" height="96" aria-label="ant counts trend chart"></canvas>
+              </div>
+              <div class="chart-card mt-2" data-chart-card>
                 <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle trips chart">
                   <span class="chart-title">Trips</span>
                   <span class="chart-live" id="chart-ant-trips-live">0</span>
@@ -333,7 +335,7 @@
           <i class="bi bi-chevron-bar-left" aria-hidden="true"></i>
         </button>
         <div id="scene-host" data-app-visible="boid ants" aria-label="3D simulation viewport"></div>
-        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants">Viewport: -- x --</div>
+        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants">Grid size: -- m | -- | --</div>
       </section>
       <div
         class="panel-resizer panel-resizer-right"
@@ -422,19 +424,19 @@
           <input class="form-range" type="range" id="max-accel" min="0.5" max="30" step="0.25" value="6" />
 
           <label class="form-label" for="alignment-weight">
-            <span class="label-name"><i class="bi bi-layout-three-columns" aria-hidden="true"></i>Alignment Weight (w<sub>a</sub>)</span>
+            <span class="label-name"><i class="bi bi-layout-three-columns" aria-hidden="true"></i>Alignment Weight (wₐ)</span>
             <span class="label-value" id="alignment-weight-value">1.00</span>
           </label>
           <input class="form-range" type="range" id="alignment-weight" min="0" max="3" step="0.05" value="1" />
 
           <label class="form-label" for="cohesion-weight">
-            <span class="label-name"><i class="bi bi-diagram-3-fill" aria-hidden="true"></i>Cohesion Weight (w<sub>c</sub>)</span>
+            <span class="label-name"><i class="bi bi-diagram-3-fill" aria-hidden="true"></i>Cohesion Weight (wᶜ)</span>
             <span class="label-value" id="cohesion-weight-value">0.90</span>
           </label>
           <input class="form-range" type="range" id="cohesion-weight" min="0" max="3" step="0.05" value="0.9" />
 
           <label class="form-label" for="separation-weight">
-            <span class="label-name"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Separation Weight (w<sub>s</sub>)</span>
+            <span class="label-name"><i class="bi bi-arrow-left-right" aria-hidden="true"></i>Separation Weight (wₛ)</span>
             <span class="label-value" id="separation-weight-value">1.35</span>
           </label>
           <input class="form-range" type="range" id="separation-weight" min="0" max="4" step="0.05" value="1.35" />
@@ -524,7 +526,7 @@
             <div class="section-slider-hub" data-slider-hub="ants-simulation" aria-label="Active ants slider">
               <div class="section-slider-head">
                 <span class="section-slider-title" data-section-slider-title>Count</span>
-                <span class="section-slider-value" data-section-slider-value>260</span>
+                <span class="section-slider-value" data-section-slider-value>180</span>
               </div>
               <input
                 class="form-range section-active-slider"
@@ -533,15 +535,15 @@
                 min="40"
                 max="900"
                 step="10"
-                value="260"
+                value="180"
               />
             </div>
 
             <label class="form-label" for="ant-count">
               <span class="label-name"><i class="bi bi-people-fill" aria-hidden="true"></i>Count</span>
-              <span class="label-value" id="ant-count-value">260</span>
+              <span class="label-value" id="ant-count-value">180</span>
             </label>
-            <input class="form-range" type="range" id="ant-count" min="40" max="900" step="10" value="260" />
+            <input class="form-range" type="range" id="ant-count" min="40" max="900" step="10" value="180" />
 
             <label class="form-label" for="ant-scale">
               <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>Object Size</span>
@@ -551,51 +553,63 @@
 
             <label class="form-label" for="ant-speed">
               <span class="label-name"><i class="bi bi-speedometer2" aria-hidden="true"></i>Speed</span>
-              <span class="label-value" id="ant-speed-value">7.5 m/s</span>
+              <span class="label-value" id="ant-speed-value">4.0 m/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-speed" min="1" max="20" step="0.1" value="7.5" />
+            <input class="form-range" type="range" id="ant-speed" min="1" max="20" step="0.1" value="4.0" />
 
             <label class="form-label" for="ant-sensor-distance">
               <span class="label-name"><i class="bi bi-broadcast" aria-hidden="true"></i>Sensor Distance</span>
-              <span class="label-value" id="ant-sensor-distance-value">6.0 m</span>
+              <span class="label-value" id="ant-sensor-distance-value">5.0 m</span>
             </label>
-            <input class="form-range" type="range" id="ant-sensor-distance" min="1" max="20" step="0.2" value="6" />
+            <input class="form-range" type="range" id="ant-sensor-distance" min="1" max="20" step="0.2" value="5.0" />
+
+            <label class="form-label" for="ant-food-sense-distance">
+              <span class="label-name"><i class="bi bi-bullseye" aria-hidden="true"></i>Food Sensing Distance</span>
+              <span class="label-value" id="ant-food-sense-distance-value">8.0 m</span>
+            </label>
+            <input class="form-range" type="range" id="ant-food-sense-distance" min="0.2" max="25" step="0.2" value="8.0" />
 
             <label class="form-label" for="ant-sensor-angle">
               <span class="label-name"><i class="bi bi-compass" aria-hidden="true"></i>Sensor Angle</span>
-              <span class="label-value" id="ant-sensor-angle-value">35°</span>
+              <span class="label-value" id="ant-sensor-angle-value">40°</span>
             </label>
-            <input class="form-range" type="range" id="ant-sensor-angle" min="5" max="90" step="1" value="35" />
+            <input class="form-range" type="range" id="ant-sensor-angle" min="5" max="90" step="1" value="40" />
 
             <label class="form-label" for="ant-turn-gain">
               <span class="label-name"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Turn Gain (kθ)</span>
-              <span class="label-value" id="ant-turn-gain-value">2.20 1/s</span>
+              <span class="label-value" id="ant-turn-gain-value">1.60 1/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-turn-gain" min="0.2" max="8" step="0.05" value="2.2" />
+            <input class="form-range" type="range" id="ant-turn-gain" min="0.2" max="8" step="0.05" value="1.6" />
 
             <label class="form-label" for="ant-goal-bias">
               <span class="label-name"><i class="bi bi-bullseye" aria-hidden="true"></i>Goal Bias (kg)</span>
-              <span class="label-value" id="ant-goal-bias-value">0.35 1/s</span>
+              <span class="label-value" id="ant-goal-bias-value">0.20 1/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-goal-bias" min="0" max="2" step="0.05" value="0.35" />
+            <input class="form-range" type="range" id="ant-goal-bias" min="0" max="2" step="0.05" value="0.2" />
+
+            <label class="form-label" for="ant-departure-rate">
+              <span class="label-name"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Departure Rate</span>
+              <span class="label-value" id="ant-departure-rate-value">12.0 ants/s</span>
+            </label>
+            <input class="form-range" type="range" id="ant-departure-rate" min="1" max="60" step="0.5" value="12" />
 
             <label class="form-label" for="ant-deposit-rate">
               <span class="label-name"><i class="bi bi-droplet-half" aria-hidden="true"></i>Deposit Rate (Q)</span>
-              <span class="label-value" id="ant-deposit-rate-value">18.0</span>
+              <span class="label-value" id="ant-deposit-rate-value">8.0</span>
             </label>
-            <input class="form-range" type="range" id="ant-deposit-rate" min="1" max="40" step="0.5" value="18" />
+            <input class="form-range" type="range" id="ant-deposit-rate" min="1" max="40" step="0.5" value="8.0" />
 
             <label class="form-label" for="ant-diffusion-rate">
               <span class="label-name"><i class="bi bi-water" aria-hidden="true"></i>Diffusion (D)</span>
-              <span class="label-value" id="ant-diffusion-rate-value">0.34 1/s</span>
+              <span class="label-value" id="ant-diffusion-rate-value">7.50 1/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-diffusion-rate" min="0" max="1" step="0.01" value="0.34" />
+            <input class="form-range" type="range" id="ant-diffusion-rate" min="0" max="12" step="0.1" value="7.5" />
 
             <label class="form-label" for="ant-evap-rate">
               <span class="label-name"><i class="bi bi-wind" aria-hidden="true"></i>Evaporation (λ)</span>
-              <span class="label-value" id="ant-evap-rate-value">0.12 1/s</span>
+              <span class="label-value" id="ant-evap-rate-value">1.80 1/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-evap-rate" min="0" max="1" step="0.01" value="0.12" />
+            <input class="form-range" type="range" id="ant-evap-rate" min="0" max="5" step="0.1" value="1.8" />
 
             <div class="d-flex gap-2 mt-3">
               <button class="btn btn-sm btn-theme flex-fill" id="toggle-ant-pause">
@@ -625,16 +639,16 @@
             <div class="section-slider-hub" data-slider-hub="ants-interaction" aria-label="Active ants interaction slider">
               <div class="section-slider-head">
                 <span class="section-slider-title" data-section-slider-title>Food Added Per Click</span>
-                <span class="section-slider-value" data-section-slider-value>5000 ug</span>
+                <span class="section-slider-value" data-section-slider-value>50 ug</span>
               </div>
               <input
                 class="form-range section-active-slider"
                 type="range"
                 data-section-slider
-                min="100"
-                max="30000"
-                step="100"
-                value="5000"
+                min="10"
+                max="100"
+                step="1"
+                value="50"
               />
             </div>
 
@@ -645,11 +659,11 @@
 
             <label class="form-label mt-2" for="ant-food-add-mass">
               <span class="label-name"><i class="bi bi-circle-fill" aria-hidden="true"></i>Food Added Per Click</span>
-              <span class="label-value" id="ant-food-add-mass-value">5000 ug</span>
+              <span class="label-value" id="ant-food-add-mass-value">50 ug</span>
             </label>
-            <input class="form-range" type="range" id="ant-food-add-mass" min="100" max="30000" step="100" value="5000" />
+            <input class="form-range" type="range" id="ant-food-add-mass" min="10" max="100" step="1" value="50" />
 
-            <p class="panel-copy mt-2 mb-0">Each food pickup consumes 1 ug. Food markers are circular with radius scaled from mass.</p>
+            <p class="panel-copy mt-2 mb-0">Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass.</p>
           </div>
         </div>
 
@@ -691,6 +705,13 @@
                 <option value="coolwarm">Coolwarm</option>
                 <option value="greys">Greys</option>
               </select>
+              <div class="colormap-legend mt-2" id="ant-colormap-legend" aria-label="Ant colormap legend">
+                <div class="colormap-legend-bar" id="ant-colormap-legend-bar"></div>
+                <div class="colormap-legend-meta">
+                  <span id="ant-colormap-cmin">cmin: -180°</span>
+                  <span id="ant-colormap-cmax">cmax: 180°</span>
+                </div>
+              </div>
             </div>
             <div id="ant-single-color-wrap" class="is-hidden">
               <label class="form-label mt-2" for="ant-solid-color">

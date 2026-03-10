@@ -36,21 +36,24 @@ const params = {
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
   paused: false,
-  antCount: 260,
+  antCount: 180,
   antScale: 0.95,
-  antSpeed: 7.5,
-  antSensorDistance: 6,
-  antSensorAngle: 35,
-  antTurnGain: 2.2,
-  antGoalBias: 0.35,
-  antDepositRate: 18,
-  antDiffusionRate: 0.34,
-  antEvapRate: 0.12,
-  antNoiseStrength: 0.45,
+  antSpeed: 4.0,
+  antSensorDistance: 5.0,
+  antSensorAngle: 40,
+  antTurnGain: 1.6,
+  antGoalBias: 0.2,
+  antDepartureRate: 12,
+  antDepositRate: 8.0,
+  antDiffusionRate: 7.5,
+  antEvapRate: 1.8,
+  antNoiseStrength: 0.2,
+  antFoodSenseDistance: 8.0,
+  antPickupRadius: 0.55,
   antFoodPlacementEnabled: false,
-  antFoodAddMassUg: 5000,
+  antFoodAddMassUg: 50,
   antPickupMassUg: 1,
-  antFoodSourceMassUg: 8000,
+  antFoodSourceMassUg: 1000,
 };
 
 const cameraDefaults = {
@@ -78,6 +81,7 @@ const dom = {
   chartNeighbors: document.getElementById("chart-neighbors"),
   chartAntTrips: document.getElementById("chart-ant-trips"),
   chartAntPheromone: document.getElementById("chart-ant-pheromone"),
+  chartAntCount: document.getElementById("chart-ant-count"),
   fpsLive: document.getElementById("fps-live"),
   chartCountLive: document.getElementById("chart-count-live"),
   chartSpeedLive: document.getElementById("chart-speed-live"),
@@ -89,6 +93,7 @@ const dom = {
   antsPheromoneLive: document.getElementById("ants-pheromone-live"),
   chartAntTripsLive: document.getElementById("chart-ant-trips-live"),
   chartAntPheromoneLive: document.getElementById("chart-ant-pheromone-live"),
+  chartAntCountLive: document.getElementById("chart-ant-count-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
@@ -112,6 +117,10 @@ const dom = {
   antSolidColor: document.getElementById("ant-solid-color"),
   antColormapControlWrap: document.getElementById("ant-colormap-control-wrap"),
   antSingleColorWrap: document.getElementById("ant-single-color-wrap"),
+  antColormapLegend: document.getElementById("ant-colormap-legend"),
+  antColormapLegendBar: document.getElementById("ant-colormap-legend-bar"),
+  antColormapCmin: document.getElementById("ant-colormap-cmin"),
+  antColormapCmax: document.getElementById("ant-colormap-cmax"),
   colormapLegend: document.getElementById("colormap-legend"),
   colormapLegendBar: document.getElementById("colormap-legend-bar"),
   colormapCmin: document.getElementById("colormap-cmin"),
@@ -150,6 +159,10 @@ const panelWidthState = {
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
 const APPLET_IDS = new Set(["boid", "ants"]);
+const appletCameraState = {
+  boid: null,
+  ants: null,
+};
 
 let activeApplet = "boid";
 let boidPausedPreference = params.paused;
@@ -332,6 +345,7 @@ const countHistory = [];
 const neighborHistory = [];
 const antTripsHistory = [];
 const antPheromoneHistory = [];
+const antCountHistory = [];
 const chartMaxPoints = 160;
 let boidChartFrameCounter = 0;
 let antChartFrameCounter = 0;
@@ -850,9 +864,13 @@ function updateAntStats(stats) {
   if (dom.chartAntPheromoneLive) {
     dom.chartAntPheromoneLive.textContent = meanPheromone.toFixed(2);
   }
+  if (dom.chartAntCountLive) {
+    dom.chartAntCountLive.textContent = String(antCount);
+  }
 
   antChartFrameCounter += 1;
   if (antChartFrameCounter % 3 === 0) {
+    pushTrendValue(antCountHistory, antCount);
     pushTrendValue(antTripsHistory, trips);
     pushTrendValue(antPheromoneHistory, meanPheromone);
     drawTrendCharts();
@@ -1199,6 +1217,7 @@ function updateColormapLegend() {
 
 function rebuildBoundsAndGrid() {
   world.rebuildBoundsAndGrid();
+  updateViewportLabel();
 }
 
 function setupControls() {
@@ -1297,6 +1316,11 @@ function setupControls() {
     return `${value.toFixed(1)} m`;
   });
 
+  bindRange("ant-food-sense-distance", "ant-food-sense-distance-value", (value) => {
+    params.antFoodSenseDistance = value;
+    return `${value.toFixed(1)} m`;
+  });
+
   bindRange("ant-sensor-angle", "ant-sensor-angle-value", (value) => {
     params.antSensorAngle = value;
     return `${Math.round(value)}°`;
@@ -1310,6 +1334,11 @@ function setupControls() {
   bindRange("ant-goal-bias", "ant-goal-bias-value", (value) => {
     params.antGoalBias = value;
     return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("ant-departure-rate", "ant-departure-rate-value", (value) => {
+    params.antDepartureRate = value;
+    return `${value.toFixed(1)} ants/s`;
   });
 
   bindRange("ant-deposit-rate", "ant-deposit-rate-value", (value) => {
@@ -1561,6 +1590,11 @@ function applySceneObjectVisibility(appletId) {
 function applyAppletMode(appletId, options = {}) {
   const normalizedId = normalizeAppletId(appletId);
   const { updateUrl = false, replaceHistory = false } = options;
+  const previousApplet = activeApplet;
+
+  if (previousApplet && previousApplet !== normalizedId && APPLET_IDS.has(previousApplet)) {
+    appletCameraState[previousApplet] = cameraController.getCameraSnapshot();
+  }
 
   activeApplet = normalizedId;
 
@@ -1573,7 +1607,13 @@ function applyAppletMode(appletId, options = {}) {
 
   applyAppletVisibility(normalizedId);
   applySceneObjectVisibility(normalizedId);
-  applyDefaultProjectionForApplet(normalizedId);
+  const restoredCamera = cameraController.restoreCameraSnapshot(appletCameraState[normalizedId]);
+  if (!restoredCamera) {
+    applyDefaultProjectionForApplet(normalizedId);
+  }
+
+  setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
+  updateProjectionToggleUI();
 
   if (normalizedId === "boid") {
     antsPausedPreference = params.paused;
@@ -1938,6 +1978,7 @@ function resetBoidTrendCharts() {
 }
 
 function resetAntTrendCharts() {
+  antCountHistory.length = 0;
   antTripsHistory.length = 0;
   antPheromoneHistory.length = 0;
   antChartFrameCounter = 0;
@@ -1950,6 +1991,7 @@ function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartNeighbors);
   resizeCanvasBackingStore(dom.chartAntTrips);
   resizeCanvasBackingStore(dom.chartAntPheromone);
+  resizeCanvasBackingStore(dom.chartAntCount);
   drawTrendCharts();
 }
 
@@ -1996,6 +2038,13 @@ function drawTrendCharts() {
     stroke: "#f1b55b",
     fill: "rgba(241, 181, 91, 0.18)",
     axisLabel: "trips",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartAntCount, antCountHistory, {
+    stroke: "#7ec4ff",
+    fill: "rgba(126, 196, 255, 0.14)",
+    axisLabel: "count",
     tickFormatter: (value) => String(Math.max(0, Math.round(value))),
     forceZeroMin: true,
   });
@@ -2394,13 +2443,13 @@ function updateViewportLabel() {
     return;
   }
 
-  const width = Math.max(1, Math.floor(dom.sceneHost.clientWidth));
-  const height = Math.max(1, Math.floor(dom.sceneHost.clientHeight));
+  const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
+  const divisions = Math.max(10, Math.floor(groundBase / 6));
+  const gridSizeM = groundBase / Math.max(divisions, 1);
   const appLabel = activeApplet === "ants" ? "Ant Trails" : "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
-
-  dom.frameSize.textContent = `Viewport: ${width} x ${height} | ${appLabel} | ${projectionLabel}`;
+  dom.frameSize.textContent = `Grid size: ${gridSizeM.toFixed(1)} m | ${appLabel} | ${projectionLabel}`;
 }
 
 function updateCameraTelemetry() {

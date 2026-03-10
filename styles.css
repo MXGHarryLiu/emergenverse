@@ -895,9 +895,22 @@ body[data-theme="light"] .section-slider-hub {
   font-variant-numeric: tabular-nums;
 }
 
+.ant-carrying-label {
+  text-transform: none !important;
+}
+
 .section-active-slider {
   margin-top: 0;
   margin-bottom: 0;
+}
+
+/* Prevent initial flash of per-parameter sliders before compact wiring runs. */
+.right-panel [data-control-section] .form-range {
+  display: none;
+}
+
+.right-panel [data-control-section] .form-range.section-active-slider {
+  display: block;
 }
 
 .right-panel .form-label .label-value.compact-value-trigger {

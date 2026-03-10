@@ -12,6 +12,13 @@ const ANT_COLORMAP_STOPS = {
 };
 
 const ANT_COLORMAPS = buildColormapLUT(ANT_COLORMAP_STOPS);
+const ANT_DISCRETE_STATE_COLORMAPS = {
+  paired: [0xa6cee3, 0x1f78b4],
+  set1: [0xe41a1c, 0x377eb8],
+  set2: [0x66c2a5, 0xfc8d62],
+  dark2: [0x1b9e77, 0xd95f02],
+  tableau10: [0x4e79a7, 0xf28e2b],
+};
 const antLerpA = new THREE.Color();
 const antLerpB = new THREE.Color();
 
@@ -40,15 +47,23 @@ export class AntSimulation {
     this.antColor = new THREE.Color();
     this.antSolidColor = new THREE.Color();
     this.nest = new THREE.Vector2(0, 0);
+    this.departureCredits = 0;
     this.foodSources = [];
     this.foodMesh = null;
     this.foodMeshCapacity = 256;
+    this.nestMesh = null;
     this.foodMarkerGeometry = new THREE.CylinderGeometry(1, 1, 0.2, 18);
     this.foodMarkerMaterial = new THREE.MeshPhongMaterial({
       color: 0xffad52,
       shininess: 18,
       specular: 0x2a2015,
       flatShading: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    this.nestMarkerGeometry = new THREE.CircleGeometry(1, 28);
+    this.nestMarkerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x5b9dff,
       side: THREE.DoubleSide,
       toneMapped: false,
     });
@@ -96,6 +111,7 @@ export class AntSimulation {
 
     this.updatePheromonePlaneTransform();
     this.ensureFoodMesh();
+    this.ensureNestMesh();
     this.reset();
   }
 
@@ -109,6 +125,9 @@ export class AntSimulation {
     if (this.foodMesh) {
       this.foodMesh.visible = visible;
     }
+    if (this.nestMesh) {
+      this.nestMesh.visible = visible;
+    }
   }
 
   onTheme(theme) {
@@ -116,10 +135,13 @@ export class AntSimulation {
     this.pheromoneMaterial.opacity = theme === "light" ? 0.6 : 0.72;
     this.foodMarkerMaterial.color.set(theme === "light" ? 0xf4a340 : 0xffad52);
     this.foodMarkerMaterial.specular.set(theme === "light" ? 0x3a2918 : 0x251a12);
+    this.nestMarkerMaterial.color.set(theme === "light" ? 0x4d8df2 : 0x5b9dff);
+    // MeshBasicMaterial has no specular term.
   }
 
   reset() {
     this.ants.length = 0;
+    this.departureCredits = 0;
     this.stats.trips = 0;
     this.stats.carrying = 0;
     this.stats.meanPheromone = 0;
@@ -131,16 +153,15 @@ export class AntSimulation {
     this.nextHomeField.fill(0);
 
     this.foodSources = this.buildFoodSources();
+    this.updateNestMarkerTransform();
 
-    const spawnRadius = Math.max(3.5, Math.min(this.params.worldSizeX, this.params.worldSizeY) * 0.06);
     for (let i = 0; i < this.params.antCount; i += 1) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = Math.random() * spawnRadius;
       this.ants.push({
-        position: new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius),
+        position: this.nest.clone(),
         heading: Math.random() * Math.PI * 2,
         carrying: false,
         lost: false,
+        waitingAtNest: true,
       });
     }
 
@@ -194,6 +215,7 @@ export class AntSimulation {
   onWorldGeometryChanged() {
     this.foodSources = this.buildFoodSources();
     this.updatePheromonePlaneTransform();
+    this.updateNestMarkerTransform();
     this.syncFoodInstances();
 
     for (let i = 0; i < this.ants.length; i += 1) {
@@ -221,15 +243,36 @@ export class AntSimulation {
   step(dt) {
     const sensorAngleRad = THREE.MathUtils.degToRad(this.params.antSensorAngle);
     const sensorDistance = Math.max(0.2, this.params.antSensorDistance);
-    const nestRadius = Math.max(2.2, sensorDistance * 0.5);
-    const foodRadiusMin = Math.max(2.0, sensorDistance * 0.45);
+    const foodSenseRadius = Math.max(sensorDistance, this.params.antFoodSenseDistance ?? sensorDistance);
+    const foodPickupRadius = Math.max(0.15, this.params.antPickupRadius ?? 0.55);
+    const nestRadius = 1.25;
     const turnGain = Math.max(0, this.params.antTurnGain);
     const goalBias = Math.max(0, this.params.antGoalBias);
+    const departureRate = Math.max(0, this.params.antDepartureRate ?? 12);
     const depositRate = Math.max(0, this.params.antDepositRate);
     const speed = Math.max(0, this.params.antSpeed);
+    this.departureCredits = Math.min(
+      this.ants.length,
+      this.departureCredits + departureRate * dt,
+    );
 
     for (let i = 0; i < this.ants.length; i += 1) {
       const ant = this.ants[i];
+      if (ant.waitingAtNest) {
+        ant.position.copy(this.nest);
+        ant.carrying = false;
+        ant.lost = false;
+        if (this.departureCredits >= 1) {
+          this.departureCredits -= 1;
+          ant.waitingAtNest = false;
+          ant.heading = Math.random() * Math.PI * 2;
+        } else {
+          continue;
+        }
+      }
+
+      const prevX = ant.position.x;
+      const prevY = ant.position.y;
       const trackField = ant.carrying ? this.homeField : this.foodField;
 
       const leftSignal = this.sampleField(
@@ -243,15 +286,24 @@ export class AntSimulation {
         ant.position.y + Math.sin(ant.heading - sensorAngleRad) * sensorDistance,
       );
 
-      const target = ant.carrying ? this.nest : this.getClosestFoodSource(ant.position);
-      const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
-      const headingError = shortestAngleDelta(desiredHeading - ant.heading);
+      const target = this.getClosestFoodSourceWithinRange(ant.position, foodSenseRadius);
+      let headingError = 0;
+      if (target) {
+        const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
+        headingError = shortestAngleDelta(desiredHeading - ant.heading);
+      }
       const stochastic = (Math.random() * 2 - 1) * this.params.antNoiseStrength;
 
-      ant.heading = wrapAngle(
-        ant.heading +
-          ((rightSignal - leftSignal) * turnGain + headingError * goalBias + stochastic) * dt,
-      );
+      if (ant.carrying) {
+        // Returning ants do not "see" nest directly.
+        // They follow home pheromone gradient and the pickup heading reversal.
+        const sensorySteer = (rightSignal - leftSignal) * turnGain * 1.3;
+        ant.heading = wrapAngle(ant.heading + (sensorySteer + stochastic * 0.35) * dt);
+      } else {
+        const sensorySteer = (rightSignal - leftSignal) * turnGain;
+        const goalSteer = headingError * goalBias;
+        ant.heading = wrapAngle(ant.heading + (sensorySteer + goalSteer + stochastic) * dt);
+      }
 
       ant.position.x += Math.cos(ant.heading) * speed * dt;
       ant.position.y += Math.sin(ant.heading) * speed * dt;
@@ -261,15 +313,29 @@ export class AntSimulation {
       }
 
       const toNestSq = ant.position.distanceToSquared(this.nest);
-      const foodSource = this.getFoodSourceAtPosition(ant.position, foodRadiusMin);
+      const reachedNest =
+        toNestSq < nestRadius * nestRadius ||
+        pointSegmentDistanceSq(
+          prevX,
+          prevY,
+          ant.position.x,
+          ant.position.y,
+          this.nest.x,
+          this.nest.y,
+        ) <
+          nestRadius * nestRadius;
+      const foodSource = this.getFoodSourceAtPosition(ant.position, foodPickupRadius);
       if (!ant.carrying && foodSource) {
         ant.carrying = true;
+        ant.waitingAtNest = false;
         ant.heading = wrapAngle(ant.heading + Math.PI);
         foodSource.massUg = Math.max(0, foodSource.massUg - Math.max(1, this.params.antPickupMassUg ?? 1));
-      } else if (ant.carrying && toNestSq < nestRadius * nestRadius) {
+      } else if (ant.carrying && reachedNest) {
         ant.carrying = false;
-        ant.heading = wrapAngle(ant.heading + Math.PI);
+        ant.waitingAtNest = true;
+        ant.position.copy(this.nest);
         this.stats.trips += 1;
+        continue;
       }
 
       const depositField = ant.carrying ? this.foodField : this.homeField;
@@ -317,6 +383,17 @@ export class AntSimulation {
     this.foodMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.foodMesh.count = 0;
     this.scene.add(this.foodMesh);
+  }
+
+  ensureNestMesh() {
+    if (this.nestMesh) {
+      return;
+    }
+
+    this.nestMesh = new THREE.Mesh(this.nestMarkerGeometry, this.nestMarkerMaterial);
+    this.nestMesh.renderOrder = 3;
+    this.scene.add(this.nestMesh);
+    this.updateNestMarkerTransform();
   }
 
   removeLostAnts() {
@@ -367,10 +444,11 @@ export class AntSimulation {
     }
 
     if (mode === "state") {
+      const stateColors = getAntStateColors(this.params.antColormap);
       if (ant.carrying) {
-        outColor.setRGB(0.98, 0.69, 0.26);
+        outColor.setHex(stateColors.carrying);
       } else {
-        outColor.setRGB(0.37, 0.84, 0.98);
+        outColor.setHex(stateColors.searching);
       }
       return;
     }
@@ -453,13 +531,23 @@ export class AntSimulation {
     this.pheromonePlane.position.z = -this.params.worldSizeZ * 0.5 + 0.06;
   }
 
+  updateNestMarkerTransform() {
+    if (!this.nestMesh) {
+      return;
+    }
+    const floorZ = -this.params.worldSizeZ * 0.5 + 0.16;
+    this.nestMesh.position.set(this.nest.x, this.nest.y, floorZ);
+    this.nestMesh.rotation.set(0, 0, 0);
+    this.nestMesh.scale.set(1.25, 1.25, 1);
+  }
+
   buildFoodSources() {
     const baseMass = Math.max(1, this.params.antFoodSourceMassUg ?? 8000);
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
     const minAxis = Math.max(1, Math.min(halfX, halfY));
-    const minRadius = Math.max(6, minAxis * 0.2);
-    const maxRadius = Math.max(minRadius + 1, minAxis * 0.82);
+    const minRadius = Math.max(8, minAxis * 0.24);
+    const maxRadius = Math.max(minRadius + 1, minAxis * 0.5);
     const angle = Math.random() * Math.PI * 2;
     const radius = THREE.MathUtils.randFloat(minRadius, maxRadius);
     const x = THREE.MathUtils.clamp(Math.cos(angle) * radius, -halfX + 1, halfX - 1);
@@ -542,9 +630,10 @@ export class AntSimulation {
     return field[iy * size + ix];
   }
 
-  getClosestFoodSource(position) {
+  getClosestFoodSourceWithinRange(position, maxDistance) {
     let best = null;
-    let bestDistSq = Infinity;
+    const maxDistanceSq = Math.max(0, maxDistance) * Math.max(0, maxDistance);
+    let bestDistSq = maxDistanceSq;
 
     for (let i = 0; i < this.foodSources.length; i += 1) {
       const source = this.foodSources[i];
@@ -558,17 +647,18 @@ export class AntSimulation {
       }
     }
 
-    return best || this.nest;
+    return best;
   }
 
-  getFoodSourceAtPosition(position, minimumRadius) {
+  getFoodSourceAtPosition(position, pickupRadius) {
+    const radius = Math.max(0, pickupRadius);
+    const radiusSq = radius * radius;
     for (let i = 0; i < this.foodSources.length; i += 1) {
       const source = this.foodSources[i];
       if (!source || source.massUg <= 0) {
         continue;
       }
-      const radius = Math.max(minimumRadius, this.getFoodRadiusFromMass(source.massUg));
-      if (position.distanceToSquared(source.position) <= radius * radius) {
+      if (position.distanceToSquared(source.position) <= radiusSq) {
         return source;
       }
     }
@@ -665,6 +755,25 @@ function wrapAngle(value) {
   return Math.atan2(Math.sin(value), Math.cos(value));
 }
 
+function pointSegmentDistanceSq(ax, ay, bx, by, px, py) {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const abLenSq = abx * abx + aby * aby;
+  if (abLenSq <= 1e-12) {
+    const dx = px - ax;
+    const dy = py - ay;
+    return dx * dx + dy * dy;
+  }
+  const t = THREE.MathUtils.clamp((apx * abx + apy * aby) / abLenSq, 0, 1);
+  const cx = ax + abx * t;
+  const cy = ay + aby * t;
+  const dx = px - cx;
+  const dy = py - cy;
+  return dx * dx + dy * dy;
+}
+
 function buildColormapLUT(stopsByName) {
   const maps = {};
   Object.keys(stopsByName).forEach((name) => {
@@ -692,4 +801,18 @@ function sampleColormap(name, normalized, outColor) {
   antLerpB.copy(colors[index + 1]);
   outColor.copy(antLerpA).lerp(antLerpB, fraction);
   return outColor;
+}
+
+function getAntStateColors(name) {
+  const palette = ANT_DISCRETE_STATE_COLORMAPS[name];
+  if (palette && palette.length >= 2) {
+    return {
+      searching: palette[0],
+      carrying: palette[1],
+    };
+  }
+  return {
+    searching: 0x5fd6fa,
+    carrying: 0xfaad42,
+  };
 }

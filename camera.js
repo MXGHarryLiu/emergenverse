@@ -80,17 +80,27 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   }
 
   function switchToPerspective() {
+    let preservePose = false;
+    if (arguments.length > 0) {
+      preservePose = Boolean(arguments[0]);
+    }
     activeCamera = perspectiveCamera;
     controls.object = activeCamera;
-    setPerspectiveCameraFromParams(false);
+    if (!preservePose) {
+      setPerspectiveCameraFromParams(false);
+    }
     applyCameraInteractivity();
     controls.update();
   }
 
   function switchToOrthographicTop() {
+    let snapToTop = true;
+    if (arguments.length > 0) {
+      snapToTop = Boolean(arguments[0]);
+    }
     activeCamera = orthographicCamera;
     controls.object = activeCamera;
-    updateOrthographicCamera(true);
+    updateOrthographicCamera(snapToTop);
     applyCameraInteractivity();
     controls.update();
   }
@@ -379,6 +389,70 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     controls.update();
   }
 
+  function getCameraSnapshot() {
+    return {
+      projectionMode: activeCamera === orthographicCamera ? "orthographic" : "perspective",
+      cameraFov: params.cameraFov,
+      target: controls.target.toArray(),
+      perspective: {
+        position: perspectiveCamera.position.toArray(),
+        quaternion: perspectiveCamera.quaternion.toArray(),
+        up: perspectiveCamera.up.toArray(),
+      },
+      orthographic: {
+        position: orthographicCamera.position.toArray(),
+        quaternion: orthographicCamera.quaternion.toArray(),
+        up: orthographicCamera.up.toArray(),
+      },
+    };
+  }
+
+  function applyCameraPose(camera, pose) {
+    if (!camera || !pose) {
+      return;
+    }
+    if (Array.isArray(pose.position) && pose.position.length === 3) {
+      camera.position.fromArray(pose.position);
+    }
+    if (Array.isArray(pose.quaternion) && pose.quaternion.length === 4) {
+      camera.quaternion.fromArray(pose.quaternion);
+    }
+    if (Array.isArray(pose.up) && pose.up.length === 3) {
+      camera.up.fromArray(pose.up);
+    }
+  }
+
+  function restoreCameraSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== "object") {
+      return false;
+    }
+
+    params.cameraFov = THREE.MathUtils.clamp(Number(snapshot.cameraFov) || params.cameraFov, 20, 90);
+    perspectiveCamera.fov = params.cameraFov;
+    perspectiveCamera.updateProjectionMatrix();
+    updateOrthographicCamera(false);
+
+    applyCameraPose(perspectiveCamera, snapshot.perspective);
+    applyCameraPose(orthographicCamera, snapshot.orthographic);
+
+    if (Array.isArray(snapshot.target) && snapshot.target.length === 3) {
+      controls.target.fromArray(snapshot.target);
+    }
+
+    const projectionMode = snapshot.projectionMode === "orthographic" ? "orthographic" : "perspective";
+    params.projectionMode = projectionMode;
+    if (projectionMode === "orthographic") {
+      switchToOrthographicTop(false);
+    } else {
+      switchToPerspective(true);
+    }
+
+    perspectiveCamera.updateProjectionMatrix();
+    orthographicCamera.updateProjectionMatrix();
+    controls.update();
+    return true;
+  }
+
   function isTextEntryTarget(target) {
     if (!(target instanceof Element)) {
       return false;
@@ -435,6 +509,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     updateTelemetry,
     resetOrientationKeepPosition,
     moveActiveCameraToOrigin,
+    getCameraSnapshot,
+    restoreCameraSnapshot,
     onKeyDown,
     onKeyUp,
     isTextEntryTarget,
