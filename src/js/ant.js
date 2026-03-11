@@ -6,7 +6,7 @@ export const ANT_DEFAULT_PARAMS = {
   antColormap: "turbo",
   antSolidColor: "#62d6f9",
   antCount: 120,
-  antScale: 0.003,
+  antScale: 0.03,
   antSpeed: 0.012,
   antSensorDistance: 0.08,
   antSensorAngle: 35,

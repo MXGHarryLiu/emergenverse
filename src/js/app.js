@@ -6,6 +6,7 @@ import { BoidSimulation, BOID_DEFAULT_PARAMS } from "./boid.js";
 import { AntSimulation, ANT_DEFAULT_PARAMS } from "./ant.js";
 import { PreySimulation, PREY_DEFAULT_PARAMS } from "./prey.js";
 import { FireflySimulation, FIREFLY_DEFAULT_PARAMS } from "./firefly.js";
+import { GalaxySimulation, GALAXY_DEFAULT_PARAMS } from "./galaxy.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
@@ -35,6 +36,7 @@ const params = {
   ...ANT_DEFAULT_PARAMS,
   ...PREY_DEFAULT_PARAMS,
   ...FIREFLY_DEFAULT_PARAMS,
+  ...GALAXY_DEFAULT_PARAMS,
 };
 
 renderAppletSectionsFromConfig();
@@ -73,6 +75,9 @@ const dom = {
   chartFireflyCount: document.getElementById("chart-firefly-count"),
   chartFireflyOrder: document.getElementById("chart-firefly-order"),
   chartFireflyBlink: document.getElementById("chart-firefly-blink"),
+  chartGalaxyCount: document.getElementById("chart-galaxy-count"),
+  chartGalaxyRadius: document.getElementById("chart-galaxy-radius"),
+  chartGalaxySpeed: document.getElementById("chart-galaxy-speed"),
   fpsLive: document.getElementById("fps-live"),
   chartCountLive: document.getElementById("chart-count-live"),
   chartSpeedLive: document.getElementById("chart-speed-live"),
@@ -80,6 +85,7 @@ const dom = {
   antsFpsLive: document.getElementById("ants-fps-live"),
   preyFpsLive: document.getElementById("prey-fps-live"),
   fireflyFpsLive: document.getElementById("firefly-fps-live"),
+  galaxyFpsLive: document.getElementById("galaxy-fps-live"),
   antsCountLive: document.getElementById("ants-count-live"),
   antsCarryingLive: document.getElementById("ants-carrying-live"),
   antsTripsLive: document.getElementById("ants-trips-live"),
@@ -96,6 +102,9 @@ const dom = {
   chartFireflyCountLive: document.getElementById("chart-firefly-count-live"),
   chartFireflyOrderLive: document.getElementById("chart-firefly-order-live"),
   chartFireflyBlinkLive: document.getElementById("chart-firefly-blink-live"),
+  chartGalaxyCountLive: document.getElementById("chart-galaxy-count-live"),
+  chartGalaxyRadiusLive: document.getElementById("chart-galaxy-radius-live"),
+  chartGalaxySpeedLive: document.getElementById("chart-galaxy-speed-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
@@ -112,6 +121,9 @@ const dom = {
   toggleFireflyPause: document.getElementById("toggle-firefly-pause"),
   defaultFireflySim: document.getElementById("default-firefly-sim"),
   resetFireflySim: document.getElementById("reset-firefly-sim"),
+  toggleGalaxyPause: document.getElementById("toggle-galaxy-pause"),
+  defaultGalaxySim: document.getElementById("default-galaxy-sim"),
+  resetGalaxySim: document.getElementById("reset-galaxy-sim"),
   resetCamera: document.getElementById("reset-camera"),
   homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
@@ -175,6 +187,7 @@ let boidPausedPreference = params.paused;
 let antsPausedPreference = params.paused;
 let preyPausedPreference = params.paused;
 let fireflyPausedPreference = params.paused;
+let galaxyPausedPreference = params.paused;
 const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
 let themeManager = null;
@@ -248,6 +261,12 @@ let lastFireflyStats = {
   blinkRate: 0,
 };
 
+let lastGalaxyStats = {
+  count: 0,
+  meanRadius: 0,
+  meanSpeed: 0,
+};
+
 const boidSimulation = new BoidSimulation({
   scene,
   params,
@@ -285,10 +304,21 @@ const fireflySimulation = new FireflySimulation({
   },
 });
 
+const galaxySimulation = new GalaxySimulation({
+  scene,
+  params,
+  world,
+  onStats: (stats) => {
+    lastGalaxyStats = stats;
+    updateGalaxyStats(stats);
+  },
+});
+
 simulationManager.register("boid", boidSimulation);
 simulationManager.register("ants", antSimulation);
 simulationManager.register("prey", preySimulation);
 simulationManager.register("firefly", fireflySimulation);
+simulationManager.register("galaxy", galaxySimulation);
 
 const colormapStops = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -315,11 +345,15 @@ const preyEatenHistory = [];
 const fireflyCountHistory = [];
 const fireflyOrderHistory = [];
 const fireflyBlinkHistory = [];
+const galaxyCountHistory = [];
+const galaxyRadiusHistory = [];
+const galaxySpeedHistory = [];
 const chartMaxPoints = 160;
 let boidChartFrameCounter = 0;
 let antChartFrameCounter = 0;
 let preyChartFrameCounter = 0;
 let fireflyChartFrameCounter = 0;
+let galaxyChartFrameCounter = 0;
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
 const narrowScreenThresholdPx = 980;
@@ -412,6 +446,9 @@ function updateFpsMetric(dt) {
   }
   if (dom.fireflyFpsLive) {
     dom.fireflyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  }
+  if (dom.galaxyFpsLive) {
+    dom.galaxyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
   }
 }
 
@@ -519,6 +556,34 @@ function updateFireflyStats(stats) {
     pushTrendValue(fireflyCountHistory, count);
     pushTrendValue(fireflyOrderHistory, order);
     pushTrendValue(fireflyBlinkHistory, blinkRate);
+    drawTrendCharts();
+  }
+}
+
+function updateGalaxyStats(stats) {
+  if (!stats) {
+    return;
+  }
+
+  const count = stats.count ?? 0;
+  const meanRadius = stats.meanRadius ?? 0;
+  const meanSpeed = stats.meanSpeed ?? 0;
+
+  if (dom.chartGalaxyCountLive) {
+    dom.chartGalaxyCountLive.textContent = String(count);
+  }
+  if (dom.chartGalaxyRadiusLive) {
+    dom.chartGalaxyRadiusLive.textContent = `${meanRadius.toFixed(2)} m`;
+  }
+  if (dom.chartGalaxySpeedLive) {
+    dom.chartGalaxySpeedLive.textContent = `${meanSpeed.toFixed(2)} m/s`;
+  }
+
+  galaxyChartFrameCounter += 1;
+  if (galaxyChartFrameCounter % 3 === 0) {
+    pushTrendValue(galaxyCountHistory, count);
+    pushTrendValue(galaxyRadiusHistory, meanRadius);
+    pushTrendValue(galaxySpeedHistory, meanSpeed);
     drawTrendCharts();
   }
 }
@@ -925,6 +990,56 @@ function setupControls() {
     activateCompactRangeControl("firefly-count");
   }
 
+  bindRange("galaxy-particle-size", "galaxy-particle-size-value", (value) => {
+    params.galaxyParticleSize = value;
+    galaxySimulation.syncInstances?.();
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("galaxy-sim-speed", "galaxy-sim-speed-value", (value) => {
+    params.galaxySimSpeed = value;
+    return `${value.toFixed(1)}x`;
+  });
+
+  bindRange("galaxy-spin", "galaxy-spin-value", (value) => {
+    params.galaxySpin = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("galaxy-gravity", "galaxy-gravity-value", (value) => {
+    params.galaxyGravity = value;
+    return value.toFixed(1);
+  });
+
+  bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
+    params.galaxyCentralMass = value;
+    return `${Math.round(value)}`;
+  });
+
+  bindRange("galaxy-softening", "galaxy-softening-value", (value) => {
+    params.galaxySoftening = value;
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("galaxy-damping", "galaxy-damping-value", (value) => {
+    params.galaxyDamping = value;
+    return `${value.toFixed(3)} 1/s`;
+  });
+
+  const galaxyCountInput = document.getElementById("galaxy-count");
+  const galaxyCountValue = document.getElementById("galaxy-count-value");
+  if (galaxyCountInput && galaxyCountValue) {
+    registerCompactRangeControl(galaxyCountInput, galaxyCountValue);
+    galaxyCountInput.addEventListener("input", () => {
+      galaxyCountValue.textContent = galaxyCountInput.value;
+      params.galaxyCount = Number(galaxyCountInput.value);
+      galaxySimulation.setCount(params.galaxyCount);
+      resetGalaxyTrendCharts();
+      syncCompactSectionSlider("galaxy-count");
+    });
+    activateCompactRangeControl("galaxy-count");
+  }
+
   const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
@@ -934,6 +1049,7 @@ function setupControls() {
   dom.toggleAntPause?.addEventListener("click", toggleCurrentSimulationPause);
   dom.togglePreyPause?.addEventListener("click", toggleCurrentSimulationPause);
   dom.toggleFireflyPause?.addEventListener("click", toggleCurrentSimulationPause);
+  dom.toggleGalaxyPause?.addEventListener("click", toggleCurrentSimulationPause);
   dom.runState?.addEventListener("click", toggleCurrentSimulationPause);
 
   dom.appletTabs?.forEach((tab) => {
@@ -1000,6 +1116,20 @@ function setupControls() {
       return;
     }
     applySimulationDefaultsForApplet("firefly");
+  });
+
+  dom.resetGalaxySim?.addEventListener("click", () => {
+    if (activeApplet !== "galaxy") {
+      return;
+    }
+    galaxySimulation.reset();
+    resetGalaxyTrendCharts();
+  });
+  dom.defaultGalaxySim?.addEventListener("click", () => {
+    if (activeApplet !== "galaxy") {
+      return;
+    }
+    applySimulationDefaultsForApplet("galaxy");
   });
 
   dom.showBounds.addEventListener("change", () => {
@@ -1310,6 +1440,8 @@ function applyAppletMode(appletId, options = {}) {
       preyPausedPreference = params.paused;
     } else if (previousApplet === "firefly") {
       fireflyPausedPreference = params.paused;
+    } else if (previousApplet === "galaxy") {
+      galaxyPausedPreference = params.paused;
     }
     params.paused = boidPausedPreference;
     updateBoidStats(lastBoidStats);
@@ -1320,6 +1452,8 @@ function applyAppletMode(appletId, options = {}) {
       preyPausedPreference = params.paused;
     } else if (previousApplet === "firefly") {
       fireflyPausedPreference = params.paused;
+    } else if (previousApplet === "galaxy") {
+      galaxyPausedPreference = params.paused;
     }
     params.paused = antsPausedPreference;
     updateAntStats(lastAntStats);
@@ -1330,9 +1464,23 @@ function applyAppletMode(appletId, options = {}) {
       antsPausedPreference = params.paused;
     } else if (previousApplet === "firefly") {
       fireflyPausedPreference = params.paused;
+    } else if (previousApplet === "galaxy") {
+      galaxyPausedPreference = params.paused;
     }
     params.paused = preyPausedPreference;
     updatePreyStats(lastPreyStats);
+  } else if (normalizedId === "firefly") {
+    if (previousApplet === "boid") {
+      boidPausedPreference = params.paused;
+    } else if (previousApplet === "ants") {
+      antsPausedPreference = params.paused;
+    } else if (previousApplet === "prey") {
+      preyPausedPreference = params.paused;
+    } else if (previousApplet === "galaxy") {
+      galaxyPausedPreference = params.paused;
+    }
+    params.paused = fireflyPausedPreference;
+    updateFireflyStats(lastFireflyStats);
   } else {
     if (previousApplet === "boid") {
       boidPausedPreference = params.paused;
@@ -1340,9 +1488,11 @@ function applyAppletMode(appletId, options = {}) {
       antsPausedPreference = params.paused;
     } else if (previousApplet === "prey") {
       preyPausedPreference = params.paused;
+    } else if (previousApplet === "firefly") {
+      fireflyPausedPreference = params.paused;
     }
-    params.paused = fireflyPausedPreference;
-    updateFireflyStats(lastFireflyStats);
+    params.paused = galaxyPausedPreference;
+    updateGalaxyStats(lastGalaxyStats);
   }
 
   updateSimulationStateUI();
@@ -1377,6 +1527,7 @@ function updateSimulationStateUI() {
     dom.toggleAntPause,
     dom.togglePreyPause,
     dom.toggleFireflyPause,
+    dom.toggleGalaxyPause,
   ].filter(Boolean);
 
   const setPauseButtons = (isPaused) => {
@@ -1597,6 +1748,7 @@ function setupTrendCharts() {
   resetAntTrendCharts();
   resetPreyTrendCharts();
   resetFireflyTrendCharts();
+  resetGalaxyTrendCharts();
 }
 
 function setupChartCollapses() {
@@ -1650,6 +1802,14 @@ function resetFireflyTrendCharts() {
   drawTrendCharts();
 }
 
+function resetGalaxyTrendCharts() {
+  galaxyCountHistory.length = 0;
+  galaxyRadiusHistory.length = 0;
+  galaxySpeedHistory.length = 0;
+  galaxyChartFrameCounter = 0;
+  drawTrendCharts();
+}
+
 function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartCount);
   resizeCanvasBackingStore(dom.chartSpeed);
@@ -1663,6 +1823,9 @@ function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartFireflyCount);
   resizeCanvasBackingStore(dom.chartFireflyOrder);
   resizeCanvasBackingStore(dom.chartFireflyBlink);
+  resizeCanvasBackingStore(dom.chartGalaxyCount);
+  resizeCanvasBackingStore(dom.chartGalaxyRadius);
+  resizeCanvasBackingStore(dom.chartGalaxySpeed);
   drawTrendCharts();
 }
 
@@ -1753,6 +1916,27 @@ function drawTrendCharts() {
     stroke: "#ffd26e",
     fill: "rgba(255, 210, 110, 0.16)",
     axisLabel: "/s",
+    tickFormatter: (value) => value.toFixed(1),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartGalaxyCount, galaxyCountHistory, {
+    stroke: "#8eb7ff",
+    fill: "rgba(142, 183, 255, 0.14)",
+    axisLabel: "count",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartGalaxyRadius, galaxyRadiusHistory, {
+    stroke: "#9de2ff",
+    fill: "rgba(157, 226, 255, 0.16)",
+    axisLabel: "m",
+    tickFormatter: (value) => value.toFixed(1),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartGalaxySpeed, galaxySpeedHistory, {
+    stroke: "#ffbe8d",
+    fill: "rgba(255, 190, 141, 0.16)",
+    axisLabel: "m/s",
     tickFormatter: (value) => value.toFixed(1),
     forceZeroMin: true,
   });
@@ -1995,7 +2179,9 @@ function updateViewportLabel() {
         ? "Prey Chain"
         : activeApplet === "firefly"
           ? "Firefly Sync"
-          : "Boids";
+          : activeApplet === "galaxy"
+            ? "Galaxy Gravity"
+            : "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
   const gridText = gridSizeM >= 1 ? gridSizeM.toFixed(1) : gridSizeM.toFixed(2);
@@ -2015,6 +2201,9 @@ function getActiveSimulationSpeed() {
   }
   if (activeApplet === "firefly") {
     return THREE.MathUtils.clamp(Number(params.fireflySimSpeed) || 1, 0.1, 10);
+  }
+  if (activeApplet === "galaxy") {
+    return THREE.MathUtils.clamp(Number(params.galaxySimSpeed) || 1, 0.1, 10);
   }
   return THREE.MathUtils.clamp(Number(params.boidSimSpeed) || 1, 0.1, 10);
 }

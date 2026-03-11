@@ -43,6 +43,7 @@ export function createVisualControls({
     greys: "linear-gradient(90deg, #111111 0%, #3a3a3a 16%, #5f5f5f 32%, #878787 48%, #afafaf 64%, #d3d3d3 82%, #f2f2f2 100%)",
   };
   const fireflyDiscreteColormapOptions = [
+    { value: "blue-yellow", label: "Blue-Yellow" },
     { value: "paired", label: "Paired" },
     { value: "set1", label: "Set1" },
     { value: "set2", label: "Set2" },
@@ -60,6 +61,7 @@ export function createVisualControls({
     { value: "greys", label: "Greys" },
   ];
   const fireflyDiscreteLegendGradients = {
+    "blue-yellow": "linear-gradient(90deg, #4f7dff 0%, #4f7dff 50%, #ffd74a 50%, #ffd74a 100%)",
     paired: "linear-gradient(90deg, #a6cee3 0%, #a6cee3 50%, #1f78b4 50%, #1f78b4 100%)",
     set1: "linear-gradient(90deg, #e41a1c 0%, #e41a1c 50%, #377eb8 50%, #377eb8 100%)",
     set2: "linear-gradient(90deg, #66c2a5 0%, #66c2a5 50%, #fc8d62 50%, #fc8d62 100%)",
@@ -140,7 +142,7 @@ export function createVisualControls({
     if (params.fireflyColorMode === "blink") {
       dom.fireflyColormapLegend?.classList.remove("is-hidden");
       const gradient =
-        fireflyDiscreteLegendGradients[params.fireflyColormap] || fireflyDiscreteLegendGradients.paired;
+        fireflyDiscreteLegendGradients[params.fireflyColormap] || fireflyDiscreteLegendGradients["blue-yellow"];
       dom.fireflyColormapLegendBar.style.background = gradient;
       dom.fireflyColormapCmin.textContent = "idle";
       dom.fireflyColormapCmax.textContent = "blink";

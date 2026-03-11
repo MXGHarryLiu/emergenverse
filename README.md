@@ -44,6 +44,14 @@ This project is intentionally static-first:
 - Seminal paper (Mirollo and Strogatz, 1990): [Synchronization of Pulse-Coupled Biological Oscillators](https://doi.org/10.1137/0150098)
 - Wikipedia: [Kuramoto model](https://en.wikipedia.org/wiki/Kuramoto_model), [Synchronization](https://en.wikipedia.org/wiki/Synchronization)
 
+### Galaxy Formation (Self-Gravitating Particles)
+
+- Concept: Disk-like galaxy structure emerging from many particles under softened gravity and rotational initial conditions.
+- Scientific explanation: The model advances particle positions and velocities under pairwise gravitational attraction plus a central potential. Softening avoids singular forces at small separation, while mild damping and initial angular momentum produce bound rotating structures.
+- Reference implementation inspiration: [REBOUND N-body simulations](https://github.com/hannorein/rebound)
+- Seminal paper (Barnes and Hut, 1986): [A Hierarchical O(N log N) Force-Calculation Algorithm](https://doi.org/10.1038/324446a0)
+- Wikipedia: [N-body simulation](https://en.wikipedia.org/wiki/N-body_simulation), [Galaxy formation and evolution](https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution)
+
 ## Deploy to Static Hosting
 
 Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).

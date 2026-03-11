@@ -48,6 +48,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     ArrowDown: false,
     BracketLeft: false,
     BracketRight: false,
+    Comma: false,
+    Period: false,
     ShiftLeft: false,
     ShiftRight: false,
   };
@@ -141,8 +143,22 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return;
     }
 
-    params.cameraFov = THREE.MathUtils.clamp(params.cameraFov + delta * 0.04, 20, 90);
+    applyFovDelta(delta * 0.04);
 
+    event.preventDefault();
+  }
+
+  function applyFovDelta(delta) {
+    if (!Number.isFinite(delta) || Math.abs(delta) < 1e-8) {
+      return;
+    }
+
+    const nextFov = THREE.MathUtils.clamp(params.cameraFov + delta, 20, 90);
+    if (Math.abs(nextFov - params.cameraFov) < 1e-8) {
+      return;
+    }
+
+    params.cameraFov = nextFov;
     if (params.projectionMode === "perspective") {
       perspectiveCamera.fov = params.cameraFov;
       perspectiveCamera.updateProjectionMatrix();
@@ -153,8 +169,6 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     if (typeof onFovChange === "function") {
       onFovChange(params.cameraFov);
     }
-
-    event.preventDefault();
   }
 
   function applyCameraInteractivity() {
@@ -241,6 +255,12 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   function updateKeyboardTranslation(dt) {
     if (params.cameraLocked) {
       return;
+    }
+
+    const fovInput = (keyState.Period ? 1 : 0) - (keyState.Comma ? 1 : 0);
+    if (fovInput !== 0) {
+      const fovRateDegPerSec = 30;
+      applyFovDelta(fovInput * fovRateDegPerSec * dt);
     }
 
     const perspectiveMode = params.projectionMode === "perspective";

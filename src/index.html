@@ -103,6 +103,15 @@
             >
               Firefly
             </button>
+            <button
+              class="applet-tab"
+              type="button"
+              data-applet-item="galaxy"
+              aria-selected="false"
+              title="Galaxy applet"
+            >
+              Galaxy
+            </button>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -207,8 +216,8 @@
             <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
           </button>
         </div>
-        <div id="scene-host" data-app-visible="boid ants prey firefly" aria-label="3D simulation viewport"></div>
-        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey firefly">Grid size: -- m | -- | --</div>
+        <div id="scene-host" data-app-visible="boid ants prey firefly galaxy" aria-label="3D simulation viewport"></div>
+        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey firefly galaxy">Grid size: -- m | -- | --</div>
       </section>
       <div
         class="panel-resizer panel-resizer-right"
@@ -476,7 +485,8 @@
               <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
             </label>
             <select class="form-select form-select-sm theme-select" id="firefly-colormap">
-              <option value="paired" selected>Paired</option>
+              <option value="blue-yellow" selected>Blue-Yellow</option>
+              <option value="paired">Paired</option>
               <option value="set1">Set1</option>
               <option value="set2">Set2</option>
               <option value="dark2">Dark2</option>
@@ -493,7 +503,7 @@
         </div>
 
 
-        <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly">
+        <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly galaxy">
           <button
             class="section-toggle"
             type="button"
@@ -586,10 +596,8 @@
             <li><strong>Pitch (keyboard/mouse)</strong>: `ArrowUp` / `ArrowDown`, or left-drag vertically (perspective mode).</li>
             <li><strong>Roll (keyboard)</strong>: `[` / `]`.</li>
             <li><strong>Boost (keyboard)</strong>: Hold `Shift` while translating.</li>
-            <li><strong>Zoom / View Scale (mouse)</strong>: Scroll wheel changes FOV in perspective and zoom level in top orthographic.</li>
-            <li><strong>Ants interaction</strong>: Enable <em>Double Click To Add Food</em>, then double-click in the viewport to place food at that X/Y location.</li>
-            <li><strong>Prey applet</strong>: Use the Prey simulation sliders to control prey/predator populations and interaction radii.</li>
-            <li><strong>Firefly applet</strong>: Use coupling, frequency, and interaction radius to tune synchronization strength and collective blinking.</li>
+            <li><strong>Zoom / View Scale (mouse/keyboard)</strong>: Scroll wheel or `<` / `>` (same keys as `,` / `.`) changes FOV in perspective and zoom level in top orthographic.</li>
+            <li><strong>Simulation controls</strong>: Use the Simulation, Visual, Camera, and World panels to adjust model and rendering parameters.</li>
           </ul>
         </div>
       </section>
@@ -695,7 +703,7 @@
     </template>
 
     <template id="tpl-camera-section">
-      <div class="control-section" data-control-section="camera" data-app-visible="boid ants prey firefly">
+      <div class="control-section" data-control-section="camera" data-app-visible="boid ants prey firefly galaxy">
         <button
           class="section-toggle"
           type="button"

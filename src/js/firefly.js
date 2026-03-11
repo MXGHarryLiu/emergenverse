@@ -13,6 +13,7 @@ const FIREFLY_COLORMAP_STOPS = {
 };
 const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_COLORMAP_STOPS);
 const FIREFLY_DISCRETE_STATE_COLORMAPS = {
+  "blue-yellow": [0x4f7dff, 0xffd74a],
   paired: [0xa6cee3, 0x1f78b4],
   set1: [0xe41a1c, 0x377eb8],
   set2: [0x66c2a5, 0xfc8d62],
@@ -33,7 +34,7 @@ export const FIREFLY_DEFAULT_PARAMS = {
   fireflyFreqJitterHz: 0.2,
   fireflyPhaseNoise: 0.4,
   fireflyColorMode: "blink",
-  fireflyColormap: "paired",
+  fireflyColormap: "blue-yellow",
 };
 
 export class FireflySimulation {
@@ -273,17 +274,19 @@ export class FireflySimulation {
       const pulse =
         Math.exp(-((phaseNorm - 1) * (phaseNorm - 1)) / 0.0025) +
         Math.exp(-(phaseNorm * phaseNorm) / 0.0025);
-      const brightness = THREE.MathUtils.clamp(0.18 + pulse * 1.1, 0.18, 1);
+      const blinkBrightness = THREE.MathUtils.clamp(0.18 + pulse * 1.1, 0.18, 1);
       const isBlinking = pulse > 0.5;
 
       if (this.params.fireflyColorMode === "frequency") {
         const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
         const t = THREE.MathUtils.clamp((firefly.omegaHz - frequencyRange.min) / span, 0, 1);
         sampleColormap(this.params.fireflyColormap, t, this.tempColor);
+        // Frequency mode should show steady color, not phase blinking.
+        this.tempColor.multiplyScalar(0.95);
       } else {
         this.tempColor.setHex(isBlinking ? discreteStateColors.blink : discreteStateColors.idle);
+        this.tempColor.multiplyScalar(blinkBrightness);
       }
-      this.tempColor.multiplyScalar(brightness);
       this.mesh.setColorAt(i, this.tempColor);
     }
 
