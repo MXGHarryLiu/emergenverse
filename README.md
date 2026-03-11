@@ -17,7 +17,6 @@ This project is intentionally static-first:
 - Scientific explanation: Each boid follows three local behaviors, alignment (match nearby velocity), cohesion (move toward nearby center), and separation (avoid crowding). No global leader is required; coordinated flock motion emerges from decentralized updates.
 - Reference implementation inspiration: https://boids.dan.onl/
 - Foundational paper (Reynolds, 1987): https://www.red3d.com/cwr/papers/1987/boids.html
-- Wikipedia: [Boids](https://en.wikipedia.org/wiki/Boids)
 
 ### Ant Trail Simulation
 
@@ -26,7 +25,6 @@ This project is intentionally static-first:
 - Reference implementation inspiration: https://github.com/iai6203/ant-simulation/blob/main/README.en.md
 - Seminal biological paper (Deneubourg et al., 1990): https://doi.org/10.1007/BF01417909
 - Related seminal optimization paper (Dorigo et al., 1996, Ant System): https://doi.org/10.1109/3477.484436
-- Wikipedia: [Trail pheromone](https://en.wikipedia.org/wiki/Trail_pheromone), [Ant colony optimization algorithms](https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms)
 
 ### Prey (Food Chain)
 
@@ -34,7 +32,6 @@ This project is intentionally static-first:
 - Scientific explanation: This applet is an agent-based interpretation of predator-prey coupling. At the population level, it qualitatively reflects Lotka-Volterra-like oscillation behavior: prey growth, predation pressure, predator response, and subsequent decline/recovery cycles.
 - Reference implementation inspiration: [Mesa Wolf-Sheep Predation Example](https://github.com/projectmesa/mesa/tree/main/mesa/examples/basic/wolf_sheep)
 - Foundational paper (Lotka, 1920): [Analytical Note on Certain Rhythmic Relations in Organic Systems](https://doi.org/10.1073/pnas.6.7.410)
-- Wikipedia: [Lotka–Volterra equations](https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations), [Food chain](https://en.wikipedia.org/wiki/Food_chain)
 
 ### Firefly Synchronization
 
@@ -42,7 +39,6 @@ This project is intentionally static-first:
 - Scientific explanation: Each firefly has an intrinsic phase/frequency and interacts with nearby oscillators through phase coupling. Above a coupling threshold, the population transitions from incoherent flashing to partial or near-global synchrony.
 - Reference implementation inspiration: [visualize-it Firefly Synchronization](https://github.com/visualize-it/visualize-it.github.io/tree/master/firefly_synchronization)
 - Seminal paper (Mirollo and Strogatz, 1990): [Synchronization of Pulse-Coupled Biological Oscillators](https://doi.org/10.1137/0150098)
-- Wikipedia: [Kuramoto model](https://en.wikipedia.org/wiki/Kuramoto_model), [Synchronization](https://en.wikipedia.org/wiki/Synchronization)
 
 ### Galaxy Formation (Self-Gravitating Particles)
 
@@ -50,7 +46,6 @@ This project is intentionally static-first:
 - Scientific explanation: The model advances particle positions and velocities under pairwise gravitational attraction plus a central potential. Softening avoids singular forces at small separation, while mild damping and initial angular momentum produce bound rotating structures.
 - Reference implementation inspiration: [REBOUND N-body simulations](https://github.com/hannorein/rebound)
 - Seminal paper (Barnes and Hut, 1986): [A Hierarchical O(N log N) Force-Calculation Algorithm](https://doi.org/10.1038/324446a0)
-- Wikipedia: [N-body simulation](https://en.wikipedia.org/wiki/N-body_simulation), [Galaxy formation and evolution](https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution)
 
 ## Deploy to Static Hosting
 

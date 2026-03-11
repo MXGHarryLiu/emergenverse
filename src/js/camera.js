@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-export function createCameraController({ sceneHost, params, telemetry, onFovChange }) {
+export function createCameraController({ sceneHost, params, telemetry, onFovChange, formatLengthValue }) {
   const worldUp = new THREE.Vector3(0, 0, 1);
 
   const perspectiveCamera = new THREE.PerspectiveCamera(params.cameraFov, 1, 0.1, 3000);
@@ -64,7 +64,33 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
   const mouseLookSensitivity = 0.0032;
 
+  function getWorldSpan() {
+    return Math.max(
+      1,
+      Number(params.worldSizeX) || 0,
+      Number(params.worldSizeY) || 0,
+      Number(params.worldSizeZ) || 0,
+    );
+  }
+
+  function syncCameraScaleLimits() {
+    const worldSpan = getWorldSpan();
+    const clipFar = Math.max(3000, worldSpan * 8);
+    const clipNear = Math.max(0.1, Math.min(10, clipFar / 100000));
+
+    perspectiveCamera.near = clipNear;
+    perspectiveCamera.far = clipFar;
+    perspectiveCamera.updateProjectionMatrix();
+
+    orthographicCamera.near = clipNear;
+    orthographicCamera.far = clipFar;
+    orthographicCamera.updateProjectionMatrix();
+
+    controls.maxDistance = Math.max(1200, worldSpan * 3);
+  }
+
   function setPerspectiveCameraFromParams(forceSnap = false) {
+    syncCameraScaleLimits();
     const azimuth = -Math.PI / 4;
     const radius = params.cameraDistance;
 
@@ -109,6 +135,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   }
 
   function updateOrthographicCamera(snapToTop) {
+    syncCameraScaleLimits();
     const width = Math.max(1, sceneHost.clientWidth);
     const height = Math.max(1, sceneHost.clientHeight);
     const aspect = width / height;
@@ -120,8 +147,6 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     orthographicCamera.right = verticalSpan * aspect;
     orthographicCamera.top = verticalSpan;
     orthographicCamera.bottom = -verticalSpan;
-    orthographicCamera.near = 0.1;
-    orthographicCamera.far = 5000;
 
     if (snapToTop) {
       const topHeight = Math.max(params.cameraDistance, params.worldSizeZ * 1.5);
@@ -365,9 +390,13 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     const position = activeCamera.position;
     cameraEuler.setFromQuaternion(activeCamera.quaternion, "ZYX");
 
-    telemetry.x.textContent = `${position.x.toFixed(1)} m`;
-    telemetry.y.textContent = `${position.y.toFixed(1)} m`;
-    telemetry.z.textContent = `${position.z.toFixed(1)} m`;
+    const formatLength = typeof formatLengthValue === "function"
+      ? formatLengthValue
+      : (value) => `${value.toFixed(1)} m`;
+
+    telemetry.x.textContent = formatLength(position.x);
+    telemetry.y.textContent = formatLength(position.y);
+    telemetry.z.textContent = formatLength(position.z);
     telemetry.roll.textContent = `${THREE.MathUtils.radToDeg(cameraEuler.x).toFixed(1)}°`;
     telemetry.pitch.textContent = `${THREE.MathUtils.radToDeg(cameraEuler.y).toFixed(1)}°`;
     telemetry.yaw.textContent = `${THREE.MathUtils.radToDeg(cameraEuler.z).toFixed(1)}°`;

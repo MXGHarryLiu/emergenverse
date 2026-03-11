@@ -53,14 +53,6 @@ body[data-theme="light"] .chip-button:focus-visible {
   background: rgba(214, 225, 243, 0.95);
 }
 
-body[data-theme="light"] .nav-callout-active {
-  box-shadow: 0 0 0.9rem rgba(231, 162, 68, 0.16);
-}
-
-body[data-theme="light"] .nav-callout-active::after {
-  border-color: rgba(221, 154, 63, 0.68);
-}
-
 body[data-theme="light"] .left-panel {
   scrollbar-color: rgba(112, 140, 188, 0.78) rgba(205, 218, 239, 0.95);
 }

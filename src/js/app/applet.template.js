@@ -44,12 +44,18 @@ export const APPLET_CONFIG = defineAppletConfig({
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Short summary of the governing model.",
+      references: [
+        { label: "Wikipedia: Example topic", url: "https://en.wikipedia.org/wiki/Example" },
+      ],
       items: [
         {
           title: "State Update",
           equation: "$$x(t+\\Delta t)=x(t)+v(t)\\Delta t$$",
           explanation: "Explain what this equation does in plain language.",
-          parameters: ["<strong>Count</strong> controls the number of agents."],
+          parameters: [
+            "<strong>Only list user controls whose symbols appear directly in this equation.</strong>",
+            "<strong>Use rendered HTML symbols</strong> like <em>&alpha;</em>, <em>&gamma;</em>, or <em>k<sub>&theta;</sub></em> instead of raw TeX fragments in bullets.",
+          ],
         },
       ],
     },

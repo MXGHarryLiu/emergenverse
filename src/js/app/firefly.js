@@ -40,15 +40,18 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Local oscillator coupling with blink resets and a global order parameter.",
+      references: [
+        { label: "Wikipedia: Kuramoto model", url: "https://en.wikipedia.org/wiki/Kuramoto_model" },
+        { label: "Wikipedia: Synchronization", url: "https://en.wikipedia.org/wiki/Synchronization" },
+      ],
       items: [
         {
           title: "Phase Evolution",
           equation: "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
           explanation: "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
           parameters: [
-            "<strong>Coupling</strong> sets the synchronization strength.",
-            "<strong>Interaction Radius</strong> defines the local neighborhood.",
-            "<strong>Base Frequency</strong>, <strong>Frequency Jitter</strong>, and <strong>Phase Noise</strong> shape the intrinsic rhythm spread.",
+            "<strong>Coupling</strong> (<em>K</em>) sets the synchronization strength.",
+            "<strong>Base Frequency</strong> (<em>&omega;</em>), <strong>Frequency Jitter</strong> (<em>&Delta;&omega;</em>), and <strong>Phase Noise</strong> (<em>&eta;</em>) shape the intrinsic rhythm spread.",
           ],
         },
         {

@@ -49,16 +49,22 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Population balance coupled to local chase-and-escape motion.",
+      references: [
+        { label: "Wikipedia: Lotka-Volterra equations", url: "https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations" },
+        { label: "Wikipedia: Food chain", url: "https://en.wikipedia.org/wiki/Food_chain" },
+      ],
       items: [
         {
           title: "Population Balance",
           equation: "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
           explanation: "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
           parameters: [
-            "<strong>Prey Birth Rate</strong> sets the prey growth tendency.",
-            "<strong>Predation Rate</strong> scales encounter pressure.",
-            "<strong>Predator Gain</strong> controls how much predators benefit from captures.",
-            "<strong>Predator Energy Loss</strong> sets background predator decline.",
+            "<strong>Prey Count</strong> (<em>x</em>) sets the initial prey population.",
+            "<strong>Predator Count</strong> (<em>y</em>) sets the initial predator population.",
+            "<strong>Prey Birth Rate</strong> (<em>&alpha;</em>) sets the prey growth tendency.",
+            "<strong>Predation Rate</strong> (<em>&beta;</em>) scales encounter pressure.",
+            "<strong>Predator Gain</strong> (<em>&delta;</em>) controls how much predators benefit from captures.",
+            "<strong>Predator Energy Loss</strong> (<em>&gamma;</em>) sets background predator decline.",
           ],
         },
         {
@@ -71,8 +77,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
           explanation: "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
           parameters: [
-            "<strong>Prey Speed</strong> and <strong>Predator Speed</strong> set the travel rates.",
-            "<strong>Sense Radius</strong> and <strong>Predation Radius</strong> determine when interactions trigger.",
+            "<strong>Prey Speed</strong> (<em>s<sub>prey</sub></em>) and <strong>Predator Speed</strong> (<em>s<sub>pred</sub></em>) set the travel rates.",
           ],
         },
       ],

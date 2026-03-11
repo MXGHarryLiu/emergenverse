@@ -122,25 +122,6 @@ body {
   min-width: 2.4rem;
 }
 
-.nav-callout-btn {
-  position: relative;
-  overflow: visible;
-}
-
-.nav-callout-active {
-  animation: nav-callout-pulse 1.1s ease 3;
-}
-
-.nav-callout-active::after {
-  content: "";
-  position: absolute;
-  inset: -0.2rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 196, 109, 0.72);
-  animation: nav-callout-ring 1.1s ease 3;
-  pointer-events: none;
-}
-
 .nav-brand-group {
   min-width: 0;
 }
@@ -1044,6 +1025,17 @@ body {
 .simulation-action-row > .action-fill {
   flex: 1 1 0 !important;
   min-width: 0;
+  min-height: 2.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0 0.9rem;
+}
+
+.simulation-action-row > .action-fill i {
+  font-size: 0.92rem;
+  line-height: 1;
 }
 
 .simulation-action-row > .btn-icon-only {
@@ -1117,6 +1109,9 @@ body {
 
 .controls-modal {
   width: min(560px, 100%);
+  max-height: min(90vh, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line);
   border-radius: 0.9rem;
   background: linear-gradient(170deg, rgba(8, 16, 34, 0.97), rgba(7, 20, 39, 0.94));
@@ -1137,6 +1132,50 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.45rem;
   align-items: center;
+}
+
+.modal-check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+  background: rgba(8, 16, 32, 0.38);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modal-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.screenshot-preview-card {
+  margin-bottom: 0.85rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.8rem;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+}
+
+.screenshot-preview-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: rgba(8, 16, 32, 0.24);
 }
 
 .share-link-input {
@@ -1173,6 +1212,8 @@ body {
 
 .controls-modal-body {
   padding: 0.85rem 0.95rem 0.95rem;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .equation-card + .equation-card {
@@ -1386,42 +1427,5 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes nav-callout-pulse {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-    border-color: rgba(135, 197, 255, 0.44);
-    box-shadow: 0 0 0 rgba(255, 196, 109, 0);
-  }
-
-  35% {
-    transform: translateY(-1px) scale(1.06);
-    border-color: rgba(255, 196, 109, 0.92);
-    box-shadow: 0 0 0.9rem rgba(255, 196, 109, 0.32);
-  }
-
-  65% {
-    transform: translateY(0) scale(1.02);
-    border-color: rgba(255, 166, 77, 0.84);
-    box-shadow: 0 0 1.15rem rgba(255, 166, 77, 0.24);
-  }
-}
-
-@keyframes nav-callout-ring {
-  0% {
-    opacity: 0;
-    transform: scale(0.86);
-  }
-
-  30% {
-    opacity: 0.9;
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(1.22);
   }
 }

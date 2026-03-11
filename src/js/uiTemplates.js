@@ -219,8 +219,14 @@ function buildSimulationSection(simConfig, appletId, templates) {
     >
       <i class="bi bi-pause-fill" aria-hidden="true"></i>
     </button>
-    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.defaultButtonId}">Default</button>
-    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.resetButtonId}">Reset</button>
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.defaultButtonId}">
+      <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+      <span>Default</span>
+    </button>
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.resetButtonId}">
+      <i class="bi bi-bootstrap-reboot" aria-hidden="true"></i>
+      <span>Reset</span>
+    </button>
   `;
   body.appendChild(actions);
 

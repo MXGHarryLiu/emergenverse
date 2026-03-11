@@ -10,13 +10,15 @@ export function setupUiOverlays({
   getPaused,
   setPaused,
   onPauseStateChange,
+  getShowBounds,
+  setShowBounds,
 }) {
   setupSupportPopup(dom);
   setupControlsInfoPopup(dom);
   setupModelInfoPopup(dom, getActiveApplet);
   setupAboutPopup(dom);
   setupSharePopup(dom);
-  setupViewportScreenshotButton({
+  setupScreenshotPopup({
     dom,
     renderer,
     scene,
@@ -25,6 +27,8 @@ export function setupUiOverlays({
     getPaused,
     setPaused,
     onPauseStateChange,
+    getShowBounds,
+    setShowBounds,
   });
 }
 
@@ -34,15 +38,6 @@ function setupSupportPopup(dom) {
     closeButton: dom.supportInfoClose,
     backdrop: dom.supportInfoBackdrop,
   });
-
-  if (!dom.supportInfoOpen) {
-    return;
-  }
-
-  dom.supportInfoOpen.classList.add("nav-callout-active");
-  window.setTimeout(() => {
-    dom.supportInfoOpen?.classList.remove("nav-callout-active");
-  }, 4200);
 }
 
 function setupModelInfoPopup(dom, getActiveApplet) {
@@ -129,6 +124,35 @@ function setupModelInfoPopup(dom, getActiveApplet) {
 
       dom.modelInfoBody.appendChild(card);
     });
+
+    if (Array.isArray(modelConfig.references) && modelConfig.references.length > 0) {
+      const references = document.createElement("section");
+      references.className = "equation-card";
+
+      const heading = document.createElement("div");
+      heading.className = "equation-card-head";
+
+      const title = document.createElement("h3");
+      title.className = "equation-card-title";
+      title.textContent = "References";
+      heading.appendChild(title);
+      references.appendChild(heading);
+
+      const list = document.createElement("ul");
+      list.className = "equation-card-list";
+      modelConfig.references.forEach((entry) => {
+        const li = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = entry.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = entry.label;
+        li.appendChild(link);
+        list.appendChild(li);
+      });
+      references.appendChild(list);
+      dom.modelInfoBody.appendChild(references);
+    }
 
     renderMath();
   };
@@ -268,7 +292,7 @@ function closeOverlay(backdrop) {
   backdrop?.setAttribute("aria-hidden", "true");
 }
 
-function setupViewportScreenshotButton({
+function setupScreenshotPopup({
   dom,
   renderer,
   scene,
@@ -277,12 +301,75 @@ function setupViewportScreenshotButton({
   getPaused,
   setPaused,
   onPauseStateChange,
+  getShowBounds,
+  setShowBounds,
 }) {
-  if (!dom.viewportScreenshotBtn) {
+  if (
+    !dom.viewportScreenshotBtn ||
+    !dom.screenshotInfoBackdrop ||
+    !dom.screenshotInfoClose ||
+    !dom.screenshotCapture ||
+    !dom.screenshotTransparentBg ||
+    !dom.screenshotPreviewImage
+  ) {
     return;
   }
 
   let screenshotInProgress = false;
+
+  const setStatus = (message) => {
+    if (dom.screenshotStatus) {
+      dom.screenshotStatus.textContent = message;
+    }
+  };
+
+  const setMeta = (message) => {
+    if (dom.screenshotMeta) {
+      dom.screenshotMeta.textContent = message;
+    }
+  };
+
+  const updatePreview = async (transparentBackground) => {
+    const canvas = renderer?.domElement;
+    if (!canvas) {
+      return;
+    }
+
+    const previousBackground = scene.background;
+    const previousFog = scene.fog;
+    const previousClearAlpha = renderer.getClearAlpha();
+    const previousShowBounds = typeof getShowBounds === "function" ? getShowBounds() : true;
+
+    try {
+      if (transparentBackground) {
+        scene.background = null;
+        scene.fog = null;
+        renderer.setClearAlpha(0);
+        setShowBounds?.(false);
+      }
+
+      renderer.render(scene, cameraController.getActiveCamera());
+      dom.screenshotPreviewImage.src = canvas.toDataURL("image/png");
+      setMeta(`Resolution: ${canvas.width.toLocaleString()} × ${canvas.height.toLocaleString()} px`);
+    } finally {
+      if (transparentBackground) {
+        scene.background = previousBackground;
+        scene.fog = previousFog;
+        renderer.setClearAlpha(previousClearAlpha);
+        setShowBounds?.(previousShowBounds);
+        renderer.render(scene, cameraController.getActiveCamera());
+      }
+    }
+  };
+
+  const openPopup = () => {
+    dom.screenshotTransparentBg.checked = false;
+    setStatus("Transparent mode exports without the scene background or boundary box.");
+    updatePreview(false);
+    openOverlay(dom.screenshotInfoBackdrop);
+  };
+
+  const closePopup = () => closeOverlay(dom.screenshotInfoBackdrop);
 
   const triggerDownload = (href, filename) => {
     const link = document.createElement("a");
@@ -338,18 +425,37 @@ function setupViewportScreenshotButton({
     }
   };
 
-  dom.viewportScreenshotBtn.addEventListener("click", async () => {
+  dom.viewportScreenshotBtn.addEventListener("click", openPopup);
+  dom.screenshotInfoClose.addEventListener("click", closePopup);
+  dom.screenshotTransparentBg.addEventListener("change", () => {
+    const enabled = dom.screenshotTransparentBg.checked;
+    setStatus(
+      enabled
+        ? "Transparent mode exports without the scene background or boundary box."
+        : "Standard mode keeps the normal scene background and boundary box.",
+    );
+    updatePreview(enabled);
+  });
+  dom.screenshotInfoBackdrop.addEventListener("click", (event) => {
+    if (event.target === dom.screenshotInfoBackdrop) {
+      closePopup();
+    }
+  });
+  bindEscapeToOverlay(dom.screenshotInfoBackdrop, closePopup);
+
+  dom.screenshotCapture.addEventListener("click", async () => {
     if (screenshotInProgress) {
       return;
     }
 
     screenshotInProgress = true;
     dom.viewportScreenshotBtn.disabled = true;
+    dom.screenshotCapture.disabled = true;
+    setStatus("Preparing screenshot...");
 
-    const supportsPicker =
-      typeof window.showSaveFilePicker === "function" && window.isSecureContext;
     const wasPausedBeforeScreenshot = getPaused();
     const shouldTemporarilyPause = !wasPausedBeforeScreenshot;
+    const transparentBackground = Boolean(dom.screenshotTransparentBg?.checked);
     if (shouldTemporarilyPause) {
       setPaused(true);
       onPauseStateChange();
@@ -362,23 +468,50 @@ function setupViewportScreenshotButton({
         return;
       }
 
+      const previousBackground = scene.background;
+      const previousFog = scene.fog;
+      const previousClearAlpha = renderer.getClearAlpha();
+      const previousShowBounds = typeof getShowBounds === "function" ? getShowBounds() : true;
+      if (transparentBackground) {
+        scene.background = null;
+        scene.fog = null;
+        renderer.setClearAlpha(0);
+        setShowBounds?.(false);
+      }
+
       renderer.render(scene, cameraController.getActiveCamera());
 
       const filename = getFilename();
-      let blob = await canvasToBlob(canvas);
-      if (!blob) {
-        const dataUrl = canvas.toDataURL("image/png");
-        triggerDownload(dataUrl, filename);
-        return;
-      }
+      try {
+        let blob = await canvasToBlob(canvas);
+        if (!blob) {
+          const dataUrl = canvas.toDataURL("image/png");
+          triggerDownload(dataUrl, filename);
+          setStatus("Screenshot saved.");
+          closePopup();
+          return;
+        }
 
-      if (await saveWithPicker(blob, filename)) {
-        return;
-      }
+        if (await saveWithPicker(blob, filename)) {
+          setStatus("Screenshot saved.");
+          closePopup();
+          return;
+        }
 
-      const objectUrl = URL.createObjectURL(blob);
-      triggerDownload(objectUrl, filename);
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        const objectUrl = URL.createObjectURL(blob);
+        triggerDownload(objectUrl, filename);
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        setStatus("Screenshot saved.");
+        closePopup();
+      } finally {
+        if (transparentBackground) {
+          scene.background = previousBackground;
+          scene.fog = previousFog;
+          renderer.setClearAlpha(previousClearAlpha);
+          setShowBounds?.(previousShowBounds);
+          renderer.render(scene, cameraController.getActiveCamera());
+        }
+      }
     } finally {
       if (shouldTemporarilyPause) {
         setPaused(false);
@@ -386,6 +519,7 @@ function setupViewportScreenshotButton({
       }
       screenshotInProgress = false;
       dom.viewportScreenshotBtn.disabled = false;
+      dom.screenshotCapture.disabled = false;
     }
   });
 }

@@ -4,7 +4,7 @@ import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUt
 
 // Default applet parameters.
 export const ANT_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
+  simSpeed: 2.0,
   colorMode: "state",
   colormap: "turbo",
   solidColor: "#62d6f9",
@@ -33,9 +33,10 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
   label: "Ant Trails",
   defaultProjection: "orthographic",
   world: {
-    defaults: { x: 2, y: 2, z: 2 },
-    range: { minX: 0.5, maxX: 10, minY: 0.5, maxY: 10, minZ: 0.5, maxZ: 8, step: 0.05 },
-    gridSize: 0.1,
+    defaults: { x: 2000, y: 2000, z: 2000 },
+    range: { minX: 500, maxX: 10000, minY: 500, maxY: 10000, minZ: 500, maxZ: 8000, step: 50 },
+    gridSize: 100,
+    lengthUnit: { name: "mm", toSI: 0.001 },
   },
   left: {
     intro: {
@@ -51,13 +52,17 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Agent motion coupled to a trail field on the foraging plane.",
+      references: [
+        { label: "Wikipedia: Trail pheromone", url: "https://en.wikipedia.org/wiki/Trail_pheromone" },
+        { label: "Wikipedia: Ant colony optimization algorithms", url: "https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms" },
+      ],
       items: [
         {
           title: "Agent Motion",
           equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
           explanation: "Each ant moves forward according to its current heading and walking speed.",
           parameters: [
-            "<strong>Speed</strong> sets the walking rate.",
+            "<strong>Speed</strong> (<em>v<sub>a</sub></em>) sets the walking rate.",
           ],
         },
         {
@@ -65,9 +70,8 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
           explanation: "Heading changes with trail sensing, goal attraction, and a stochastic exploration term.",
           parameters: [
-            "<strong>Sensor Distance</strong>, <strong>Food Sensing Distance</strong>, and <strong>Sensor Angle</strong> define the sampling geometry.",
-            "<strong>Turn Gain</strong> scales steering responsiveness.",
-            "<strong>Goal Bias</strong> strengthens return-to-target steering.",
+            "<strong>Turn Gain</strong> (<em>k<sub>&theta;</sub></em>) scales steering responsiveness.",
+            "<strong>Goal Bias</strong> (<em>k<sub>g</sub></em>) strengthens return-to-target steering.",
           ],
         },
         {
@@ -75,9 +79,9 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           equation: "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
           explanation: "The trail field evaporates, diffuses across the floor, and receives new deposits from ants.",
           parameters: [
-            "<strong>Deposit Rate</strong> controls how much trail is added.",
-            "<strong>Diffusion Rate</strong> controls how quickly trails spread.",
-            "<strong>Evaporation Rate</strong> controls how quickly trails fade.",
+            "<strong>Deposit Rate</strong> (<em>Q<sub>j</sub></em>) controls how much trail is added.",
+            "<strong>Diffusion Rate</strong> (<em>D</em>) controls how quickly trails spread.",
+            "<strong>Evaporation Rate</strong> (<em>&lambda;</em>) controls how quickly trails fade.",
           ],
         },
       ],
@@ -114,7 +118,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         valueNum: "120",
       },
       sliders: [
-        slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
         slider("ant-count", "Count", "bi-people-fill", "ant-count-value", "120", "20", "400", "5", "120"),
         slider("ant-scale", "Object Size", "bi-rulers", "ant-scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
         slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
@@ -123,7 +127,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         slider("ant-sensor-angle", "Sensor Angle", "bi-compass", "ant-sensor-angle-value", "35°", "5", "90", "1", "35"),
         slider("ant-turn-gain", "Turn Gain (kθ)", "bi-arrow-repeat", "ant-turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
         slider("ant-goal-bias", "Goal Bias (kg)", "bi-bullseye", "ant-goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
-        slider("ant-departure-rate", "Departure Rate", "bi-box-arrow-up-right", "ant-departure-rate-value", "6.0 ants/s", "0", "20", "0.25", "6"),
+        slider("ant-departure-rate", "Departure Rate", "bi-box-arrow-up-right", "ant-departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
         slider("ant-deposit-rate", "Deposit Rate", "bi-droplet-fill", "ant-deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
         slider("ant-diffusion-rate", "Diffusion Rate", "bi-water", "ant-diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
         slider("ant-evap-rate", "Evaporation Rate", "bi-wind", "ant-evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),

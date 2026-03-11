@@ -42,6 +42,9 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Discrete flocking update with bounded steering and speed.",
+      references: [
+        { label: "Wikipedia: Boids", url: "https://en.wikipedia.org/wiki/Boids" },
+      ],
       items: [
         {
           title: "Position Update",
@@ -52,19 +55,13 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
           title: "Velocity Update",
           equation: "$$\\mathbf{v}_i(t+\\Delta t)=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)$$",
           explanation: "Velocity changes by the steering acceleration and is then clamped so the boid stays within its allowed motion limits.",
-          parameters: [
-            "<strong>Max Speed</strong> sets the speed cap.",
-            "<strong>Max Acceleration</strong> sets the steering cap.",
-          ],
         },
         {
           title: "Steering Composition",
           equation: "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
           explanation: "The steering vector is formed by combining alignment, cohesion, and separation responses to nearby flockmates.",
           parameters: [
-            "<strong>Perception Radius</strong> controls which neighbors contribute to alignment and cohesion.",
-            "<strong>Separation Distance</strong> controls the near-field repulsion zone.",
-            "<strong>Alignment Weight</strong>, <strong>Cohesion Weight</strong>, and <strong>Separation Weight</strong> scale the three steering terms.",
+            "<strong>Alignment Weight</strong> (<em>w<sub>a</sub></em>), <strong>Cohesion Weight</strong> (<em>w<sub>c</sub></em>), and <strong>Separation Weight</strong> (<em>w<sub>s</sub></em>) scale the three steering terms.",
           ],
         },
       ],

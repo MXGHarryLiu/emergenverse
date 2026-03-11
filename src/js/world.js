@@ -53,29 +53,12 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     boundsLines.visible = params.showBounds;
     scene.add(boundsLines);
 
-    const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
     const gridSize = Math.max(0.01, Number(params.worldGridSize) || 1);
-    const divisions = Math.max(1, Math.round(groundBase / gridSize));
-    floorGrid = new THREE.GridHelper(
-      groundBase,
-      divisions,
-      0x4269b2,
-      0x1a3558,
-    );
-    floorGrid.rotation.x = Math.PI / 2;
-    floorGrid.scale.set(
-      params.worldSizeX / Math.max(groundBase, 1),
-      1,
-      params.worldSizeY / Math.max(groundBase, 1),
-    );
-    floorGrid.position.z = -params.worldSizeZ * 0.5;
-
-    const gridMaterials = Array.isArray(floorGrid.material)
-      ? floorGrid.material
-      : [floorGrid.material];
-    gridMaterials.forEach((material) => {
-      material.transparent = true;
-      material.opacity = 0.2;
+    floorGrid = buildFloorGrid({
+      width: params.worldSizeX,
+      height: params.worldSizeY,
+      z: -params.worldSizeZ * 0.5,
+      step: gridSize,
     });
 
     scene.add(floorGrid);
@@ -119,6 +102,38 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     setBoundsVisibility,
     applyBoundaryConditions,
   };
+}
+
+function buildFloorGrid({ width, height, z, step }) {
+  const halfWidth = width * 0.5;
+  const halfHeight = height * 0.5;
+  const cellSize = Math.max(0.01, step || 1);
+  const xStart = -Math.floor(halfWidth / cellSize) * cellSize;
+  const xEnd = Math.floor(halfWidth / cellSize) * cellSize;
+  const yStart = -Math.floor(halfHeight / cellSize) * cellSize;
+  const yEnd = Math.floor(halfHeight / cellSize) * cellSize;
+  const positions = [];
+
+  for (let x = xStart; x <= xEnd + cellSize * 0.25; x += cellSize) {
+    const clampedX = THREE.MathUtils.clamp(x, -halfWidth, halfWidth);
+    positions.push(clampedX, -halfHeight, z, clampedX, halfHeight, z);
+  }
+
+  for (let y = yStart; y <= yEnd + cellSize * 0.25; y += cellSize) {
+    const clampedY = THREE.MathUtils.clamp(y, -halfHeight, halfHeight);
+    positions.push(-halfWidth, clampedY, z, halfWidth, clampedY, z);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+
+  const material = new THREE.LineBasicMaterial({
+    color: 0x1a3558,
+    transparent: true,
+    opacity: 0.2,
+  });
+
+  return new THREE.LineSegments(geometry, material);
 }
 
 function wrapAxis(value, halfExtent) {

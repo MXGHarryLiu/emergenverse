@@ -23,15 +23,27 @@ export function createAppletParams(rootParams, appletId) {
 }
 
 export function defineAppletConfig(config) {
+  const worldLengthUnit = config.world?.lengthUnit ?? {
+    name: config.world?.unitLabel ?? "m",
+    toSI: 1,
+  };
+
   return {
     label: config.label ?? "Applet",
     defaultProjection: config.defaultProjection ?? "perspective",
     defaultBoundaryMode: config.defaultBoundaryMode ?? "cyclic",
+    camera: {
+      distance: config.camera?.distance ?? 185,
+      height: config.camera?.height ?? 80,
+      fov: config.camera?.fov ?? 50,
+      locked: config.camera?.locked ?? false,
+    },
     world: {
       defaults: config.world?.defaults ?? { x: 100, y: 100, z: 100 },
       range: config.world?.range ?? { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
       gridSize: config.world?.gridSize ?? 5,
-      unitLabel: config.world?.unitLabel ?? "m",
+      lengthUnit: worldLengthUnit,
+      unitLabel: worldLengthUnit.name,
     },
     units: config.units ?? null,
     left: config.left ?? {},

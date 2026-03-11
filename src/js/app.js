@@ -49,6 +49,16 @@ const cameraDefaults = {
   projectionMode: "perspective",
 };
 
+function getAppletCameraDefaults(appletId = activeApplet) {
+  const camera = APPLET_CONFIGS[appletId]?.camera;
+  return {
+    cameraDistance: Number(camera?.distance ?? cameraDefaults.cameraDistance),
+    cameraHeight: Number(camera?.height ?? cameraDefaults.cameraHeight),
+    cameraFov: Number(camera?.fov ?? cameraDefaults.cameraFov),
+    cameraLocked: Boolean(camera?.locked ?? cameraDefaults.cameraLocked),
+  };
+}
+
 const dom = {
   appShell: document.querySelector(".app-shell"),
   leftPanel: document.getElementById("left-panel"),
@@ -93,6 +103,13 @@ const dom = {
   shareLinkCopy: document.getElementById("share-link-copy"),
   shareCopyStatus: document.getElementById("share-copy-status"),
   viewportScreenshotBtn: document.getElementById("viewport-screenshot-btn"),
+  screenshotInfoClose: document.getElementById("screenshot-info-close"),
+  screenshotInfoBackdrop: document.getElementById("screenshot-info-backdrop"),
+  screenshotTransparentBg: document.getElementById("screenshot-transparent-bg"),
+  screenshotPreviewImage: document.getElementById("screenshot-preview-image"),
+  screenshotMeta: document.getElementById("screenshot-meta"),
+  screenshotCapture: document.getElementById("screenshot-capture"),
+  screenshotStatus: document.getElementById("screenshot-status"),
   aboutInfoOpen: document.getElementById("about-info-open"),
   aboutInfoClose: document.getElementById("about-info-close"),
   aboutInfoBackdrop: document.getElementById("about-info-backdrop"),
@@ -143,6 +160,96 @@ const panelWidthState = {
   right: 320,
 };
 
+function getAppletWorldConfig(appletId) {
+  const fallback = {
+    defaults: { x: 100, y: 100, z: 100 },
+    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+    gridSize: 5,
+    lengthUnit: { name: "m", toSI: 1 },
+    unitLabel: "m",
+  };
+  const config = APPLET_CONFIGS[appletId]?.world;
+  return config || fallback;
+}
+
+function getAppletLengthUnit(appletId = activeApplet) {
+  const worldConfig = getAppletWorldConfig(appletId);
+  return worldConfig.lengthUnit ?? { name: worldConfig.unitLabel ?? "m", toSI: 1 };
+}
+
+function worldValuesUseAppletLengthUnit(appletId = activeApplet) {
+  const appletLengthUnit = getAppletLengthUnit(appletId);
+  const simulationLengthUnit = APPLET_CONFIGS[appletId]?.units?.length;
+  if (!simulationLengthUnit) {
+    return appletLengthUnit.toSI === 1;
+  }
+  return simulationLengthUnit.label === appletLengthUnit.name &&
+    simulationLengthUnit.toSI === appletLengthUnit.toSI;
+}
+
+function convertLengthForDisplay(value, appletId = activeApplet) {
+  const lengthUnit = getAppletLengthUnit(appletId);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (worldValuesUseAppletLengthUnit(appletId)) {
+    return value;
+  }
+  return value / Math.max(lengthUnit.toSI || 1, Number.EPSILON);
+}
+
+function convertLengthFromDisplay(value, appletId = activeApplet) {
+  const lengthUnit = getAppletLengthUnit(appletId);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (worldValuesUseAppletLengthUnit(appletId)) {
+    return value;
+  }
+  return value * (lengthUnit.toSI || 1);
+}
+
+function formatDisplayNumber(value, { trailingDigits = 1 } = {}) {
+  const absolute = Math.abs(value);
+  if (absolute >= 1000) {
+    return Math.round(value).toLocaleString();
+  }
+  if (absolute >= 100) {
+    return Math.round(value).toString();
+  }
+  if (absolute >= 10) {
+    return value.toFixed(Math.min(trailingDigits, 1));
+  }
+  if (absolute >= 1) {
+    return value.toFixed(Math.max(trailingDigits, 1));
+  }
+  return value.toFixed(Math.max(trailingDigits, 2));
+}
+
+function getWorldUnitLabel(appletId = activeApplet) {
+  return getAppletLengthUnit(appletId).name || "m";
+}
+
+function formatWorldDistance(value, appletId = activeApplet, options = {}) {
+  const displayValue = convertLengthForDisplay(value, appletId);
+  return `${formatDisplayNumber(displayValue, options)} ${getWorldUnitLabel(appletId)}`;
+}
+
+function formatWorldDisplayValue(displayValue, appletId = activeApplet, options = {}) {
+  return `${formatDisplayNumber(displayValue, options)} ${getWorldUnitLabel(appletId)}`;
+}
+
+function getViewportAppletLabel(appletId = activeApplet) {
+  const labels = {
+    boid: "Boid",
+    ants: "Ant",
+    prey: "Prey",
+    firefly: "Firefly",
+    galaxy: "Galaxy",
+  };
+  return labels[appletId] ?? "Boid";
+}
+
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
 const APPLET_IDS = new Set(APPLET_ORDER);
@@ -162,7 +269,7 @@ let themeManager = null;
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
-  alpha: false,
+  alpha: true,
   preserveDrawingBuffer: true,
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -184,6 +291,7 @@ const cameraController = createCameraController({
   onFovChange: (value) => {
     setControlValue("camera-fov", value, "camera-fov-value", (next) => `${Math.round(next)}°`);
   },
+  formatLengthValue: (value) => formatWorldDistance(value, activeApplet),
 });
 
 const perspectiveCamera = cameraController.perspectiveCamera;
@@ -285,6 +393,7 @@ rebuildBoundsAndGrid();
 simulationManager.initAll();
 setupCompactSectionSliders();
 setupControls();
+setupRangeFocusEscape();
 setupPanelToggles();
 setupPanelResizers();
 setupControlSectionCollapses();
@@ -300,6 +409,12 @@ setupUiOverlays({
     params.paused = Boolean(value);
   },
   onPauseStateChange: () => updateSimulationStateUI(),
+  getShowBounds: () => params.showBounds,
+  setShowBounds: (value) => {
+    params.showBounds = Boolean(value);
+    dom.showBounds.checked = params.showBounds;
+    world.setBoundsVisibility(params.showBounds);
+  },
 });
 setupTrendCharts();
 setupChartCollapses();
@@ -510,30 +625,30 @@ function setupControls() {
   });
 
   bindRange("world-size-x", "world-size-x-value", (value) => {
-    params.worldSizeX = value;
+    params.worldSizeX = convertLengthFromDisplay(value);
     if (worldStatePersistenceEnabled) {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return formatWorldDistance(value);
+    return formatWorldDistance(params.worldSizeX);
   });
 
   bindRange("world-size-y", "world-size-y-value", (value) => {
-    params.worldSizeY = value;
+    params.worldSizeY = convertLengthFromDisplay(value);
     if (worldStatePersistenceEnabled) {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return formatWorldDistance(value);
+    return formatWorldDistance(params.worldSizeY);
   });
 
   bindRange("world-size-z", "world-size-z-value", (value) => {
-    params.worldSizeZ = value;
+    params.worldSizeZ = convertLengthFromDisplay(value);
     if (worldStatePersistenceEnabled) {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return formatWorldDistance(value);
+    return formatWorldDistance(params.worldSizeZ);
   });
 
   bindRange("camera-fov", "camera-fov-value", (value) => {
@@ -598,7 +713,7 @@ function setupControls() {
 
   bindRange("ant-departure-rate", "ant-departure-rate-value", (value) => {
     params.ants.departureRate = value;
-    return `${value.toFixed(1)} ants/s`;
+    return `${value.toFixed(1)} Hz`;
   });
 
   bindRange("ant-deposit-rate", "ant-deposit-rate-value", (value) => {
@@ -772,7 +887,7 @@ function setupControls() {
 
   bindRange("galaxy-gravity", "galaxy-gravity-value", (value) => {
     params.galaxy.gravity = value;
-    return value.toExponential(3);
+    return `${value.toExponential(3)} m^3 kg^-1 s^-2`;
   });
 
   bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
@@ -874,10 +989,11 @@ function setupControls() {
 
   if (dom.resetCamera) {
     dom.resetCamera.addEventListener("click", () => {
-      params.cameraDistance = cameraDefaults.cameraDistance;
-      params.cameraHeight = cameraDefaults.cameraHeight;
-      params.cameraFov = cameraDefaults.cameraFov;
-      params.cameraLocked = cameraDefaults.cameraLocked;
+      const appletCameraDefaults = getAppletCameraDefaults(activeApplet);
+      params.cameraDistance = appletCameraDefaults.cameraDistance;
+      params.cameraHeight = appletCameraDefaults.cameraHeight;
+      params.cameraFov = appletCameraDefaults.cameraFov;
+      params.cameraLocked = appletCameraDefaults.cameraLocked;
 
       setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
       dom.cameraLocked.checked = params.cameraLocked;
@@ -979,34 +1095,13 @@ function setAppletInUrl(appletId, replaceHistory) {
   window.history[historyMethod]?.({ app: appletId }, "", url);
 }
 
-function getAppletWorldConfig(appletId) {
-  const fallback = {
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
-    unitLabel: "m",
-  };
-  const config = APPLET_CONFIGS[appletId]?.world;
-  return config || fallback;
-}
-
-function getWorldUnitLabel(appletId = activeApplet) {
-  return getAppletWorldConfig(appletId).unitLabel || "m";
-}
-
-function formatWorldDistance(value, appletId = activeApplet) {
-  const rounded = Math.round(value);
-  const unitLabel = getWorldUnitLabel(appletId);
-  return `${unitLabel === "m" ? rounded : rounded.toLocaleString()} ${unitLabel}`;
-}
-
 function createDefaultWorldState(appletId) {
   const config = getAppletWorldConfig(appletId);
   return {
-    x: Number(config.defaults?.x ?? 100),
-    y: Number(config.defaults?.y ?? 100),
-    z: Number(config.defaults?.z ?? 100),
-    gridSize: Number(config.gridSize ?? 5),
+    x: convertLengthFromDisplay(Number(config.defaults?.x ?? 100), appletId),
+    y: convertLengthFromDisplay(Number(config.defaults?.y ?? 100), appletId),
+    z: convertLengthFromDisplay(Number(config.defaults?.z ?? 100), appletId),
+    gridSize: convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId),
     boundaryMode: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic",
   };
 }
@@ -1032,19 +1127,19 @@ function applyWorldSliderConstraints(appletId) {
   const zInput = document.getElementById("world-size-z");
 
   if (xInput) {
-    xInput.min = String(range.minX);
-    xInput.max = String(range.maxX);
-    xInput.step = String(range.step);
+    xInput.min = String(Number(range.minX));
+    xInput.max = String(Number(range.maxX));
+    xInput.step = String(Number(range.step));
   }
   if (yInput) {
-    yInput.min = String(range.minY);
-    yInput.max = String(range.maxY);
-    yInput.step = String(range.step);
+    yInput.min = String(Number(range.minY));
+    yInput.max = String(Number(range.maxY));
+    yInput.step = String(Number(range.step));
   }
   if (zInput) {
-    zInput.min = String(range.minZ);
-    zInput.max = String(range.maxZ);
-    zInput.step = String(range.step);
+    zInput.min = String(Number(range.minZ));
+    zInput.max = String(Number(range.maxZ));
+    zInput.step = String(Number(range.step));
   }
 }
 
@@ -1058,12 +1153,29 @@ function applyAppletWorldState(appletId) {
   params.worldSizeX = state.x;
   params.worldSizeY = state.y;
   params.worldSizeZ = state.z;
-  params.worldGridSize = Number.isFinite(state.gridSize) ? state.gridSize : Number(config.gridSize ?? 5);
+  params.worldGridSize = Number.isFinite(state.gridSize)
+    ? state.gridSize
+    : convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId);
   params.boundaryMode = state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic";
 
-  setControlValue("world-size-x", params.worldSizeX, "world-size-x-value", (value) => formatWorldDistance(value, appletId));
-  setControlValue("world-size-y", params.worldSizeY, "world-size-y-value", (value) => formatWorldDistance(value, appletId));
-  setControlValue("world-size-z", params.worldSizeZ, "world-size-z-value", (value) => formatWorldDistance(value, appletId));
+  setControlValue(
+    "world-size-x",
+    convertLengthForDisplay(params.worldSizeX, appletId),
+    "world-size-x-value",
+    (value) => formatWorldDisplayValue(value, appletId),
+  );
+  setControlValue(
+    "world-size-y",
+    convertLengthForDisplay(params.worldSizeY, appletId),
+    "world-size-y-value",
+    (value) => formatWorldDisplayValue(value, appletId),
+  );
+  setControlValue(
+    "world-size-z",
+    convertLengthForDisplay(params.worldSizeZ, appletId),
+    "world-size-z-value",
+    (value) => formatWorldDisplayValue(value, appletId),
+  );
   if (dom.boundaryMode) {
     dom.boundaryMode.value = params.boundaryMode;
   }
@@ -1076,6 +1188,12 @@ function applyDefaultProjectionForApplet(appletId) {
   if (appletProjectionInitialized[appletId]) {
     return;
   }
+
+  const appletCameraDefaults = getAppletCameraDefaults(appletId);
+  params.cameraDistance = appletCameraDefaults.cameraDistance;
+  params.cameraHeight = appletCameraDefaults.cameraHeight;
+  params.cameraFov = appletCameraDefaults.cameraFov;
+  params.cameraLocked = appletCameraDefaults.cameraLocked;
 
   const projectionMode = APPLET_CONFIGS[appletId]?.defaultProjection || "perspective";
   if (projectionMode === "orthographic") {
@@ -1154,6 +1272,7 @@ function applyAppletMode(appletId, options = {}) {
   });
 
   applyAppletVisibility(normalizedId);
+  resetCompactSectionDefaults();
   const restoredCamera = cameraController.restoreCameraSnapshot(appletCameraState[normalizedId]);
   if (!restoredCamera) {
     applyDefaultProjectionForApplet(normalizedId);
@@ -1562,6 +1681,7 @@ function setupCompactSectionSliders() {
       title,
       value,
       activeInputId: null,
+      firstInputId: null,
     };
 
     slider.addEventListener("input", () => {
@@ -1579,6 +1699,33 @@ function setupCompactSectionSliders() {
       binding.input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   });
+}
+
+function setupRangeFocusEscape() {
+  const blurFocusedRange = () => {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLInputElement && activeElement.type === "range") {
+      activeElement.blur();
+    }
+  };
+
+  renderer.domElement.addEventListener("pointerdown", () => {
+    blurFocusedRange();
+    renderer.domElement.focus?.();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    if (target.closest('input[type="range"]')) {
+      return;
+    }
+
+    blurFocusedRange();
+  }, true);
 }
 
 function registerCompactRangeControl(inputRef, outputRef) {
@@ -1615,6 +1762,10 @@ function registerCompactRangeControl(inputRef, outputRef) {
     labelText,
     labelTitleNode,
   });
+
+  if (!sectionState.firstInputId) {
+    sectionState.firstInputId = input.id;
+  }
 
   input.classList.add("compact-source-slider");
   output.classList.add("compact-value-trigger");
@@ -1677,6 +1828,15 @@ function activateCompactRangeControl(inputId) {
   }
 }
 
+function resetCompactSectionDefaults() {
+  Object.values(compactSectionState).forEach((sectionState) => {
+    if (!sectionState?.firstInputId) {
+      return;
+    }
+    activateCompactRangeControl(sectionState.firstInputId);
+  });
+}
+
 function syncCompactSectionSlider(inputId) {
   const binding = compactRangeRegistry.get(inputId);
   if (!binding) {
@@ -1688,6 +1848,9 @@ function syncCompactSectionSlider(inputId) {
     return;
   }
 
+  sectionState.slider.min = binding.input.min;
+  sectionState.slider.max = binding.input.max;
+  sectionState.slider.step = binding.input.step || "1";
   sectionState.slider.value = binding.input.value;
   sectionState.value.textContent = binding.output.textContent;
 }
@@ -1735,11 +1898,12 @@ function updateViewportLabel() {
   }
 
   const gridSize = Math.max(0.01, Number(params.worldGridSize) || 1);
+  const displayGridSize = convertLengthForDisplay(gridSize, activeApplet);
   const unitLabel = getWorldUnitLabel(activeApplet);
-  const appLabel = APPLET_META[activeApplet]?.label ?? "Boids";
+  const appLabel = getViewportAppletLabel(activeApplet);
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
-  const gridText = gridSize >= 1 ? gridSize.toFixed(1) : gridSize.toFixed(2);
+  const gridText = formatDisplayNumber(displayGridSize, { trailingDigits: 2 });
   dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
 }
 
