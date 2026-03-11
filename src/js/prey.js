@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
+// Default applet parameters.
 export const PREY_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   count: 260,
@@ -25,6 +26,7 @@ export const PREY_DEFAULT_PARAMS = {
   solidColor: "#ff8d5f",
 };
 
+// Applet UI and metadata configuration.
 export const PREY_APPLET_CONFIG = defineAppletConfig({
   label: "Prey Chain",
   defaultProjection: "orthographic",
@@ -96,6 +98,52 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
   },
 });
 
+// Shell runtime hooks.
+export const PREY_APPLET_RUNTIME = {
+  createChartMetrics(createChartMetric) {
+    return [
+      createChartMetric("chart-prey-count", "chart-prey-count-live", () => "0", {
+        stroke: "#6be39f",
+        fill: "rgba(107, 227, 159, 0.16)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-predator-count", "chart-predator-count-live", () => "0", {
+        stroke: "#ff9b70",
+        fill: "rgba(255, 155, 112, 0.18)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
+        stroke: "#f0cf72",
+        fill: "rgba(240, 207, 114, 0.18)",
+        axisLabel: "events",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+    ];
+  },
+  applyStats(stats, ui) {
+    if (!stats) {
+      return;
+    }
+
+    const preyCount = stats.preyCount ?? 0;
+    const predatorCount = stats.predatorCount ?? 0;
+    const eatenTotal = stats.eatenTotal ?? 0;
+
+    ui.refreshLegend?.();
+    ui.updateChartMetrics("prey", [preyCount, predatorCount, eatenTotal], [
+      String(preyCount),
+      String(predatorCount),
+      String(eatenTotal),
+    ]);
+  },
+};
+
+// File-local constants and helpers.
 const PREY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
@@ -111,6 +159,7 @@ const PREY_COLORMAPS = buildColormapLUT(PREY_COLORMAP_STOPS);
 const preyColormapLerpA = new THREE.Color();
 const preyColormapLerpB = new THREE.Color();
 
+// Simulation implementation.
 export class PreySimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;

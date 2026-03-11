@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
+// Default applet parameters.
 export const BOID_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   count: 220,
@@ -19,6 +20,7 @@ export const BOID_DEFAULT_PARAMS = {
   solidColor: "#4cd3b6",
 };
 
+// Applet UI and metadata configuration.
 export const BOID_APPLET_CONFIG = defineAppletConfig({
   label: "Boids",
   defaultProjection: "perspective",
@@ -92,6 +94,53 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
   },
 });
 
+// Shell runtime hooks.
+export const BOID_APPLET_RUNTIME = {
+  createChartMetrics(createChartMetric) {
+    return [
+      createChartMetric("chart-count", "chart-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-speed", "chart-speed-live", () => "0.00 m/s", {
+        stroke: "#4cd3b6",
+        fill: "rgba(76, 211, 182, 0.14)",
+        axisLabel: "m/s",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-neighbors", "chart-neighbors-live", () => "0.00", {
+        stroke: "#5aa4ff",
+        fill: "rgba(90, 164, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => (value >= 10 ? value.toFixed(0) : value.toFixed(1)),
+        forceZeroMin: true,
+      }),
+    ];
+  },
+  applyStats(stats, ui) {
+    if (!stats) {
+      return;
+    }
+
+    const boidCount = stats.count ?? 0;
+    const speedSum = stats.speedSum ?? 0;
+    const neighborSum = stats.neighborSum ?? 0;
+    const avgSpeed = boidCount > 0 ? speedSum / boidCount : 0;
+    const avgNeighbors = boidCount > 0 ? neighborSum / boidCount : 0;
+
+    ui.updateChartMetrics("boid", [boidCount, avgSpeed, avgNeighbors], [
+      String(boidCount),
+      `${avgSpeed.toFixed(2)} m/s`,
+      avgNeighbors.toFixed(2),
+    ]);
+  },
+};
+
+// Simulation implementation.
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {
     this.scene = scene;

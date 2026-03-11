@@ -2,29 +2,7 @@
 import * as THREE from "three";
 import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
-const TWO_PI = Math.PI * 2;
-const FIREFLY_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_COLORMAP_STOPS);
-const FIREFLY_DISCRETE_STATE_COLORMAPS = {
-  "blue-yellow": [0x4f7dff, 0xffd74a],
-  paired: [0xa6cee3, 0x1f78b4],
-  set1: [0xe41a1c, 0x377eb8],
-  set2: [0x66c2a5, 0xfc8d62],
-  dark2: [0x1b9e77, 0xd95f02],
-  tableau10: [0x4e79a7, 0xf28e2b],
-};
-const fireflyLerpA = new THREE.Color();
-const fireflyLerpB = new THREE.Color();
-
+// Default applet parameters.
 export const FIREFLY_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   count: 180,
@@ -39,6 +17,7 @@ export const FIREFLY_DEFAULT_PARAMS = {
   colormap: "blue-yellow",
 };
 
+// Applet UI and metadata configuration.
 export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   label: "Firefly Sync",
   defaultProjection: "perspective",
@@ -107,6 +86,76 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   },
 });
 
+// Shell runtime hooks.
+export const FIREFLY_APPLET_RUNTIME = {
+  createChartMetrics(createChartMetric) {
+    return [
+      createChartMetric("chart-firefly-count", "chart-firefly-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
+        stroke: "#ffe38d",
+        fill: "rgba(255, 227, 141, 0.18)",
+        axisLabel: "R",
+        tickFormatter: (value) => value.toFixed(2),
+        minValue: 0,
+        maxValue: 1,
+      }),
+      createChartMetric("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
+        stroke: "#ffd26e",
+        fill: "rgba(255, 210, 110, 0.16)",
+        axisLabel: "/s",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+    ];
+  },
+  applyStats(stats, ui) {
+    if (!stats) {
+      return;
+    }
+
+    const count = stats.count ?? 0;
+    const order = stats.order ?? 0;
+    const blinkRate = stats.blinkRate ?? 0;
+
+    ui.updateChartMetrics("firefly", [count, order, blinkRate], [
+      String(count),
+      order.toFixed(3),
+      `${blinkRate.toFixed(1)} /s`,
+    ]);
+  },
+};
+
+// File-local constants and helpers.
+const TWO_PI = Math.PI * 2;
+const FIREFLY_COLORMAP_STOPS = {
+  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
+  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
+  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
+  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
+  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
+  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
+  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
+  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
+};
+const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_COLORMAP_STOPS);
+const FIREFLY_DISCRETE_STATE_COLORMAPS = {
+  "blue-yellow": [0x4f7dff, 0xffd74a],
+  paired: [0xa6cee3, 0x1f78b4],
+  set1: [0xe41a1c, 0x377eb8],
+  set2: [0x66c2a5, 0xfc8d62],
+  dark2: [0x1b9e77, 0xd95f02],
+  tableau10: [0x4e79a7, 0xf28e2b],
+};
+const fireflyLerpA = new THREE.Color();
+const fireflyLerpB = new THREE.Color();
+
+// Simulation implementation.
 export class FireflySimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;

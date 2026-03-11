@@ -3,15 +3,15 @@ import * as THREE from "three";
 import { createCameraController } from "./camera.js";
 import { applyWorldTheme, createThemeManager } from "./theme.js";
 import { createWorldManager } from "./world.js";
-import { BoidSimulation, BOID_DEFAULT_PARAMS } from "./boid.js";
-import { AntSimulation, ANT_DEFAULT_PARAMS } from "./ant.js";
-import { PreySimulation, PREY_DEFAULT_PARAMS } from "./prey.js";
-import { FireflySimulation, FIREFLY_DEFAULT_PARAMS } from "./firefly.js";
-import { GalaxySimulation, GALAXY_DEFAULT_PARAMS } from "./galaxy.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
-import { APPLET_CONFIGS, APPLET_META, APPLET_ORDER } from "./appletConfigs.js";
+import {
+  APPLET_CONFIGS,
+  APPLET_DEFINITIONS,
+  APPLET_META,
+  APPLET_ORDER,
+} from "./appletConfigs.js";
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import {
   drawTrendChart as renderTrendChart,
@@ -33,18 +33,10 @@ const params = {
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
   paused: false,
-  boid: { ...BOID_DEFAULT_PARAMS },
-  ants: { ...ANT_DEFAULT_PARAMS },
-  prey: { ...PREY_DEFAULT_PARAMS },
-  firefly: { ...FIREFLY_DEFAULT_PARAMS },
-  galaxy: { ...GALAXY_DEFAULT_PARAMS },
+  ...Object.fromEntries(
+    APPLET_ORDER.map((id) => [id, { ...APPLET_DEFINITIONS[id].defaultParams }]),
+  ),
 };
-
-const boidParams = params.boid;
-const antParams = params.ants;
-const preyParams = params.prey;
-const fireflyParams = params.firefly;
-const galaxyParams = params.galaxy;
 
 renderAppletSectionsFromConfig();
 scheduleMathRendering();
@@ -79,14 +71,10 @@ const dom = {
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
-  preyColormapLegend: document.getElementById("prey-colormap-legend"),
-  preyColormapLegendBar: document.getElementById("prey-colormap-legend-bar"),
-  preyColormapCmin: document.getElementById("prey-colormap-cmin"),
-  preyColormapCmax: document.getElementById("prey-colormap-cmax"),
-  colormapLegend: document.getElementById("colormap-legend"),
-  colormapLegendBar: document.getElementById("colormap-legend-bar"),
-  colormapCmin: document.getElementById("colormap-cmin"),
-  colormapCmax: document.getElementById("colormap-cmax"),
+  colormapLegends: {
+    boid: createLegendDomRefs(""),
+    prey: createLegendDomRefs("prey-"),
+  },
   cameraProjectionToggle: document.getElementById("camera-projection-toggle"),
   themeToggle: document.getElementById("theme-toggle"),
   themeToggleLabel: document.getElementById("theme-toggle-label"),
@@ -130,6 +118,15 @@ function setElementText(id, text) {
   if (element) {
     element.textContent = text;
   }
+}
+
+function createLegendDomRefs(idPrefix) {
+  return {
+    container: document.getElementById(`${idPrefix}colormap-legend`),
+    bar: document.getElementById(`${idPrefix}colormap-legend-bar`),
+    cmin: document.getElementById(`${idPrefix}colormap-cmin`),
+    cmax: document.getElementById(`${idPrefix}colormap-cmax`),
+  };
 }
 
 const uiState = {
@@ -202,88 +199,44 @@ const scene = world.scene;
 
 const simulationManager = new SimulationManager();
 
-const lastAppletStats = {
-  boid: {
-    count: 0,
-    speedSum: 0,
-    neighborSum: 0,
-  },
-  ants: {
-    count: 0,
-    carrying: 0,
-    trips: 0,
-    meanPheromone: 0,
-    maxPheromone: 0,
-  },
-  prey: {
-    preyCount: 0,
-    predatorCount: 0,
-    eatenTotal: 0,
-  },
-  firefly: {
-    count: 0,
-    order: 0,
-    blinkRate: 0,
-  },
-  galaxy: {
-    count: 0,
-    meanRadius: 0,
-    meanSpeed: 0,
-  },
-};
+const lastAppletStats = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 
-const boidSimulation = new BoidSimulation({
-  scene,
-  params,
-  world,
-  onStats: (stats) => {
-    lastAppletStats.boid = stats;
-    updateBoidStats(stats);
-  },
+const appletStatsApis = Object.fromEntries(
+  APPLET_ORDER.map((id) => [
+    id,
+    {
+      setText: setElementText,
+      updateChartMetrics: (appletId, values, liveTexts) =>
+        updateChartMetrics(appletId, values, liveTexts),
+      refreshLegend: id === "prey" ? updatePreyColormapLegend : null,
+    },
+  ]),
+);
+
+const simulations = Object.fromEntries(
+  APPLET_ORDER.map((id) => [
+    id,
+    APPLET_DEFINITIONS[id].createSimulation({
+      scene,
+      params,
+      world,
+      onStats: (stats) => {
+        lastAppletStats[id] = stats;
+        APPLET_DEFINITIONS[id].runtime?.applyStats?.(stats, appletStatsApis[id]);
+      },
+    }),
+  ]),
+);
+
+APPLET_ORDER.forEach((id) => {
+  simulationManager.register(id, simulations[id]);
 });
 
-const antSimulation = new AntSimulation({
-  scene,
-  params,
-  onStats: (stats) => {
-    lastAppletStats.ants = stats;
-    updateAntStats(stats);
-  },
-});
-
-const preySimulation = new PreySimulation({
-  scene,
-  params,
-  onStats: (stats) => {
-    lastAppletStats.prey = stats;
-    updatePreyStats(stats);
-  },
-});
-
-const fireflySimulation = new FireflySimulation({
-  scene,
-  params,
-  onStats: (stats) => {
-    lastAppletStats.firefly = stats;
-    updateFireflyStats(stats);
-  },
-});
-
-const galaxySimulation = new GalaxySimulation({
-  scene,
-  params,
-  world,
-  onStats: (stats) => {
-    lastAppletStats.galaxy = stats;
-    updateGalaxyStats(stats);
-  },
-});
-
-simulationManager.register("boid", boidSimulation);
-simulationManager.register("ants", antSimulation);
-simulationManager.register("prey", preySimulation);
-simulationManager.register("firefly", fireflySimulation);
-simulationManager.register("galaxy", galaxySimulation);
+const boidSimulation = simulations.boid;
+const antSimulation = simulations.ants;
+const preySimulation = simulations.prey;
+const fireflySimulation = simulations.firefly;
+const galaxySimulation = simulations.galaxy;
 
 const colormapStops = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -299,146 +252,25 @@ const colormapStops = {
 const colormapGradients = buildColormapGradients(colormapStops);
 
 const chartMaxPoints = 160;
-const chartState = {
-  boid: {
-    frameCounter: 0,
-    metrics: [
-      createChartMetric("chart-count", "chart-count-live", () => "0", {
-        stroke: "#7ec4ff",
-        fill: "rgba(126, 196, 255, 0.14)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-speed", "chart-speed-live", () => "0.00 m/s", {
-        stroke: "#4cd3b6",
-        fill: "rgba(76, 211, 182, 0.14)",
-        axisLabel: "m/s",
-        tickFormatter: (value) => value.toFixed(1),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-neighbors", "chart-neighbors-live", () => "0.00", {
-        stroke: "#5aa4ff",
-        fill: "rgba(90, 164, 255, 0.14)",
-        axisLabel: "count",
-        tickFormatter: (value) => (value >= 10 ? value.toFixed(0) : value.toFixed(1)),
-        forceZeroMin: true,
-      }),
-    ],
-  },
-  ants: {
-    frameCounter: 0,
-    metrics: [
-      createChartMetric("chart-ant-count", "chart-ant-count-live", () => "0", {
-        stroke: "#7ec4ff",
-        fill: "rgba(126, 196, 255, 0.14)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-ant-trips", "chart-ant-trips-live", () => "0", {
-        stroke: "#f1b55b",
-        fill: "rgba(241, 181, 91, 0.18)",
-        axisLabel: "trips",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-ant-pheromone", "chart-ant-pheromone-live", () => "0.00", {
-        stroke: "#79d2ff",
-        fill: "rgba(121, 210, 255, 0.18)",
-        axisLabel: "a.u.",
-        tickFormatter: (value) => value.toFixed(2),
-        forceZeroMin: true,
-      }),
-    ],
-  },
-  prey: {
-    frameCounter: 0,
-    metrics: [
-      createChartMetric("chart-prey-count", "chart-prey-count-live", () => "0", {
-        stroke: "#6be39f",
-        fill: "rgba(107, 227, 159, 0.16)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-predator-count", "chart-predator-count-live", () => "0", {
-        stroke: "#ff9b70",
-        fill: "rgba(255, 155, 112, 0.18)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
-        stroke: "#f0cf72",
-        fill: "rgba(240, 207, 114, 0.18)",
-        axisLabel: "events",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-    ],
-  },
-  firefly: {
-    frameCounter: 0,
-    metrics: [
-      createChartMetric("chart-firefly-count", "chart-firefly-count-live", () => "0", {
-        stroke: "#7ec4ff",
-        fill: "rgba(126, 196, 255, 0.14)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
-        stroke: "#ffe38d",
-        fill: "rgba(255, 227, 141, 0.18)",
-        axisLabel: "R",
-        tickFormatter: (value) => value.toFixed(2),
-        minValue: 0,
-        maxValue: 1,
-      }),
-      createChartMetric("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
-        stroke: "#ffd26e",
-        fill: "rgba(255, 210, 110, 0.16)",
-        axisLabel: "/s",
-        tickFormatter: (value) => value.toFixed(1),
-        forceZeroMin: true,
-      }),
-    ],
-  },
-  galaxy: {
-    frameCounter: 0,
-    metrics: [
-      createChartMetric("chart-galaxy-count", "chart-galaxy-count-live", () => "0", {
-        stroke: "#8eb7ff",
-        fill: "rgba(142, 183, 255, 0.14)",
-        axisLabel: "count",
-        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-galaxy-radius", "chart-galaxy-radius-live", () => "0.00 m", {
-        stroke: "#9de2ff",
-        fill: "rgba(157, 226, 255, 0.16)",
-        axisLabel: "m",
-        tickFormatter: (value) => value.toFixed(1),
-        forceZeroMin: true,
-      }),
-      createChartMetric("chart-galaxy-speed", "chart-galaxy-speed-live", () => "0.00 m/s", {
-        stroke: "#ffbe8d",
-        fill: "rgba(255, 190, 141, 0.16)",
-        axisLabel: "m/s",
-        tickFormatter: (value) => value.toFixed(1),
-        forceZeroMin: true,
-      }),
-    ],
-  },
-};
-const applets = {
-  boid: createAppletRuntime({ id: "boid", simulation: boidSimulation, speedParam: "simSpeed", applyStats: updateBoidStats }),
-  ants: createAppletRuntime({ id: "ants", simulation: antSimulation, speedParam: "simSpeed", applyStats: updateAntStats }),
-  prey: createAppletRuntime({ id: "prey", simulation: preySimulation, speedParam: "simSpeed", applyStats: updatePreyStats }),
-  firefly: createAppletRuntime({ id: "firefly", simulation: fireflySimulation, speedParam: "simSpeed", applyStats: updateFireflyStats }),
-  galaxy: createAppletRuntime({ id: "galaxy", simulation: galaxySimulation, speedParam: "simSpeed", applyStats: updateGalaxyStats }),
-};
+const chartState = Object.fromEntries(
+  APPLET_ORDER.map((id) => [
+    id,
+    {
+      frameCounter: 0,
+      metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(createChartMetric) ?? [],
+    },
+  ]),
+);
+const applets = Object.fromEntries(
+  APPLET_ORDER.map((id) => [
+    id,
+    createAppletRuntime({
+      id,
+      simulation: simulations[id],
+      applyStats: (stats) => APPLET_DEFINITIONS[id].runtime?.applyStats?.(stats, appletStatsApis[id]),
+    }),
+  ]),
+);
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
 const narrowScreenThresholdPx = 980;
@@ -526,73 +358,6 @@ function updateFpsMetric(dt) {
   });
 }
 
-function updateAntStats(stats) {
-  if (!stats) {
-    return;
-  }
-
-  const antCount = stats.count ?? 0;
-  const carryingCount = stats.carrying ?? 0;
-  const trips = stats.trips ?? 0;
-  const meanPheromone = stats.meanPheromone ?? 0;
-
-  setElementText("ants-carrying-live", String(carryingCount));
-  updateChartMetrics("ants", [antCount, trips, meanPheromone], [
-    String(antCount),
-    String(trips),
-    meanPheromone.toFixed(2),
-  ]);
-}
-
-function updatePreyStats(stats) {
-  if (!stats) {
-    return;
-  }
-
-  const preyCount = stats.preyCount ?? 0;
-  const predatorCount = stats.predatorCount ?? 0;
-  const eatenTotal = stats.eatenTotal ?? 0;
-
-  updatePreyColormapLegend();
-  updateChartMetrics("prey", [preyCount, predatorCount, eatenTotal], [
-    String(preyCount),
-    String(predatorCount),
-    String(eatenTotal),
-  ]);
-}
-
-function updateFireflyStats(stats) {
-  if (!stats) {
-    return;
-  }
-
-  const count = stats.count ?? 0;
-  const order = stats.order ?? 0;
-  const blinkRate = stats.blinkRate ?? 0;
-
-  updateChartMetrics("firefly", [count, order, blinkRate], [
-    String(count),
-    order.toFixed(3),
-    `${blinkRate.toFixed(1)} /s`,
-  ]);
-}
-
-function updateGalaxyStats(stats) {
-  if (!stats) {
-    return;
-  }
-
-  const count = stats.count ?? 0;
-  const meanRadius = stats.meanRadius ?? 0;
-  const meanSpeed = stats.meanSpeed ?? 0;
-
-  updateChartMetrics("galaxy", [count, meanRadius, meanSpeed], [
-    String(count),
-    `${meanRadius.toFixed(2)} m`,
-    `${meanSpeed.toFixed(2)} m/s`,
-  ]);
-}
-
 
 function buildColormapGradients(stopMap) {
   const gradients = {};
@@ -606,16 +371,16 @@ function buildColormapGradients(stopMap) {
 
 
 function getColorModeRange() {
-  if (boidParams.colorMode === "speed") {
+  if (params.boid.colorMode === "speed") {
     return {
       min: 0,
-      max: boidParams.maxSpeed,
+      max: params.boid.maxSpeed,
       unit: "m/s",
       digits: 1,
     };
   }
 
-  if (boidParams.colorMode === "altitude") {
+  if (params.boid.colorMode === "altitude") {
     const halfZ = params.worldSizeZ * 0.5;
     return {
       min: -halfZ,
@@ -625,7 +390,7 @@ function getColorModeRange() {
     };
   }
 
-  if (boidParams.colorMode === "neighbors") {
+  if (params.boid.colorMode === "neighbors") {
     return {
       min: 0,
       max: 16,
@@ -648,50 +413,44 @@ function formatLegendValue(value, unit, digits) {
   return `${prefix}${absolute}${unit ? ` ${unit}` : ""}`;
 }
 
+function updateLegendDisplay(legendDom, { isVisible, gradient, minText, maxText }) {
+  if (!legendDom?.bar || !legendDom.cmin || !legendDom.cmax) {
+    return;
+  }
+
+  legendDom.container?.classList.toggle("is-hidden", !isVisible);
+  if (!isVisible) {
+    return;
+  }
+
+  legendDom.bar.style.background = gradient;
+  legendDom.cmin.textContent = minText;
+  legendDom.cmax.textContent = maxText;
+}
+
 function updateColormapLegend() {
-  if (!dom.colormapLegendBar || !dom.colormapCmin || !dom.colormapCmax) {
-    return;
-  }
-
-  if (boidParams.colorMode === "none") {
-    if (dom.colormapLegend) {
-      dom.colormapLegend.classList.add("is-hidden");
-    }
-    return;
-  }
-
-  if (dom.colormapLegend) {
-    dom.colormapLegend.classList.remove("is-hidden");
-  }
-
-  const gradient = colormapGradients[boidParams.colormap] || colormapGradients.turbo;
-  dom.colormapLegendBar.style.background = gradient;
-
+  const legendDom = dom.colormapLegends.boid;
   const range = getColorModeRange();
-  dom.colormapCmin.textContent = `cmin: ${formatLegendValue(range.min, range.unit, range.digits)}`;
-  dom.colormapCmax.textContent = `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`;
+  updateLegendDisplay(legendDom, {
+    isVisible: params.boid.colorMode !== "none",
+    gradient: colormapGradients[params.boid.colormap] || colormapGradients.turbo,
+    minText: `cmin: ${formatLegendValue(range.min, range.unit, range.digits)}`,
+    maxText: `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`,
+  });
 }
 
 function updatePreyColormapLegend() {
-  if (!dom.preyColormapLegendBar || !dom.preyColormapCmin || !dom.preyColormapCmax) {
-    return;
-  }
-
-  if (preyParams.colorMode !== "energy") {
-    dom.preyColormapLegend?.classList.add("is-hidden");
-    return;
-  }
-
-  dom.preyColormapLegend?.classList.remove("is-hidden");
-  const gradient = colormapGradients[preyParams.colormap] || colormapGradients.turbo;
-  dom.preyColormapLegendBar.style.background = gradient;
-
+  const legendDom = dom.colormapLegends.prey;
   const range = preySimulation.getPredatorEnergyRange?.() ?? {
     min: 0,
-    max: Math.max(0.1, (preyParams.predatorSpawnEnergy ?? 2.8) * 2.4),
+    max: Math.max(0.1, (params.prey.predatorSpawnEnergy ?? 2.8) * 2.4),
   };
-  dom.preyColormapCmin.textContent = `cmin: ${Number(range.min || 0).toFixed(2)}`;
-  dom.preyColormapCmax.textContent = `cmax: ${Number(range.max || 0).toFixed(2)}`;
+  updateLegendDisplay(legendDom, {
+    isVisible: params.prey.colorMode === "energy",
+    gradient: colormapGradients[params.prey.colormap] || colormapGradients.turbo,
+    minText: `cmin: ${Number(range.min || 0).toFixed(2)}`,
+    maxText: `cmax: ${Number(range.max || 0).toFixed(2)}`,
+  });
 }
 
 function rebuildBoundsAndGrid() {
@@ -701,48 +460,48 @@ function rebuildBoundsAndGrid() {
 
 function setupControls() {
   bindRange("boid-sim-speed", "boid-sim-speed-value", (value) => {
-    boidParams.simSpeed = value;
+    params.boid.simSpeed = value;
     return `${value.toFixed(1)}x`;
   });
 
   bindRange("boid-scale", "boid-scale-value", (value) => {
-    boidParams.scale = value;
+    params.boid.scale = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("perception-radius", "perception-radius-value", (value) => {
-    boidParams.perceptionRadius = value;
+    params.boid.perceptionRadius = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("separation-distance", "separation-distance-value", (value) => {
-    boidParams.separationDistance = value;
+    params.boid.separationDistance = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("max-speed", "max-speed-value", (value) => {
-    boidParams.maxSpeed = value;
+    params.boid.maxSpeed = value;
     boidSimulation.syncInstances();
     return `${value.toFixed(1)} m/s`;
   });
 
   bindRange("max-accel", "max-accel-value", (value) => {
-    boidParams.maxAccel = value;
+    params.boid.maxAccel = value;
     return `${value.toFixed(1)} m/s²`;
   });
 
   bindRange("alignment-weight", "alignment-weight-value", (value) => {
-    boidParams.alignmentWeight = value;
+    params.boid.alignmentWeight = value;
     return value.toFixed(2);
   });
 
   bindRange("cohesion-weight", "cohesion-weight-value", (value) => {
-    boidParams.cohesionWeight = value;
+    params.boid.cohesionWeight = value;
     return value.toFixed(2);
   });
 
   bindRange("separation-weight", "separation-weight-value", (value) => {
-    boidParams.separationWeight = value;
+    params.boid.separationWeight = value;
     return value.toFixed(2);
   });
 
@@ -786,71 +545,71 @@ function setupControls() {
   registerCompactRangeControl(boidCountInput, boidCountValue);
   boidCountInput.addEventListener("input", () => {
     boidCountValue.textContent = boidCountInput.value;
-    boidParams.count = Number(boidCountInput.value);
-    boidSimulation.setCount(boidParams.count);
+    params.boid.count = Number(boidCountInput.value);
+    boidSimulation.setCount(params.boid.count);
     resetTrendCharts("boid");
     syncCompactSectionSlider("boid-count");
   });
   activateCompactRangeControl("boid-count");
 
   bindRange("ant-speed", "ant-speed-value", (value) => {
-    antParams.speed = value;
+    params.ants.speed = value;
     return `${value.toFixed(3)} m/s`;
   });
 
   bindRange("ant-sim-speed", "ant-sim-speed-value", (value) => {
-    antParams.simSpeed = value;
+    params.ants.simSpeed = value;
     return `${value.toFixed(1)}x`;
   });
 
   bindRange("ant-scale", "ant-scale-value", (value) => {
-    antParams.scale = value;
+    params.ants.scale = value;
     antSimulation.syncInstances();
     return `${value.toFixed(3)} m`;
   });
 
   bindRange("ant-sensor-distance", "ant-sensor-distance-value", (value) => {
-    antParams.sensorDistance = value;
+    params.ants.sensorDistance = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("ant-food-sense-distance", "ant-food-sense-distance-value", (value) => {
-    antParams.foodSenseDistance = value;
+    params.ants.foodSenseDistance = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("ant-sensor-angle", "ant-sensor-angle-value", (value) => {
-    antParams.sensorAngle = value;
+    params.ants.sensorAngle = value;
     return `${Math.round(value)}°`;
   });
 
   bindRange("ant-turn-gain", "ant-turn-gain-value", (value) => {
-    antParams.turnGain = value;
+    params.ants.turnGain = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
   bindRange("ant-goal-bias", "ant-goal-bias-value", (value) => {
-    antParams.goalBias = value;
+    params.ants.goalBias = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
   bindRange("ant-departure-rate", "ant-departure-rate-value", (value) => {
-    antParams.departureRate = value;
+    params.ants.departureRate = value;
     return `${value.toFixed(1)} ants/s`;
   });
 
   bindRange("ant-deposit-rate", "ant-deposit-rate-value", (value) => {
-    antParams.depositRate = value;
+    params.ants.depositRate = value;
     return value.toFixed(1);
   });
 
   bindRange("ant-diffusion-rate", "ant-diffusion-rate-value", (value) => {
-    antParams.diffusionRate = value;
+    params.ants.diffusionRate = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
   bindRange("ant-evap-rate", "ant-evap-rate-value", (value) => {
-    antParams.evapRate = value;
+    params.ants.evapRate = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
@@ -860,8 +619,8 @@ function setupControls() {
     registerCompactRangeControl(antCountInput, antCountValue);
     antCountInput.addEventListener("input", () => {
       antCountValue.textContent = antCountInput.value;
-      antParams.count = Number(antCountInput.value);
-      antSimulation.setCount(antParams.count);
+      params.ants.count = Number(antCountInput.value);
+      antSimulation.setCount(params.ants.count);
       resetTrendCharts("ants");
       syncCompactSectionSlider("ant-count");
     });
@@ -869,47 +628,47 @@ function setupControls() {
   }
 
   bindRange("prey-speed", "prey-speed-value", (value) => {
-    preyParams.speed = value;
+    params.prey.speed = value;
     return `${value.toFixed(1)} m/s`;
   });
 
   bindRange("prey-sim-speed", "prey-sim-speed-value", (value) => {
-    preyParams.simSpeed = value;
+    params.prey.simSpeed = value;
     return `${value.toFixed(1)}x`;
   });
 
   bindRange("predator-speed", "predator-speed-value", (value) => {
-    preyParams.predatorSpeed = value;
+    params.prey.predatorSpeed = value;
     return `${value.toFixed(1)} m/s`;
   });
 
   bindRange("predator-sense-radius", "predator-sense-radius-value", (value) => {
-    preyParams.predatorSenseRadius = value;
+    params.prey.predatorSenseRadius = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("predation-radius", "predation-radius-value", (value) => {
-    preyParams.predationRadius = value;
+    params.prey.predationRadius = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("prey-birth-rate", "prey-birth-rate-value", (value) => {
-    preyParams.birthRate = value;
+    params.prey.birthRate = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
   bindRange("predation-rate-beta", "predation-rate-beta-value", (value) => {
-    preyParams.predationRateBeta = value;
+    params.prey.predationRateBeta = value;
     return value.toFixed(2);
   });
 
   bindRange("predator-energy-gain", "predator-energy-gain-value", (value) => {
-    preyParams.predatorEnergyGain = value;
+    params.prey.predatorEnergyGain = value;
     return value.toFixed(2);
   });
 
   bindRange("predator-energy-loss", "predator-energy-loss-value", (value) => {
-    preyParams.predatorEnergyLoss = value;
+    params.prey.predatorEnergyLoss = value;
     return `${value.toFixed(2)} 1/s`;
   });
 
@@ -919,8 +678,8 @@ function setupControls() {
     registerCompactRangeControl(preyCountInput, preyCountValue);
     preyCountInput.addEventListener("input", () => {
       preyCountValue.textContent = preyCountInput.value;
-      preyParams.count = Number(preyCountInput.value);
-      preySimulation.setPreyCount(preyParams.count);
+      params.prey.count = Number(preyCountInput.value);
+      preySimulation.setPreyCount(params.prey.count);
       resetTrendCharts("prey");
       syncCompactSectionSlider("prey-count");
     });
@@ -933,51 +692,51 @@ function setupControls() {
     registerCompactRangeControl(predatorCountInput, predatorCountValue);
     predatorCountInput.addEventListener("input", () => {
       predatorCountValue.textContent = predatorCountInput.value;
-      preyParams.predatorCount = Number(predatorCountInput.value);
-      preySimulation.setPredatorCount(preyParams.predatorCount);
+      params.prey.predatorCount = Number(predatorCountInput.value);
+      preySimulation.setPredatorCount(params.prey.predatorCount);
       resetTrendCharts("prey");
       syncCompactSectionSlider("predator-count");
     });
   }
 
   bindRange("firefly-size", "firefly-size-value", (value) => {
-    fireflyParams.size = value;
+    params.firefly.size = value;
     fireflySimulation.syncInstances?.();
     return `${value.toFixed(2)} m`;
   });
 
   bindRange("firefly-sim-speed", "firefly-sim-speed-value", (value) => {
-    fireflyParams.simSpeed = value;
+    params.firefly.simSpeed = value;
     return `${value.toFixed(1)}x`;
   });
 
   bindRange("firefly-speed", "firefly-speed-value", (value) => {
-    fireflyParams.speed = value;
+    params.firefly.speed = value;
     return `${value.toFixed(1)} m/s`;
   });
 
   bindRange("firefly-coupling", "firefly-coupling-value", (value) => {
-    fireflyParams.coupling = value;
+    params.firefly.coupling = value;
     return value.toFixed(2);
   });
 
   bindRange("firefly-radius", "firefly-radius-value", (value) => {
-    fireflyParams.radius = value;
+    params.firefly.radius = value;
     return `${value.toFixed(1)} m`;
   });
 
   bindRange("firefly-frequency", "firefly-frequency-value", (value) => {
-    fireflyParams.frequencyHz = value;
+    params.firefly.frequencyHz = value;
     return `${value.toFixed(2)} Hz`;
   });
 
   bindRange("firefly-jitter", "firefly-jitter-value", (value) => {
-    fireflyParams.freqJitterHz = value;
+    params.firefly.freqJitterHz = value;
     return `${value.toFixed(2)} Hz`;
   });
 
   bindRange("firefly-noise", "firefly-noise-value", (value) => {
-    fireflyParams.phaseNoise = value;
+    params.firefly.phaseNoise = value;
     return `${value.toFixed(2)} rad/s`;
   });
 
@@ -987,8 +746,8 @@ function setupControls() {
     registerCompactRangeControl(fireflyCountInput, fireflyCountValue);
     fireflyCountInput.addEventListener("input", () => {
       fireflyCountValue.textContent = fireflyCountInput.value;
-      fireflyParams.count = Number(fireflyCountInput.value);
-      fireflySimulation.setCount(fireflyParams.count);
+      params.firefly.count = Number(fireflyCountInput.value);
+      fireflySimulation.setCount(params.firefly.count);
       resetTrendCharts("firefly");
       syncCompactSectionSlider("firefly-count");
     });
@@ -996,38 +755,38 @@ function setupControls() {
   }
 
   bindRange("galaxy-particle-size", "galaxy-particle-size-value", (value) => {
-    galaxyParams.particleSize = value;
+    params.galaxy.particleSize = value;
     galaxySimulation.syncInstances?.();
     return `${value.toFixed(2)} m`;
   });
 
   bindRange("galaxy-sim-speed", "galaxy-sim-speed-value", (value) => {
-    galaxyParams.simSpeed = value;
+    params.galaxy.simSpeed = value;
     return `${value.toFixed(1)}x`;
   });
 
   bindRange("galaxy-spin", "galaxy-spin-value", (value) => {
-    galaxyParams.spin = value;
+    params.galaxy.spin = value;
     return value.toFixed(2);
   });
 
   bindRange("galaxy-gravity", "galaxy-gravity-value", (value) => {
-    galaxyParams.gravity = value;
+    params.galaxy.gravity = value;
     return value.toFixed(1);
   });
 
   bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
-    galaxyParams.centralMass = value;
+    params.galaxy.centralMass = value;
     return `${Math.round(value)}`;
   });
 
   bindRange("galaxy-softening", "galaxy-softening-value", (value) => {
-    galaxyParams.softening = value;
+    params.galaxy.softening = value;
     return `${value.toFixed(2)} m`;
   });
 
   bindRange("galaxy-damping", "galaxy-damping-value", (value) => {
-    galaxyParams.damping = value;
+    params.galaxy.damping = value;
     return `${value.toFixed(3)} 1/s`;
   });
 
@@ -1037,8 +796,8 @@ function setupControls() {
     registerCompactRangeControl(galaxyCountInput, galaxyCountValue);
     galaxyCountInput.addEventListener("input", () => {
       galaxyCountValue.textContent = galaxyCountInput.value;
-      galaxyParams.count = Number(galaxyCountInput.value);
-      galaxySimulation.setCount(galaxyParams.count);
+      params.galaxy.count = Number(galaxyCountInput.value);
+      galaxySimulation.setCount(params.galaxy.count);
       resetTrendCharts("galaxy");
       syncCompactSectionSlider("galaxy-count");
     });
@@ -1726,11 +1485,10 @@ function updateChartMetrics(appletId, values, liveTexts) {
   drawTrendCharts();
 }
 
-function createAppletRuntime({ id, simulation, speedParam, applyStats }) {
+function createAppletRuntime({ id, simulation, applyStats }) {
   return {
     id,
     simulation,
-    speedParam,
     applyStats,
   };
 }
@@ -1969,26 +1727,7 @@ function updateCameraTelemetry() {
 }
 
 function getActiveSimulationSpeed() {
-  const speedParam = applets[activeApplet]?.speedParam ?? "simSpeed";
-  return THREE.MathUtils.clamp(Number(params[activeApplet]?.[speedParam]) || 1, 0.1, 10);
-}
-
-function updateBoidStats(stats) {
-  if (!stats) {
-    return;
-  }
-
-  const boidCount = stats.count ?? 0;
-  const speedSum = stats.speedSum ?? 0;
-  const neighborSum = stats.neighborSum ?? 0;
-  const avgSpeed = boidCount > 0 ? speedSum / boidCount : 0;
-  const avgNeighbors = boidCount > 0 ? neighborSum / boidCount : 0;
-
-  updateChartMetrics("boid", [boidCount, avgSpeed, avgNeighbors], [
-    String(boidCount),
-    `${avgSpeed.toFixed(2)} m/s`,
-    avgNeighbors.toFixed(2),
-  ]);
+  return THREE.MathUtils.clamp(Number(params[activeApplet]?.simSpeed) || 1, 0.1, 10);
 }
 
 function scheduleMathRendering() {

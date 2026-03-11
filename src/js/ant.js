@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
+// Default applet parameters.
 export const ANT_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   colorMode: "state",
@@ -27,6 +28,7 @@ export const ANT_DEFAULT_PARAMS = {
   foodSourceMassUg: 1000,
 };
 
+// Applet UI and metadata configuration.
 export const ANT_APPLET_CONFIG = defineAppletConfig({
   label: "Ant Trails",
   defaultProjection: "orthographic",
@@ -109,6 +111,53 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
   },
 });
 
+// Shell runtime hooks.
+export const ANT_APPLET_RUNTIME = {
+  createChartMetrics(createChartMetric) {
+    return [
+      createChartMetric("chart-ant-count", "chart-ant-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-ant-trips", "chart-ant-trips-live", () => "0", {
+        stroke: "#f1b55b",
+        fill: "rgba(241, 181, 91, 0.18)",
+        axisLabel: "trips",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-ant-pheromone", "chart-ant-pheromone-live", () => "0.00", {
+        stroke: "#79d2ff",
+        fill: "rgba(121, 210, 255, 0.18)",
+        axisLabel: "a.u.",
+        tickFormatter: (value) => value.toFixed(2),
+        forceZeroMin: true,
+      }),
+    ];
+  },
+  applyStats(stats, ui) {
+    if (!stats) {
+      return;
+    }
+
+    const antCount = stats.count ?? 0;
+    const carryingCount = stats.carrying ?? 0;
+    const trips = stats.trips ?? 0;
+    const meanPheromone = stats.meanPheromone ?? 0;
+
+    ui.setText("ants-carrying-live", String(carryingCount));
+    ui.updateChartMetrics("ants", [antCount, trips, meanPheromone], [
+      String(antCount),
+      String(trips),
+      meanPheromone.toFixed(2),
+    ]);
+  },
+};
+
+// File-local constants and helpers.
 const ANT_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
@@ -131,6 +180,7 @@ const ANT_DISCRETE_STATE_COLORMAPS = {
 const antLerpA = new THREE.Color();
 const antLerpB = new THREE.Color();
 
+// Simulation implementation.
 export class AntSimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;

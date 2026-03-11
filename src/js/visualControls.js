@@ -83,119 +83,140 @@ export function createVisualControls({
     coolwarm: "linear-gradient(90deg, #3b4cc0 0%, #688aef 12.5%, #98b9ff 25%, #c9d7f0 37.5%, #ece5dc 50%, #f7c7a6 62.5%, #ee8468 75%, #d34b44 87.5%, #b40426 100%)",
     greys: "linear-gradient(90deg, #111111 0%, #3a3a3a 16%, #5f5f5f 32%, #878787 48%, #afafaf 64%, #d3d3d3 82%, #f2f2f2 100%)",
   };
-
-  const updateAntColormapLegend = () => {
-    if (!dom.antColormapLegendBar || !dom.antColormapCmin || !dom.antColormapCmax) {
-      return;
-    }
-
-    const showLegend = antParams.colorMode === "heading" || antParams.colorMode === "state";
-    dom.antColormapLegend?.classList.toggle("is-hidden", !showLegend);
-    if (!showLegend) {
-      return;
-    }
-
-    let gradient = antColormapGradients[antParams.colormap] || antColormapGradients.turbo;
-    if (antParams.colorMode === "state") {
-      gradient = antDiscreteLegendGradients[antParams.colormap] || antDiscreteLegendGradients.paired;
-      dom.antColormapCmin.textContent = "searching";
-      dom.antColormapCmax.textContent = "carrying";
-      dom.antColormapLegendBar.style.background = gradient;
-      return;
-    }
-
-    dom.antColormapLegendBar.style.background = gradient;
-    dom.antColormapCmin.textContent = "cmin: -180°";
-    dom.antColormapCmax.textContent = "cmax: 180°";
+  const legendControls = {
+    ant: {
+      ...dom.legendControls.ant,
+      options: {
+        discrete: antDiscreteColormapOptions,
+        continuous: antContinuousColormapOptions,
+      },
+      gradients: {
+        discrete: antDiscreteLegendGradients,
+        continuous: antColormapGradients,
+      },
+    },
+    firefly: {
+      ...dom.legendControls.firefly,
+      options: {
+        discrete: fireflyDiscreteColormapOptions,
+        continuous: fireflyContinuousColormapOptions,
+      },
+      gradients: {
+        discrete: fireflyDiscreteLegendGradients,
+        continuous: fireflyColormapGradients,
+      },
+    },
   };
 
-  const rebuildAntColormapOptions = () => {
-    if (!dom.antColormap) {
+  function updateLegendDisplay(legendDom, { isVisible, gradient, minText, maxText }) {
+    if (!legendDom?.bar || !legendDom.cmin || !legendDom.cmax) {
       return;
     }
 
-    const targetOptions =
-      antParams.colorMode === "state" ? antDiscreteColormapOptions : antContinuousColormapOptions;
-    const validValues = new Set(targetOptions.map((item) => item.value));
-    if (!validValues.has(antParams.colormap)) {
-      antParams.colormap = targetOptions[0].value;
+    legendDom.container?.classList.toggle("is-hidden", !isVisible);
+    if (!isVisible) {
+      return;
     }
 
-    const currentValues = Array.from(dom.antColormap.options).map((opt) => opt.value);
+    legendDom.bar.style.background = gradient;
+    legendDom.cmin.textContent = minText;
+    legendDom.cmax.textContent = maxText;
+  }
+
+  function rebuildColormapOptions(control, selectedValue, useDiscrete) {
+    const select = control?.select;
+    if (!select) {
+      return selectedValue;
+    }
+
+    const targetOptions = useDiscrete ? control.options.discrete : control.options.continuous;
+    const validValues = new Set(targetOptions.map((item) => item.value));
+    const nextValue = validValues.has(selectedValue) ? selectedValue : targetOptions[0].value;
+    const currentValues = Array.from(select.options).map((opt) => opt.value);
     const nextValues = targetOptions.map((item) => item.value);
     const requiresRebuild =
       currentValues.length !== nextValues.length ||
       currentValues.some((value, index) => value !== nextValues[index]);
 
     if (requiresRebuild) {
-      dom.antColormap.innerHTML = "";
+      select.innerHTML = "";
       targetOptions.forEach((item) => {
         const option = document.createElement("option");
         option.value = item.value;
         option.textContent = item.label;
-        dom.antColormap.appendChild(option);
+        select.appendChild(option);
       });
     }
 
-    dom.antColormap.value = antParams.colormap;
+    select.value = nextValue;
+    return nextValue;
+  }
+
+  const updateAntColormapLegend = () => {
+    const control = legendControls.ant;
+    const showLegend = antParams.colorMode === "heading" || antParams.colorMode === "state";
+    let gradient = control.gradients.continuous[antParams.colormap] || control.gradients.continuous.turbo;
+    if (antParams.colorMode === "state") {
+      gradient = control.gradients.discrete[antParams.colormap] || control.gradients.discrete.paired;
+      updateLegendDisplay(control.legend, {
+        isVisible: showLegend,
+        gradient,
+        minText: "searching",
+        maxText: "carrying",
+      });
+      return;
+    }
+
+    updateLegendDisplay(control.legend, {
+      isVisible: showLegend,
+      gradient,
+      minText: "cmin: -180°",
+      maxText: "cmax: 180°",
+    });
   };
+
+  const rebuildAntColormapOptions = () => {
+    antParams.colormap = rebuildColormapOptions(
+      legendControls.ant,
+      antParams.colormap,
+      antParams.colorMode === "state",
+    );
+  };
+
   const updateFireflyColormapLegend = () => {
-    if (!dom.fireflyColormapLegendBar || !dom.fireflyColormapCmin || !dom.fireflyColormapCmax) {
-      return;
-    }
-
+    const control = legendControls.firefly;
     if (fireflyParams.colorMode === "blink") {
-      dom.fireflyColormapLegend?.classList.remove("is-hidden");
       const gradient =
-        fireflyDiscreteLegendGradients[fireflyParams.colormap] || fireflyDiscreteLegendGradients["blue-yellow"];
-      dom.fireflyColormapLegendBar.style.background = gradient;
-      dom.fireflyColormapCmin.textContent = "idle";
-      dom.fireflyColormapCmax.textContent = "blink";
+        control.gradients.discrete[fireflyParams.colormap] || control.gradients.discrete["blue-yellow"];
+      updateLegendDisplay(control.legend, {
+        isVisible: true,
+        gradient,
+        minText: "idle",
+        maxText: "blink",
+      });
       return;
     }
 
-    dom.fireflyColormapLegend?.classList.remove("is-hidden");
-    const gradient = fireflyColormapGradients[fireflyParams.colormap] || fireflyColormapGradients.turbo;
-    dom.fireflyColormapLegendBar.style.background = gradient;
+    const gradient =
+      control.gradients.continuous[fireflyParams.colormap] || control.gradients.continuous.turbo;
     const range = fireflySimulation?.getFrequencyRange?.() ?? {
       min: Math.max(0, (fireflyParams.frequencyHz ?? 1.8) - (fireflyParams.freqJitterHz ?? 0.2)),
       max: (fireflyParams.frequencyHz ?? 1.8) + (fireflyParams.freqJitterHz ?? 0.2),
     };
-    dom.fireflyColormapCmin.textContent = `cmin: ${Number(range.min).toFixed(2)} Hz`;
-    dom.fireflyColormapCmax.textContent = `cmax: ${Number(range.max).toFixed(2)} Hz`;
+    updateLegendDisplay(control.legend, {
+      isVisible: true,
+      gradient,
+      minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
+      maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
+    });
   };
 
   const rebuildFireflyColormapOptions = () => {
-    if (!dom.fireflyColormap) {
-      return;
-    }
-
-    const targetOptions =
-      fireflyParams.colorMode === "blink"
-        ? fireflyDiscreteColormapOptions
-        : fireflyContinuousColormapOptions;
-    const validValues = new Set(targetOptions.map((item) => item.value));
-    if (!validValues.has(fireflyParams.colormap)) {
-      fireflyParams.colormap = targetOptions[0].value;
-    }
-
-    const currentValues = Array.from(dom.fireflyColormap.options).map((opt) => opt.value);
-    const nextValues = targetOptions.map((item) => item.value);
-    const requiresRebuild =
-      currentValues.length !== nextValues.length ||
-      currentValues.some((value, index) => value !== nextValues[index]);
-
-    if (requiresRebuild) {
-      dom.fireflyColormap.innerHTML = "";
-      targetOptions.forEach((item) => {
-        const option = document.createElement("option");
-        option.value = item.value;
-        option.textContent = item.label;
-        dom.fireflyColormap.appendChild(option);
-      });
-    }
-
-    dom.fireflyColormap.value = fireflyParams.colormap;
+    fireflyParams.colormap = rebuildColormapOptions(
+      legendControls.firefly,
+      fireflyParams.colormap,
+      fireflyParams.colorMode === "blink",
+    );
   };
 
   const updateBoidVisibility = () => {
@@ -208,9 +229,9 @@ export function createVisualControls({
     const useSingleColor = antParams.colorMode === "none";
     const showColormapSelector = !useSingleColor;
     rebuildAntColormapOptions();
-    dom.antSingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    dom.antColormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
-    dom.antColormap?.classList.toggle("is-hidden", !showColormapSelector);
+    legendControls.ant.singleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
+    legendControls.ant.controlWrap?.classList.toggle("is-hidden", useSingleColor);
+    legendControls.ant.select?.classList.toggle("is-hidden", !showColormapSelector);
     updateAntColormapLegend();
   };
 
@@ -251,8 +272,8 @@ export function createVisualControls({
       updateAntColormapLegend();
     });
 
-    dom.antColormap?.addEventListener("change", () => {
-      antParams.colormap = dom.antColormap.value;
+    legendControls.ant.select?.addEventListener("change", () => {
+      antParams.colormap = legendControls.ant.select.value;
       antSimulation.syncInstances();
       updateAntColormapLegend();
     });
@@ -287,8 +308,8 @@ export function createVisualControls({
       updateFireflyColormapLegend();
     });
 
-    dom.fireflyColormap?.addEventListener("change", () => {
-      fireflyParams.colormap = dom.fireflyColormap.value;
+    legendControls.firefly.select?.addEventListener("change", () => {
+      fireflyParams.colormap = legendControls.firefly.select.value;
       fireflySimulation.syncInstances();
       updateFireflyColormapLegend();
     });
@@ -308,8 +329,8 @@ export function createVisualControls({
     if (dom.antColorMode) {
       dom.antColorMode.value = antParams.colorMode;
     }
-    if (dom.antColormap) {
-      dom.antColormap.value = antParams.colormap;
+    if (legendControls.ant.select) {
+      legendControls.ant.select.value = antParams.colormap;
     }
     if (dom.antSolidColor) {
       dom.antSolidColor.value = antParams.solidColor;
@@ -327,8 +348,8 @@ export function createVisualControls({
     if (dom.fireflyColorMode) {
       dom.fireflyColorMode.value = fireflyParams.colorMode;
     }
-    if (dom.fireflyColormap) {
-      dom.fireflyColormap.value = fireflyParams.colormap;
+    if (legendControls.firefly.select) {
+      legendControls.firefly.select.value = fireflyParams.colormap;
     }
 
     updateBoidVisibility();
@@ -361,22 +382,29 @@ function getVisualControlsDom() {
     antColorMode: document.getElementById("ant-color-mode"),
     antColormap: document.getElementById("ant-colormap"),
     antSolidColor: document.getElementById("ant-solid-color"),
-    antColormapControlWrap: document.getElementById("ant-colormap-control-wrap"),
-    antSingleColorWrap: document.getElementById("ant-single-color-wrap"),
-    antColormapLegend: document.getElementById("ant-colormap-legend"),
-    antColormapLegendBar: document.getElementById("ant-colormap-legend-bar"),
-    antColormapCmin: document.getElementById("ant-colormap-cmin"),
-    antColormapCmax: document.getElementById("ant-colormap-cmax"),
     preyColorMode: document.getElementById("prey-color-mode"),
     preyColormap: document.getElementById("prey-colormap"),
     preySolidColor: document.getElementById("prey-solid-color"),
     preyColormapControlWrap: document.getElementById("prey-colormap-control-wrap"),
     preySingleColorWrap: document.getElementById("prey-single-color-wrap"),
     fireflyColorMode: document.getElementById("firefly-color-mode"),
-    fireflyColormap: document.getElementById("firefly-colormap"),
-    fireflyColormapLegend: document.getElementById("firefly-colormap-legend"),
-    fireflyColormapLegendBar: document.getElementById("firefly-colormap-legend-bar"),
-    fireflyColormapCmin: document.getElementById("firefly-colormap-cmin"),
-    fireflyColormapCmax: document.getElementById("firefly-colormap-cmax"),
+    legendControls: {
+      ant: createVisualLegendControls("ant"),
+      firefly: createVisualLegendControls("firefly"),
+    },
+  };
+}
+
+function createVisualLegendControls(prefix) {
+  return {
+    select: document.getElementById(`${prefix}-colormap`),
+    controlWrap: document.getElementById(`${prefix}-colormap-control-wrap`),
+    singleColorWrap: document.getElementById(`${prefix}-single-color-wrap`),
+    legend: {
+      container: document.getElementById(`${prefix}-colormap-legend`),
+      bar: document.getElementById(`${prefix}-colormap-legend-bar`),
+      cmin: document.getElementById(`${prefix}-colormap-cmin`),
+      cmax: document.getElementById(`${prefix}-colormap-cmax`),
+    },
   };
 }

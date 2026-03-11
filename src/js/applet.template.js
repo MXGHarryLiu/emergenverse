@@ -76,12 +76,35 @@ export const APPLET_CONFIG = defineAppletConfig({
   },
 });
 
-// 3. Rendering constants, lookup tables, and helper-level scratch objects.
+// 3. Shell runtime hooks for chart metrics and stats-to-UI mapping.
+export const APPLET_RUNTIME = {
+  createChartMetrics(createChartMetric) {
+    return [
+      createChartMetric("chart-example-count", "chart-example-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+    ];
+  },
+  applyStats(stats, ui) {
+    if (!stats) {
+      return;
+    }
+
+    const count = stats.count ?? 0;
+    ui.updateChartMetrics("example", [count], [String(count)]);
+  },
+};
+
+// 4. Rendering constants, lookup tables, and helper-level scratch objects.
 const EXAMPLE_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
 };
 
-// 4. Main simulation class.
+// 5. Main simulation class.
 export class AppletSimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;
@@ -101,12 +124,12 @@ export class AppletSimulation {
   step() {}
 }
 
-// 5. File-local helper functions.
+// 6. File-local helper functions.
 function createExampleAgent() {
   return null;
 }
 
-// 6. Namespaced param shape used by the runtime.
+// 7. Namespaced param shape used by the runtime.
 // Applet-specific fields live under `params[APPLET_ID]`.
 // Example:
 //
