@@ -1,6 +1,6 @@
 // Galaxy gravity applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 const GALAXY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -18,14 +18,14 @@ const lerpA = new THREE.Color();
 const lerpB = new THREE.Color();
 
 export const GALAXY_DEFAULT_PARAMS = {
-  galaxySimSpeed: 1.0,
-  galaxyCount: 500,
-  galaxyParticleSize: 0.8,
-  galaxySpin: 1.2,
-  galaxyGravity: 180,
-  galaxyCentralMass: 2200,
-  galaxySoftening: 1.8,
-  galaxyDamping: 0.01,
+  simSpeed: 1.0,
+  count: 500,
+  particleSize: 0.8,
+  spin: 1.2,
+  gravity: 180,
+  centralMass: 2200,
+  softening: 1.8,
+  damping: 0.01,
 };
 
 export const GALAXY_APPLET_CONFIG = defineAppletConfig({
@@ -100,7 +100,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
 export class GalaxySimulation {
   constructor({ scene, params, world, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, "galaxy");
     this.world = world;
     this.onStats = onStats;
 
@@ -140,7 +140,7 @@ export class GalaxySimulation {
 
   reset() {
     this.particles.length = 0;
-    for (let i = 0; i < this.params.galaxyCount; i += 1) {
+    for (let i = 0; i < this.params.count; i += 1) {
       this.particles.push(this.createParticle());
     }
     this.ensureMesh();
@@ -149,7 +149,7 @@ export class GalaxySimulation {
   }
 
   setCount(count) {
-    this.params.galaxyCount = count;
+    this.params.count = count;
     this.reset();
   }
 
@@ -175,11 +175,11 @@ export class GalaxySimulation {
       return;
     }
 
-    const soft = Math.max(0.05, this.params.galaxySoftening ?? 1.8);
+    const soft = Math.max(0.05, this.params.softening ?? 1.8);
     const softSq = soft * soft;
-    const G = Math.max(0, this.params.galaxyGravity ?? 180);
-    const centralMass = Math.max(0, this.params.galaxyCentralMass ?? 2200);
-    const damping = THREE.MathUtils.clamp(this.params.galaxyDamping ?? 0.01, 0, 0.2);
+    const G = Math.max(0, this.params.gravity ?? 180);
+    const centralMass = Math.max(0, this.params.centralMass ?? 2200);
+    const damping = THREE.MathUtils.clamp(this.params.damping ?? 0.01, 0, 0.2);
 
     for (let i = 0; i < count; i += 1) {
       const p = this.particles[i];
@@ -259,7 +259,7 @@ export class GalaxySimulation {
       return;
     }
 
-    const scale = Math.max(0.05, this.params.galaxyParticleSize ?? 0.8);
+    const scale = Math.max(0.05, this.params.particleSize ?? 0.8);
     this.speedBounds = this.getSpeedBounds();
 
     for (let i = 0; i < this.particles.length; i += 1) {
@@ -310,8 +310,8 @@ export class GalaxySimulation {
     );
 
     const tangential = new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0);
-    const spin = Math.max(0, this.params.galaxySpin ?? 1.2);
-    const baseSpeed = spin * Math.sqrt(Math.max(0.1, this.params.galaxyGravity) * Math.max(0.5, this.params.galaxyCentralMass) / Math.max(2, r));
+    const spin = Math.max(0, this.params.spin ?? 1.2);
+    const baseSpeed = spin * Math.sqrt(Math.max(0.1, this.params.gravity) * Math.max(0.5, this.params.centralMass) / Math.max(2, r));
     tangential.multiplyScalar(baseSpeed);
     tangential.x += THREE.MathUtils.randFloatSpread(baseSpeed * 0.15);
     tangential.y += THREE.MathUtils.randFloatSpread(baseSpeed * 0.15);

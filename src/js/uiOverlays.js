@@ -25,64 +25,18 @@ export function setupUiOverlays({
 }
 
 function setupControlsInfoPopup(dom) {
-  if (!dom.controlsInfoOpen || !dom.controlsInfoBackdrop || !dom.controlsInfoClose) {
-    return;
-  }
-
-  const openPopup = () => {
-    dom.controlsInfoBackdrop.classList.remove("is-hidden");
-    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "false");
-  };
-
-  const closePopup = () => {
-    dom.controlsInfoBackdrop.classList.add("is-hidden");
-    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "true");
-  };
-
-  dom.controlsInfoOpen.addEventListener("click", openPopup);
-  dom.controlsInfoClose.addEventListener("click", closePopup);
-
-  dom.controlsInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.controlsInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.controlsInfoBackdrop.classList.contains("is-hidden")) {
-      closePopup();
-    }
+  bindDismissibleOverlay({
+    openButton: dom.controlsInfoOpen,
+    closeButton: dom.controlsInfoClose,
+    backdrop: dom.controlsInfoBackdrop,
   });
 }
 
 function setupAboutPopup(dom) {
-  if (!dom.aboutInfoOpen || !dom.aboutInfoBackdrop || !dom.aboutInfoClose) {
-    return;
-  }
-
-  const openPopup = () => {
-    dom.aboutInfoBackdrop.classList.remove("is-hidden");
-    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "false");
-  };
-
-  const closePopup = () => {
-    dom.aboutInfoBackdrop.classList.add("is-hidden");
-    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "true");
-  };
-
-  dom.aboutInfoOpen.addEventListener("click", openPopup);
-  dom.aboutInfoClose.addEventListener("click", closePopup);
-
-  dom.aboutInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.aboutInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.aboutInfoBackdrop.classList.contains("is-hidden")) {
-      closePopup();
-    }
+  bindDismissibleOverlay({
+    openButton: dom.aboutInfoOpen,
+    closeButton: dom.aboutInfoClose,
+    backdrop: dom.aboutInfoBackdrop,
   });
 }
 
@@ -108,14 +62,10 @@ function setupSharePopup(dom) {
   const openPopup = () => {
     dom.shareLinkInput.value = getShareUrl();
     setStatus("Copy link to share the current app and URL state.");
-    dom.shareInfoBackdrop.classList.remove("is-hidden");
-    dom.shareInfoBackdrop.setAttribute("aria-hidden", "false");
+    openOverlay(dom.shareInfoBackdrop);
   };
 
-  const closePopup = () => {
-    dom.shareInfoBackdrop.classList.add("is-hidden");
-    dom.shareInfoBackdrop.setAttribute("aria-hidden", "true");
-  };
+  const closePopup = () => closeOverlay(dom.shareInfoBackdrop);
 
   dom.shareInfoOpen.addEventListener("click", openPopup);
   dom.shareInfoClose.addEventListener("click", closePopup);
@@ -152,11 +102,47 @@ function setupSharePopup(dom) {
     }
   });
 
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.shareInfoBackdrop.classList.contains("is-hidden")) {
-      closePopup();
+  bindEscapeToOverlay(dom.shareInfoBackdrop, closePopup);
+}
+
+function bindDismissibleOverlay({ openButton, closeButton, backdrop }) {
+  if (!openButton || !closeButton || !backdrop) {
+    return;
+  }
+
+  const open = () => openOverlay(backdrop);
+  const close = () => closeOverlay(backdrop);
+
+  openButton.addEventListener("click", open);
+  closeButton.addEventListener("click", close);
+  backdrop.addEventListener("click", (event) => {
+    if (event.target === backdrop) {
+      close();
     }
   });
+  bindEscapeToOverlay(backdrop, close);
+}
+
+function bindEscapeToOverlay(backdrop, onClose) {
+  if (!backdrop || typeof onClose !== "function") {
+    return;
+  }
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !backdrop.classList.contains("is-hidden")) {
+      onClose();
+    }
+  });
+}
+
+function openOverlay(backdrop) {
+  backdrop?.classList.remove("is-hidden");
+  backdrop?.setAttribute("aria-hidden", "false");
+}
+
+function closeOverlay(backdrop) {
+  backdrop?.classList.add("is-hidden");
+  backdrop?.setAttribute("aria-hidden", "true");
 }
 
 function setupViewportScreenshotButton({

@@ -4,6 +4,15 @@
 import * as THREE from "three";
 import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 
+// Namespace / registration id for this applet.
+// In a namespaced param model, this id becomes the root param key:
+// params[APPLET_ID]
+//
+// Example:
+// params.example.simSpeed
+// params.example.count
+export const APPLET_ID = "example";
+
 // 1. Applet-specific defaults.
 export const APPLET_DEFAULT_PARAMS = {
   simSpeed: 1.0,
@@ -78,6 +87,7 @@ export class AppletSimulation {
     this.scene = scene;
     this.params = params;
     this.onStats = onStats;
+    this.appletParams = params[APPLET_ID];
   }
 
   init() {}
@@ -96,9 +106,9 @@ function createExampleAgent() {
   return null;
 }
 
-// 6. Suggested future param shape if the codebase moves off flat keys.
-// Current code uses flat keys like `params.preySimSpeed`.
-// A cleaner namespace would look like this:
+// 6. Namespaced param shape used by the runtime.
+// Applet-specific fields live under `params[APPLET_ID]`.
+// Example:
 //
 // params.prey.simSpeed
 // params.prey.count
@@ -112,6 +122,12 @@ function createExampleAgent() {
 // const simSpeed = prey.simSpeed;
 // const count = prey.count;
 //
+// For this template, the equivalent pattern is:
+//
+// const applet = params[APPLET_ID];
+// const simSpeed = applet.simSpeed;
+// const count = applet.count;
+//
 // That is preferable to classes for runtime params, because:
 // - plain objects serialize cleanly
 // - UI bindings can read/write nested fields directly
@@ -123,3 +139,11 @@ function createExampleAgent() {
 // - `params.firefly.simSpeed`
 //
 // Then `simSpeed` stays universal by convention, without forcing a shared root key.
+//
+// Important:
+// - the namespace is not really "defined" by `ant.js` alone
+// - it is assigned by the app shell when it builds the root `params` object
+// - applet registration should use the same id everywhere:
+//   - applet file: `APPLET_ID`
+//   - params root: `params[APPLET_ID]`
+//   - registry key in `APPLET_CONFIGS`

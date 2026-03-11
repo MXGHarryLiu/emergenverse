@@ -9,6 +9,10 @@ export function createVisualControls({
   updatePreyColormapLegend,
 }) {
   const dom = getVisualControlsDom();
+  const boidParams = params.boid;
+  const antParams = params.ants;
+  const preyParams = params.prey;
+  const fireflyParams = params.firefly;
   const antDiscreteColormapOptions = [
     { value: "paired", label: "Paired" },
     { value: "set1", label: "Set1" },
@@ -85,15 +89,15 @@ export function createVisualControls({
       return;
     }
 
-    const showLegend = params.antColorMode === "heading" || params.antColorMode === "state";
+    const showLegend = antParams.colorMode === "heading" || antParams.colorMode === "state";
     dom.antColormapLegend?.classList.toggle("is-hidden", !showLegend);
     if (!showLegend) {
       return;
     }
 
-    let gradient = antColormapGradients[params.antColormap] || antColormapGradients.turbo;
-    if (params.antColorMode === "state") {
-      gradient = antDiscreteLegendGradients[params.antColormap] || antDiscreteLegendGradients.paired;
+    let gradient = antColormapGradients[antParams.colormap] || antColormapGradients.turbo;
+    if (antParams.colorMode === "state") {
+      gradient = antDiscreteLegendGradients[antParams.colormap] || antDiscreteLegendGradients.paired;
       dom.antColormapCmin.textContent = "searching";
       dom.antColormapCmax.textContent = "carrying";
       dom.antColormapLegendBar.style.background = gradient;
@@ -111,10 +115,10 @@ export function createVisualControls({
     }
 
     const targetOptions =
-      params.antColorMode === "state" ? antDiscreteColormapOptions : antContinuousColormapOptions;
+      antParams.colorMode === "state" ? antDiscreteColormapOptions : antContinuousColormapOptions;
     const validValues = new Set(targetOptions.map((item) => item.value));
-    if (!validValues.has(params.antColormap)) {
-      params.antColormap = targetOptions[0].value;
+    if (!validValues.has(antParams.colormap)) {
+      antParams.colormap = targetOptions[0].value;
     }
 
     const currentValues = Array.from(dom.antColormap.options).map((opt) => opt.value);
@@ -133,17 +137,17 @@ export function createVisualControls({
       });
     }
 
-    dom.antColormap.value = params.antColormap;
+    dom.antColormap.value = antParams.colormap;
   };
   const updateFireflyColormapLegend = () => {
     if (!dom.fireflyColormapLegendBar || !dom.fireflyColormapCmin || !dom.fireflyColormapCmax) {
       return;
     }
 
-    if (params.fireflyColorMode === "blink") {
+    if (fireflyParams.colorMode === "blink") {
       dom.fireflyColormapLegend?.classList.remove("is-hidden");
       const gradient =
-        fireflyDiscreteLegendGradients[params.fireflyColormap] || fireflyDiscreteLegendGradients["blue-yellow"];
+        fireflyDiscreteLegendGradients[fireflyParams.colormap] || fireflyDiscreteLegendGradients["blue-yellow"];
       dom.fireflyColormapLegendBar.style.background = gradient;
       dom.fireflyColormapCmin.textContent = "idle";
       dom.fireflyColormapCmax.textContent = "blink";
@@ -151,11 +155,11 @@ export function createVisualControls({
     }
 
     dom.fireflyColormapLegend?.classList.remove("is-hidden");
-    const gradient = fireflyColormapGradients[params.fireflyColormap] || fireflyColormapGradients.turbo;
+    const gradient = fireflyColormapGradients[fireflyParams.colormap] || fireflyColormapGradients.turbo;
     dom.fireflyColormapLegendBar.style.background = gradient;
     const range = fireflySimulation?.getFrequencyRange?.() ?? {
-      min: Math.max(0, (params.fireflyFrequencyHz ?? 1.8) - (params.fireflyFreqJitterHz ?? 0.2)),
-      max: (params.fireflyFrequencyHz ?? 1.8) + (params.fireflyFreqJitterHz ?? 0.2),
+      min: Math.max(0, (fireflyParams.frequencyHz ?? 1.8) - (fireflyParams.freqJitterHz ?? 0.2)),
+      max: (fireflyParams.frequencyHz ?? 1.8) + (fireflyParams.freqJitterHz ?? 0.2),
     };
     dom.fireflyColormapCmin.textContent = `cmin: ${Number(range.min).toFixed(2)} Hz`;
     dom.fireflyColormapCmax.textContent = `cmax: ${Number(range.max).toFixed(2)} Hz`;
@@ -167,12 +171,12 @@ export function createVisualControls({
     }
 
     const targetOptions =
-      params.fireflyColorMode === "blink"
+      fireflyParams.colorMode === "blink"
         ? fireflyDiscreteColormapOptions
         : fireflyContinuousColormapOptions;
     const validValues = new Set(targetOptions.map((item) => item.value));
-    if (!validValues.has(params.fireflyColormap)) {
-      params.fireflyColormap = targetOptions[0].value;
+    if (!validValues.has(fireflyParams.colormap)) {
+      fireflyParams.colormap = targetOptions[0].value;
     }
 
     const currentValues = Array.from(dom.fireflyColormap.options).map((opt) => opt.value);
@@ -191,17 +195,17 @@ export function createVisualControls({
       });
     }
 
-    dom.fireflyColormap.value = params.fireflyColormap;
+    dom.fireflyColormap.value = fireflyParams.colormap;
   };
 
   const updateBoidVisibility = () => {
-    const useSingleColor = params.colorMode === "none";
+    const useSingleColor = boidParams.colorMode === "none";
     dom.colormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
     dom.singleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
   };
 
   const updateAntVisibility = () => {
-    const useSingleColor = params.antColorMode === "none";
+    const useSingleColor = antParams.colorMode === "none";
     const showColormapSelector = !useSingleColor;
     rebuildAntColormapOptions();
     dom.antSingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
@@ -211,7 +215,7 @@ export function createVisualControls({
   };
 
   const updatePreyVisibility = () => {
-    const useSingleColor = params.preyColorMode === "none";
+    const useSingleColor = preyParams.colorMode === "none";
     dom.preySingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
     dom.preyColormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
     updatePreyColormapLegend?.();
@@ -223,68 +227,68 @@ export function createVisualControls({
 
   const bind = () => {
     dom.colorMode?.addEventListener("change", () => {
-      params.colorMode = dom.colorMode.value;
+      boidParams.colorMode = dom.colorMode.value;
       updateBoidVisibility();
       boidSimulation.syncInstances();
       updateBoidColormapLegend();
     });
 
     dom.colormap?.addEventListener("change", () => {
-      params.colormap = dom.colormap.value;
+      boidParams.colormap = dom.colormap.value;
       boidSimulation.syncInstances();
       updateBoidColormapLegend();
     });
 
     dom.solidColor?.addEventListener("input", () => {
-      params.solidColor = dom.solidColor.value;
+      boidParams.solidColor = dom.solidColor.value;
       boidSimulation.syncInstances();
     });
 
     dom.antColorMode?.addEventListener("change", () => {
-      params.antColorMode = dom.antColorMode.value;
+      antParams.colorMode = dom.antColorMode.value;
       updateAntVisibility();
       antSimulation.syncInstances();
       updateAntColormapLegend();
     });
 
     dom.antColormap?.addEventListener("change", () => {
-      params.antColormap = dom.antColormap.value;
+      antParams.colormap = dom.antColormap.value;
       antSimulation.syncInstances();
       updateAntColormapLegend();
     });
 
     dom.antSolidColor?.addEventListener("input", () => {
-      params.antSolidColor = dom.antSolidColor.value;
+      antParams.solidColor = dom.antSolidColor.value;
       antSimulation.syncInstances();
     });
 
     dom.preyColorMode?.addEventListener("change", () => {
-      params.preyColorMode = dom.preyColorMode.value;
+      preyParams.colorMode = dom.preyColorMode.value;
       updatePreyVisibility();
       preySimulation.syncInstances();
       updatePreyColormapLegend?.();
     });
 
     dom.preyColormap?.addEventListener("change", () => {
-      params.preyColormap = dom.preyColormap.value;
+      preyParams.colormap = dom.preyColormap.value;
       preySimulation.syncInstances();
       updatePreyColormapLegend?.();
     });
 
     dom.preySolidColor?.addEventListener("input", () => {
-      params.preySolidColor = dom.preySolidColor.value;
+      preyParams.solidColor = dom.preySolidColor.value;
       preySimulation.syncInstances();
     });
 
     dom.fireflyColorMode?.addEventListener("change", () => {
-      params.fireflyColorMode = dom.fireflyColorMode.value;
+      fireflyParams.colorMode = dom.fireflyColorMode.value;
       updateFireflyVisibility();
       fireflySimulation.syncInstances();
       updateFireflyColormapLegend();
     });
 
     dom.fireflyColormap?.addEventListener("change", () => {
-      params.fireflyColormap = dom.fireflyColormap.value;
+      fireflyParams.colormap = dom.fireflyColormap.value;
       fireflySimulation.syncInstances();
       updateFireflyColormapLegend();
     });
@@ -292,39 +296,39 @@ export function createVisualControls({
 
   const syncFromParams = () => {
     if (dom.colorMode) {
-      dom.colorMode.value = params.colorMode;
+      dom.colorMode.value = boidParams.colorMode;
     }
     if (dom.colormap) {
-      dom.colormap.value = params.colormap;
+      dom.colormap.value = boidParams.colormap;
     }
     if (dom.solidColor) {
-      dom.solidColor.value = params.solidColor;
+      dom.solidColor.value = boidParams.solidColor;
     }
 
     if (dom.antColorMode) {
-      dom.antColorMode.value = params.antColorMode;
+      dom.antColorMode.value = antParams.colorMode;
     }
     if (dom.antColormap) {
-      dom.antColormap.value = params.antColormap;
+      dom.antColormap.value = antParams.colormap;
     }
     if (dom.antSolidColor) {
-      dom.antSolidColor.value = params.antSolidColor;
+      dom.antSolidColor.value = antParams.solidColor;
     }
 
     if (dom.preyColorMode) {
-      dom.preyColorMode.value = params.preyColorMode;
+      dom.preyColorMode.value = preyParams.colorMode;
     }
     if (dom.preyColormap) {
-      dom.preyColormap.value = params.preyColormap;
+      dom.preyColormap.value = preyParams.colormap;
     }
     if (dom.preySolidColor) {
-      dom.preySolidColor.value = params.preySolidColor;
+      dom.preySolidColor.value = preyParams.solidColor;
     }
     if (dom.fireflyColorMode) {
-      dom.fireflyColorMode.value = params.fireflyColorMode;
+      dom.fireflyColorMode.value = fireflyParams.colorMode;
     }
     if (dom.fireflyColormap) {
-      dom.fireflyColormap.value = params.fireflyColormap;
+      dom.fireflyColormap.value = fireflyParams.colormap;
     }
 
     updateBoidVisibility();

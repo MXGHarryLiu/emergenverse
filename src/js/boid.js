@@ -1,11 +1,11 @@
 // Boids applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 export const BOID_DEFAULT_PARAMS = {
-  boidSimSpeed: 1.0,
-  boidCount: 220,
-  boidScale: 0.5,
+  simSpeed: 1.0,
+  count: 220,
+  scale: 0.5,
   perceptionRadius: 18,
   separationDistance: 8,
   maxSpeed: 8,
@@ -95,7 +95,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, "boid");
     this.world = world;
     this.onStats = onStats;
 
@@ -124,7 +124,7 @@ export class BoidSimulation {
     this.instanceColor = new THREE.Color();
     this.colormapLerpA = new THREE.Color();
     this.colormapLerpB = new THREE.Color();
-    this.solidColorValue = new THREE.Color(params.solidColor);
+    this.solidColorValue = new THREE.Color(this.params.solidColor);
 
     this.colormaps = buildColormapLUT({
       turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -139,7 +139,7 @@ export class BoidSimulation {
   }
 
   init() {
-    this.spawn(this.params.boidCount);
+    this.spawn(this.params.count);
   }
 
   setVisible(visible) {
@@ -153,11 +153,11 @@ export class BoidSimulation {
   }
 
   reset() {
-    this.spawn(this.params.boidCount);
+    this.spawn(this.params.count);
   }
 
   setCount(count) {
-    this.params.boidCount = count;
+    this.params.count = count;
     this.spawn(count);
   }
 
@@ -214,7 +214,7 @@ export class BoidSimulation {
 
       this.tempObject.position.copy(boid.position);
       this.tempObject.quaternion.setFromUnitVectors(this.forwardVector, this.velocityDir);
-      this.tempObject.scale.setScalar(this.params.boidScale);
+      this.tempObject.scale.setScalar(this.params.scale);
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 

@@ -19,7 +19,8 @@ export function renderAppletSectionsFromConfig() {
     return;
   }
 
-  removeLegacyAppletSections();
+  removeGeneratedAppletSections(leftPanel);
+  removeGeneratedAppletSections(rightPanel);
 
   const leftAnchor = leftPanel.querySelector(".sidebar-head");
   const rightAnchor = rightPanel.querySelector(".sidebar-head");
@@ -56,26 +57,9 @@ export function renderAppletSectionsFromConfig() {
   renderSharedRightSections(rightPanel, templates);
 }
 
-function removeLegacyAppletSections() {
-  const keys = [];
-  APPLET_ORDER.forEach((appletId) => {
-    const config = APPLET_CONFIGS[appletId];
-    if (config?.left?.intro?.sectionKey) {
-      keys.push(config.left.intro.sectionKey);
-    }
-    if (config?.left?.stats?.sectionKey) {
-      keys.push(config.left.stats.sectionKey);
-    }
-    if (config?.right?.simulation?.sectionKey) {
-      keys.push(config.right.simulation.sectionKey);
-    }
-  });
-
-  keys.forEach((sectionKey) => {
-    const node = document.querySelector(`[data-control-section="${sectionKey}"]`);
-    if (node) {
-      node.remove();
-    }
+function removeGeneratedAppletSections(panel) {
+  panel?.querySelectorAll("[data-generated-applet-section]").forEach((node) => {
+    node.remove();
   });
 }
 
@@ -83,6 +67,7 @@ function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   const section = templates.section.content.firstElementChild.cloneNode(true);
   section.setAttribute("data-control-section", sectionConfig.sectionKey);
   section.setAttribute("data-app-visible", appletId);
+  section.setAttribute("data-generated-applet-section", "true");
   section.classList.toggle("is-hidden", Boolean(sectionConfig.hidden));
   if (sectionConfig.className) {
     section.classList.add(...sectionConfig.className.split(/\s+/).filter(Boolean));

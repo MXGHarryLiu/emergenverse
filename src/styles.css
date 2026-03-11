@@ -464,16 +464,6 @@ body[data-theme="light"] .icon-btn:focus-visible {
   background: rgba(210, 221, 243, 0.98);
 }
 
-.left-panel-top {
-  flex: 0 0 auto;
-}
-
-.left-panel-bottom {
-  flex: 0 0 auto;
-  border-top: 1px dashed var(--line-soft);
-  padding-top: 1rem;
-}
-
 .panel-title {
   margin: 0;
   font-size: 0.98rem;
@@ -582,11 +572,6 @@ body[data-theme="light"] .model-box {
   background: transparent;
   overflow-x: hidden;
   overflow-y: hidden;
-}
-
-body[data-theme="light"] .math-block {
-  background: transparent;
-  border-color: transparent;
 }
 
 .math-line + .math-line {
@@ -779,29 +764,6 @@ body[data-theme="light"] .applet-empty-state {
   line-height: 1.45;
 }
 
-.panel-reveal {
-  position: absolute;
-  top: 0.72rem;
-  z-index: 16;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.5rem;
-  border: 1px solid var(--line-soft);
-  background: rgba(8, 18, 36, 0.72);
-  color: #dceaff;
-}
-
-.panel-reveal-left {
-  left: 0.62rem;
-}
-
-.panel-reveal-right {
-  right: 0.62rem;
-}
-
 .overlay-corner {
   position: absolute;
   left: 0.7rem;
@@ -820,10 +782,10 @@ body[data-theme="light"] .overlay-corner {
   background: rgba(233, 240, 252, 0.87);
 }
 
-.viewport-tools {
+.viewport-tools,
+.viewport-tools-left {
   position: absolute;
   top: 0.68rem;
-  right: 0.72rem;
   z-index: 17;
   display: inline-flex;
   align-items: center;
@@ -833,17 +795,12 @@ body[data-theme="light"] .overlay-corner {
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
+.viewport-tools {
+  right: 0.72rem;
+}
+
 .viewport-tools-left {
-  position: absolute;
-  top: 0.68rem;
   left: 0.72rem;
-  z-index: 17;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  opacity: 0.26;
-  transform: translateY(-1px);
-  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .viewport-panel:hover .viewport-tools,
@@ -1511,10 +1468,6 @@ body[data-theme="light"] .camera-dof-card {
   text-align: right;
 }
 
-.panel.is-hidden {
-  display: none;
-}
-
 .is-hidden {
   display: none !important;
 }
@@ -1564,10 +1517,6 @@ body[data-theme="light"] .camera-dof-card {
   .viewport-panel {
     grid-column: 1;
     min-height: 60vh;
-  }
-
-  .panel-reveal {
-    display: none;
   }
 
   .viewport-tools {

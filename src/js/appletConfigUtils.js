@@ -3,6 +3,25 @@ export function slider(id, label, icon, valueId, valueText, min, max, step, valu
   return { id, label, icon, valueId, valueText, min, max, step, value };
 }
 
+export function createAppletParams(rootParams, appletId) {
+  return new Proxy(rootParams[appletId] ?? {}, {
+    get(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      return rootParams[prop];
+    },
+    set(target, prop, value) {
+      if (prop in target || !(prop in rootParams)) {
+        target[prop] = value;
+        return true;
+      }
+      rootParams[prop] = value;
+      return true;
+    },
+  });
+}
+
 export function defineAppletConfig(config) {
   return {
     label: config.label ?? "Applet",

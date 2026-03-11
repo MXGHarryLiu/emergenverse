@@ -1,30 +1,30 @@
 // Ant trail applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 export const ANT_DEFAULT_PARAMS = {
-  antSimSpeed: 1.0,
-  antColorMode: "state",
-  antColormap: "turbo",
-  antSolidColor: "#62d6f9",
-  antCount: 120,
-  antScale: 0.03,
-  antSpeed: 0.012,
-  antSensorDistance: 0.08,
-  antSensorAngle: 35,
-  antTurnGain: 3.0,
-  antGoalBias: 1.0,
-  antDepartureRate: 6,
-  antDepositRate: 5.0,
-  antDiffusionRate: 3.0,
-  antEvapRate: 0.8,
-  antNoiseStrength: 0.2,
-  antFoodSenseDistance: 0.18,
-  antPickupRadius: 0.04,
-  antFoodPlacementEnabled: false,
-  antFoodAddMassUg: 50,
-  antPickupMassUg: 1,
-  antFoodSourceMassUg: 1000,
+  simSpeed: 1.0,
+  colorMode: "state",
+  colormap: "turbo",
+  solidColor: "#62d6f9",
+  count: 120,
+  scale: 0.03,
+  speed: 0.012,
+  sensorDistance: 0.08,
+  sensorAngle: 35,
+  turnGain: 3.0,
+  goalBias: 1.0,
+  departureRate: 6,
+  depositRate: 5.0,
+  diffusionRate: 3.0,
+  evapRate: 0.8,
+  noiseStrength: 0.2,
+  foodSenseDistance: 0.18,
+  pickupRadius: 0.04,
+  foodPlacementEnabled: false,
+  foodAddMassUg: 50,
+  pickupMassUg: 1,
+  foodSourceMassUg: 1000,
 };
 
 export const ANT_APPLET_CONFIG = defineAppletConfig({
@@ -134,7 +134,7 @@ const antLerpB = new THREE.Color();
 export class AntSimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, "ants");
     this.onStats = onStats;
 
     this.geometry = new THREE.ConeGeometry(0.45, 1.05, 8);
@@ -268,7 +268,7 @@ export class AntSimulation {
     this.foodSources = this.buildFoodSources();
     this.updateNestMarkerTransform();
 
-    for (let i = 0; i < this.params.antCount; i += 1) {
+    for (let i = 0; i < this.params.count; i += 1) {
       this.ants.push({
         position: this.nest.clone(),
         heading: Math.random() * Math.PI * 2,
@@ -286,7 +286,7 @@ export class AntSimulation {
   }
 
   setCount(count) {
-    this.params.antCount = count;
+    this.params.count = count;
     this.reset();
   }
 
@@ -319,15 +319,15 @@ export class AntSimulation {
     const massValue = document.getElementById("ant-food-add-mass-value");
 
     if (placementToggle) {
-      placementToggle.checked = Boolean(this.params.antFoodPlacementEnabled);
+      placementToggle.checked = Boolean(this.params.foodPlacementEnabled);
       placementToggle.addEventListener("change", () => {
-        this.params.antFoodPlacementEnabled = placementToggle.checked;
+        this.params.foodPlacementEnabled = placementToggle.checked;
       });
     }
 
     if (typeof bindRange === "function" && massInput && massValue) {
       bindRange("ant-food-add-mass", "ant-food-add-mass-value", (value) => {
-        this.params.antFoodAddMassUg = value;
+        this.params.foodAddMassUg = value;
         return `${Math.round(value)} ug`;
       });
     }
@@ -340,7 +340,7 @@ export class AntSimulation {
       if (event.button !== 0) {
         return;
       }
-      if (getActiveApplet() !== "ants" || !this.params.antFoodPlacementEnabled) {
+      if (getActiveApplet() !== "ants" || !this.params.foodPlacementEnabled) {
         return;
       }
 
@@ -362,7 +362,7 @@ export class AntSimulation {
         return;
       }
 
-      this.addFoodAt(hitPoint.x, hitPoint.y, this.params.antFoodAddMassUg);
+      this.addFoodAt(hitPoint.x, hitPoint.y, this.params.foodAddMassUg);
     });
   }
 
@@ -407,17 +407,17 @@ export class AntSimulation {
   }
 
   step(dt) {
-    const sensorAngleRad = THREE.MathUtils.degToRad(this.params.antSensorAngle);
-    const sensorDistance = Math.max(0.2, this.params.antSensorDistance);
-    const foodSenseRadius = Math.max(sensorDistance, this.params.antFoodSenseDistance ?? sensorDistance);
-    const foodPickupRadius = Math.max(0.15, this.params.antPickupRadius ?? 0.55);
+    const sensorAngleRad = THREE.MathUtils.degToRad(this.params.sensorAngle);
+    const sensorDistance = Math.max(0.2, this.params.sensorDistance);
+    const foodSenseRadius = Math.max(sensorDistance, this.params.foodSenseDistance ?? sensorDistance);
+    const foodPickupRadius = Math.max(0.15, this.params.pickupRadius ?? 0.55);
     const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
     const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
-    const turnGain = Math.max(0, this.params.antTurnGain);
-    const goalBias = Math.max(0, this.params.antGoalBias);
-    const departureRate = Math.max(0, this.params.antDepartureRate ?? 12);
-    const depositRate = Math.max(0, this.params.antDepositRate);
-    const speed = Math.max(0, this.params.antSpeed);
+    const turnGain = Math.max(0, this.params.turnGain);
+    const goalBias = Math.max(0, this.params.goalBias);
+    const departureRate = Math.max(0, this.params.departureRate ?? 12);
+    const depositRate = Math.max(0, this.params.depositRate);
+    const speed = Math.max(0, this.params.speed);
     this.departureCredits = Math.min(
       this.ants.length,
       this.departureCredits + departureRate * dt,
@@ -459,7 +459,7 @@ export class AntSimulation {
         const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
         headingError = shortestAngleDelta(desiredHeading - ant.heading);
       }
-      const stochastic = (Math.random() * 2 - 1) * this.params.antNoiseStrength;
+      const stochastic = (Math.random() * 2 - 1) * this.params.noiseStrength;
 
       if (ant.carrying) {
         // Returning ants do not "see" nest directly.
@@ -496,7 +496,7 @@ export class AntSimulation {
         ant.carrying = true;
         ant.waitingAtNest = false;
         ant.heading = wrapAngle(ant.heading + Math.PI);
-        foodSource.massUg = Math.max(0, foodSource.massUg - Math.max(1, this.params.antPickupMassUg ?? 1));
+        foodSource.massUg = Math.max(0, foodSource.massUg - Math.max(1, this.params.pickupMassUg ?? 1));
       } else if (ant.carrying && reachedNest) {
         ant.carrying = false;
         ant.waitingAtNest = true;
@@ -582,12 +582,12 @@ export class AntSimulation {
       return;
     }
 
-    const floorZ = -this.params.worldSizeZ * 0.5 + Math.max(0.006, (this.params.antScale ?? 0.003) * 0.7);
+    const floorZ = -this.params.worldSizeZ * 0.5 + Math.max(0.006, (this.params.scale ?? 0.003) * 0.7);
     for (let i = 0; i < this.ants.length; i += 1) {
       const ant = this.ants[i];
       this.tempObject.position.set(ant.position.x, ant.position.y, floorZ);
       this.tempObject.rotation.set(0, 0, ant.heading - Math.PI * 0.5);
-      this.tempObject.scale.setScalar(Math.max(0.0005, this.params.antScale ?? 0.003));
+      this.tempObject.scale.setScalar(Math.max(0.0005, this.params.scale ?? 0.003));
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
@@ -603,15 +603,15 @@ export class AntSimulation {
   }
 
   applyAntColor(ant, outColor) {
-    const mode = this.params.antColorMode ?? "state";
+    const mode = this.params.colorMode ?? "state";
     if (mode === "none") {
-      this.antSolidColor.set(this.params.antSolidColor || "#62d6f9");
+      this.antSolidColor.set(this.params.solidColor || "#62d6f9");
       outColor.copy(this.antSolidColor);
       return;
     }
 
     if (mode === "state") {
-      const stateColors = getAntStateColors(this.params.antColormap);
+      const stateColors = getAntStateColors(this.params.colormap);
       if (ant.carrying) {
         outColor.setHex(stateColors.carrying);
       } else {
@@ -622,7 +622,7 @@ export class AntSimulation {
 
     if (mode === "heading") {
       const t = (wrapAngle(ant.heading) + Math.PI) / (Math.PI * 2);
-      sampleColormap(this.params.antColormap, t, outColor);
+      sampleColormap(this.params.colormap, t, outColor);
       return;
     }
 
@@ -712,7 +712,7 @@ export class AntSimulation {
   }
 
   buildFoodSources() {
-    const baseMass = Math.max(1, this.params.antFoodSourceMassUg ?? 1000);
+    const baseMass = Math.max(1, this.params.foodSourceMassUg ?? 1000);
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
     const minAxis = Math.max(0.05, Math.min(halfX, halfY));
@@ -729,8 +729,8 @@ export class AntSimulation {
 
   diffuseAndEvaporate(dt) {
     const size = this.fieldSize;
-    const diffusion = THREE.MathUtils.clamp(this.params.antDiffusionRate * dt, 0, 0.45);
-    const decay = THREE.MathUtils.clamp(this.params.antEvapRate * dt, 0, 0.95);
+    const diffusion = THREE.MathUtils.clamp(this.params.diffusionRate * dt, 0, 0.45);
+    const decay = THREE.MathUtils.clamp(this.params.evapRate * dt, 0, 0.95);
 
     for (let y = 0; y < size; y += 1) {
       const yUp = y === 0 ? (this.params.boundaryMode === "cyclic" ? size - 1 : 0) : y - 1;

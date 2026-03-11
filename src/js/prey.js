@@ -1,28 +1,28 @@
 // Predator-prey applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 export const PREY_DEFAULT_PARAMS = {
-  preySimSpeed: 1.0,
-  preyCount: 260,
+  simSpeed: 1.0,
+  count: 260,
   predatorCount: 24,
-  preySpeed: 4.5,
+  speed: 4.5,
   predatorSpeed: 6.2,
   predatorSenseRadius: 16,
   predationRadius: 1.6,
-  preyBirthRate: 0.08,
+  birthRate: 0.08,
   predationRateBeta: 1.0,
-  preyAvoidRadius: 14,
-  preyAvoidWeight: 2.4,
+  avoidRadius: 14,
+  avoidWeight: 2.4,
   predatorEnergyLoss: 0.45,
   predatorEnergyGain: 1.6,
   predatorSpawnEnergy: 2.8,
-  preyMaxCount: 1200,
-  preyScale: 0.62,
+  maxCount: 1200,
+  scale: 0.62,
   predatorScale: 1.0,
-  preyColorMode: "energy",
-  preyColormap: "turbo",
-  preySolidColor: "#ff8d5f",
+  colorMode: "energy",
+  colormap: "turbo",
+  solidColor: "#ff8d5f",
 };
 
 export const PREY_APPLET_CONFIG = defineAppletConfig({
@@ -114,7 +114,7 @@ const preyColormapLerpB = new THREE.Color();
 export class PreySimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, "prey");
     this.onStats = onStats;
 
     this.preyGeometry = new THREE.SphereGeometry(0.42, 10, 8);
@@ -152,10 +152,10 @@ export class PreySimulation {
     this.velocity3 = new THREE.Vector3();
     this.spawnOffset = new THREE.Vector3();
     this.predatorColor = new THREE.Color();
-    this.predatorSolidColor = new THREE.Color(params.preySolidColor || "#ff8d5f");
+    this.predatorSolidColor = new THREE.Color(this.params.solidColor || "#ff8d5f");
     this.predatorEnergyRange = {
       min: 0,
-      max: Math.max(0.1, (params.predatorSpawnEnergy ?? 2.8) * 2.4),
+      max: Math.max(0.1, (this.params.predatorSpawnEnergy ?? 2.8) * 2.4),
     };
 
     this.stats = {
@@ -192,7 +192,7 @@ export class PreySimulation {
     this.predators.length = 0;
     this.stats.eatenTotal = 0;
 
-    for (let i = 0; i < this.params.preyCount; i += 1) {
+    for (let i = 0; i < this.params.count; i += 1) {
       this.preys.push(this.createPreyAgent());
     }
     for (let i = 0; i < this.params.predatorCount; i += 1) {
@@ -205,7 +205,7 @@ export class PreySimulation {
   }
 
   setPreyCount(count) {
-    this.params.preyCount = count;
+    this.params.count = count;
     this.reset();
   }
 
@@ -229,18 +229,18 @@ export class PreySimulation {
   }
 
   step(dt) {
-    const preySpeed = Math.max(0.1, this.params.preySpeed ?? 4.5);
+    const preySpeed = Math.max(0.1, this.params.speed ?? 4.5);
     const predatorSpeed = Math.max(0.1, this.params.predatorSpeed ?? 6.2);
-    const preyBirthRate = Math.max(0, this.params.preyBirthRate ?? 0.08);
-    const preyAvoidRadius = Math.max(0.5, this.params.preyAvoidRadius ?? 14);
-    const preyAvoidWeight = Math.max(0, this.params.preyAvoidWeight ?? 2.4);
+    const preyBirthRate = Math.max(0, this.params.birthRate ?? 0.08);
+    const preyAvoidRadius = Math.max(0.5, this.params.avoidRadius ?? 14);
+    const preyAvoidWeight = Math.max(0, this.params.avoidWeight ?? 2.4);
     const predatorSenseRadius = Math.max(0.5, this.params.predatorSenseRadius ?? 16);
     const predationRadius = Math.max(0.2, this.params.predationRadius ?? 1.6);
     const predationRateBeta = Math.max(0, this.params.predationRateBeta ?? 1.0);
     const predatorEnergyLoss = Math.max(0, this.params.predatorEnergyLoss ?? 0.45);
     const predatorEnergyGain = Math.max(0, this.params.predatorEnergyGain ?? 1.6);
     const predatorSpawnEnergy = Math.max(0.1, this.params.predatorSpawnEnergy ?? 2.8);
-    const preyMaxCount = Math.max(1, Math.floor(this.params.preyMaxCount ?? 1200));
+    const preyMaxCount = Math.max(1, Math.floor(this.params.maxCount ?? 1200));
 
     const newbornPreys = [];
 
@@ -395,7 +395,7 @@ export class PreySimulation {
 
   syncInstances() {
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.85;
-    const preyScale = Math.max(0.1, this.params.preyScale ?? 0.62);
+    const preyScale = Math.max(0.1, this.params.scale ?? 0.62);
     const predatorScale = Math.max(0.1, this.params.predatorScale ?? 1.0);
 
     if (this.preyMesh) {
@@ -412,7 +412,7 @@ export class PreySimulation {
     }
 
     if (this.predatorMesh) {
-      const mode = this.params.preyColorMode ?? "energy";
+      const mode = this.params.colorMode ?? "energy";
       const range =
         mode === "energy"
           ? this.computePredatorEnergyRange()
@@ -483,9 +483,9 @@ export class PreySimulation {
   }
 
   applyPredatorColor(predator, range, outColor) {
-    const mode = this.params.preyColorMode ?? "energy";
+    const mode = this.params.colorMode ?? "energy";
     if (mode === "none") {
-      this.predatorSolidColor.set(this.params.preySolidColor || "#ff8d5f");
+      this.predatorSolidColor.set(this.params.solidColor || "#ff8d5f");
       outColor.copy(this.predatorSolidColor);
       ensureVisibleColor(outColor, 0.2);
       return;
@@ -493,7 +493,7 @@ export class PreySimulation {
 
     const span = Math.max(range.max - range.min, 0.000001);
     const normalized = THREE.MathUtils.clamp(((predator.energy ?? 0) - range.min) / span, 0, 1);
-    sampleColormap(this.params.preyColormap || "turbo", normalized, outColor);
+    sampleColormap(this.params.colormap || "turbo", normalized, outColor);
     ensureVisibleColor(outColor, 0.2);
   }
 
@@ -507,7 +507,7 @@ export class PreySimulation {
   createPreyAgent() {
     return {
       position: randomWorldPosition(this.params),
-      velocity: random2DDirection().multiplyScalar(Math.max(0.5, this.params.preySpeed ?? 4.5)),
+      velocity: random2DDirection().multiplyScalar(Math.max(0.5, this.params.speed ?? 4.5)),
       lost: false,
     };
   }

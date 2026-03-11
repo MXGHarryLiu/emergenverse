@@ -1,6 +1,6 @@
 // Firefly synchronization applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 const TWO_PI = Math.PI * 2;
 const FIREFLY_COLORMAP_STOPS = {
@@ -26,17 +26,17 @@ const fireflyLerpA = new THREE.Color();
 const fireflyLerpB = new THREE.Color();
 
 export const FIREFLY_DEFAULT_PARAMS = {
-  fireflySimSpeed: 1.0,
-  fireflyCount: 180,
-  fireflySize: 0.8,
-  fireflySpeed: 1.2,
-  fireflyCoupling: 2.2,
-  fireflyRadius: 18.0,
-  fireflyFrequencyHz: 1.8,
-  fireflyFreqJitterHz: 0.2,
-  fireflyPhaseNoise: 0.4,
-  fireflyColorMode: "blink",
-  fireflyColormap: "blue-yellow",
+  simSpeed: 1.0,
+  count: 180,
+  size: 0.8,
+  speed: 1.2,
+  coupling: 2.2,
+  radius: 18.0,
+  frequencyHz: 1.8,
+  freqJitterHz: 0.2,
+  phaseNoise: 0.4,
+  colorMode: "blink",
+  colormap: "blue-yellow",
 };
 
 export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
@@ -110,7 +110,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
 export class FireflySimulation {
   constructor({ scene, params, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, "firefly");
     this.onStats = onStats;
 
     this.geometry = new THREE.SphereGeometry(0.45, 10, 8);
@@ -146,7 +146,7 @@ export class FireflySimulation {
     this.fireflies.length = 0;
     this.blinkRateSmoothed = 0;
 
-    for (let i = 0; i < this.params.fireflyCount; i += 1) {
+    for (let i = 0; i < this.params.count; i += 1) {
       this.fireflies.push(this.createFirefly());
     }
 
@@ -156,7 +156,7 @@ export class FireflySimulation {
   }
 
   setCount(count) {
-    this.params.fireflyCount = count;
+    this.params.count = count;
     this.reset();
   }
 
@@ -177,8 +177,8 @@ export class FireflySimulation {
 
   getFrequencyRange() {
     if (!this.fireflies.length) {
-      const center = Math.max(0.05, this.params.fireflyFrequencyHz ?? 1.8);
-      const jitter = Math.max(0, this.params.fireflyFreqJitterHz ?? 0.2);
+      const center = Math.max(0.05, this.params.frequencyHz ?? 1.8);
+      const jitter = Math.max(0, this.params.freqJitterHz ?? 0.2);
       return {
         min: Math.max(0, center - jitter),
         max: center + jitter,
@@ -213,13 +213,13 @@ export class FireflySimulation {
       return;
     }
 
-    const speed = Math.max(0.05, this.params.fireflySpeed ?? 3);
-    const coupling = Math.max(0, this.params.fireflyCoupling ?? 2.2);
-    const radius = Math.max(0.2, this.params.fireflyRadius ?? 18);
+    const speed = Math.max(0.05, this.params.speed ?? 3);
+    const coupling = Math.max(0, this.params.coupling ?? 2.2);
+    const radius = Math.max(0.2, this.params.radius ?? 18);
     const radiusSq = radius * radius;
-    const baseHz = Math.max(0.05, this.params.fireflyFrequencyHz ?? 1.8);
-    const jitterHz = Math.max(0, this.params.fireflyFreqJitterHz ?? 0.2);
-    const phaseNoise = Math.max(0, this.params.fireflyPhaseNoise ?? 0.4);
+    const baseHz = Math.max(0.05, this.params.frequencyHz ?? 1.8);
+    const jitterHz = Math.max(0, this.params.freqJitterHz ?? 0.2);
+    const phaseNoise = Math.max(0, this.params.phaseNoise ?? 0.4);
 
     this.phaseStepBuffer.length = count;
     let blinkCount = 0;
@@ -328,9 +328,9 @@ export class FireflySimulation {
       return;
     }
 
-    const scale = Math.max(0.08, this.params.fireflySize ?? 0.8);
+    const scale = Math.max(0.08, this.params.size ?? 0.8);
     const frequencyRange = this.getFrequencyRange();
-    const discreteStateColors = getFireflyStateColors(this.params.fireflyColormap);
+    const discreteStateColors = getFireflyStateColors(this.params.colormap);
 
     for (let i = 0; i < this.fireflies.length; i += 1) {
       const firefly = this.fireflies[i];
@@ -347,10 +347,10 @@ export class FireflySimulation {
       const blinkBrightness = THREE.MathUtils.clamp(0.18 + pulse * 1.1, 0.18, 1);
       const isBlinking = pulse > 0.5;
 
-      if (this.params.fireflyColorMode === "frequency") {
+      if (this.params.colorMode === "frequency") {
         const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
         const t = THREE.MathUtils.clamp((firefly.omegaHz - frequencyRange.min) / span, 0, 1);
-        sampleColormap(this.params.fireflyColormap, t, this.tempColor);
+        sampleColormap(this.params.colormap, t, this.tempColor);
         // Frequency mode should show steady color, not phase blinking.
         this.tempColor.multiplyScalar(0.95);
       } else {
@@ -392,12 +392,12 @@ export class FireflySimulation {
   createFirefly() {
     return {
       position: randomWorldPosition(this.params),
-      velocity: randomDirection3D().multiplyScalar(Math.max(0.1, this.params.fireflySpeed ?? 3)),
+      velocity: randomDirection3D().multiplyScalar(Math.max(0.1, this.params.speed ?? 3)),
       phase: Math.random() * TWO_PI,
       omegaHz: Math.max(
         0.05,
-        (this.params.fireflyFrequencyHz ?? 1.8) +
-          THREE.MathUtils.randFloatSpread((this.params.fireflyFreqJitterHz ?? 0.2) * 2),
+        (this.params.frequencyHz ?? 1.8) +
+          THREE.MathUtils.randFloatSpread((this.params.freqJitterHz ?? 0.2) * 2),
       ),
       lost: false,
     };

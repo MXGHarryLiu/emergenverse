@@ -25,14 +25,7 @@ export const APPLET_META = Object.fromEntries(
       {
         id,
         label: config?.label ?? id,
-        defaultProjection: config?.defaultProjection ?? "perspective",
-        world: config?.world,
         fpsValueId: stats.stats?.[0]?.valueId ?? null,
-        chartIds: (stats.charts ?? []).map((chart) => ({
-          liveId: chart.liveId,
-          canvasId: chart.canvasId,
-          title: chart.title,
-        })),
         pauseButtonId: simulation.pauseButtonId ?? null,
         defaultButtonId: simulation.defaultButtonId ?? null,
         resetButtonId: simulation.resetButtonId ?? null,
