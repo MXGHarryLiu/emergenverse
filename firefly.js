@@ -22,6 +22,7 @@ export class FireflySimulation {
     this.tempColor = new THREE.Color();
     this.phaseStepBuffer = [];
     this.blinkRateSmoothed = 0;
+    this.steer = new THREE.Vector3();
   }
 
   init() {
@@ -94,9 +95,22 @@ export class FireflySimulation {
         continue;
       }
 
-      // Random walk in the XY plane.
-      firefly.heading += THREE.MathUtils.randFloatSpread(1.2) * dt;
-      firefly.velocity.set(Math.cos(firefly.heading), Math.sin(firefly.heading)).multiplyScalar(speed);
+      // Random walk in 3D with bounded speed.
+      this.steer.set(
+        THREE.MathUtils.randFloatSpread(2),
+        THREE.MathUtils.randFloatSpread(2),
+        THREE.MathUtils.randFloatSpread(2),
+      );
+      if (this.steer.lengthSq() > 1e-8) {
+        this.steer.normalize().multiplyScalar(0.9 * dt);
+        firefly.velocity.add(this.steer);
+      }
+      const vLen = firefly.velocity.length();
+      if (vLen < 1e-8) {
+        firefly.velocity.copy(randomDirection3D()).multiplyScalar(speed);
+      } else {
+        firefly.velocity.multiplyScalar(speed / vLen);
+      }
       firefly.position.addScaledVector(firefly.velocity, dt);
       this.applyBoundary(firefly);
       if (firefly.lost) {
@@ -178,13 +192,12 @@ export class FireflySimulation {
       return;
     }
 
-    const floorZ = -this.params.worldSizeZ * 0.5 + 0.95;
     const scale = Math.max(0.08, this.params.fireflySize ?? 0.8);
 
     for (let i = 0; i < this.fireflies.length; i += 1) {
       const firefly = this.fireflies[i];
-      this.tempObject.position.set(firefly.position.x, firefly.position.y, floorZ);
-      this.tempObject.rotation.set(0, 0, firefly.heading);
+      this.tempObject.position.set(firefly.position.x, firefly.position.y, firefly.position.z);
+      this.tempObject.rotation.set(0, 0, 0);
       this.tempObject.scale.setScalar(scale);
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
@@ -231,8 +244,7 @@ export class FireflySimulation {
   createFirefly() {
     return {
       position: randomWorldPosition(this.params),
-      velocity: random2DDirection().multiplyScalar(Math.max(0.1, this.params.fireflySpeed ?? 3)),
-      heading: Math.random() * TWO_PI,
+      velocity: randomDirection3D().multiplyScalar(Math.max(0.1, this.params.fireflySpeed ?? 3)),
       phase: Math.random() * TWO_PI,
       omegaHz: Math.max(
         0.05,
@@ -246,15 +258,20 @@ export class FireflySimulation {
   applyBoundary(agent) {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
+    const halfZ = this.params.worldSizeZ * 0.5;
 
     if (this.params.boundaryMode === "cyclic") {
       agent.position.x = wrapAxis(agent.position.x, halfX);
       agent.position.y = wrapAxis(agent.position.y, halfY);
+      agent.position.z = wrapAxis(agent.position.z, halfZ);
       agent.lost = false;
       return true;
     }
 
-    const outOfBounds = Math.abs(agent.position.x) > halfX || Math.abs(agent.position.y) > halfY;
+    const outOfBounds =
+      Math.abs(agent.position.x) > halfX ||
+      Math.abs(agent.position.y) > halfY ||
+      Math.abs(agent.position.z) > halfZ;
     agent.lost = outOfBounds;
     return !outOfBounds;
   }
@@ -276,12 +293,20 @@ export class FireflySimulation {
 function randomWorldPosition(params) {
   const x = THREE.MathUtils.randFloatSpread(params.worldSizeX * 0.9);
   const y = THREE.MathUtils.randFloatSpread(params.worldSizeY * 0.9);
-  return new THREE.Vector2(x, y);
+  const z = THREE.MathUtils.randFloatSpread(params.worldSizeZ * 0.9);
+  return new THREE.Vector3(x, y, z);
 }
 
-function random2DDirection() {
-  const angle = Math.random() * TWO_PI;
-  return new THREE.Vector2(Math.cos(angle), Math.sin(angle));
+function randomDirection3D() {
+  const direction = new THREE.Vector3(
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(2),
+  );
+  if (direction.lengthSq() < 1e-8) {
+    direction.set(0, 0, 1);
+  }
+  return direction.normalize();
 }
 
 function wrapAxis(value, halfExtent) {

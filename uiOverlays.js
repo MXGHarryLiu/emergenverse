@@ -197,6 +197,11 @@ function setupViewportScreenshotButton({
       }
     });
 
+  const waitNextFrame = () =>
+    new Promise((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+
   const saveWithPicker = async (blob, filename) => {
     if (typeof window.showSaveFilePicker !== "function" || !window.isSecureContext) {
       return false;
@@ -234,9 +239,11 @@ function setupViewportScreenshotButton({
     const supportsPicker =
       typeof window.showSaveFilePicker === "function" && window.isSecureContext;
     const wasPausedBeforeScreenshot = getPaused();
-    if (supportsPicker && !wasPausedBeforeScreenshot) {
+    const shouldTemporarilyPause = !wasPausedBeforeScreenshot;
+    if (shouldTemporarilyPause) {
       setPaused(true);
       onPauseStateChange();
+      await waitNextFrame();
     }
 
     try {
@@ -263,7 +270,7 @@ function setupViewportScreenshotButton({
       triggerDownload(objectUrl, filename);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } finally {
-      if (supportsPicker && !wasPausedBeforeScreenshot) {
+      if (shouldTemporarilyPause) {
         setPaused(false);
         onPauseStateChange();
       }

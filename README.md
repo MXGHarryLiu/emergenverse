@@ -36,6 +36,14 @@ This project is intentionally static-first:
 - Foundational paper (Lotka, 1920): [Analytical Note on Certain Rhythmic Relations in Organic Systems](https://doi.org/10.1073/pnas.6.7.410)
 - Wikipedia: [Lotka–Volterra equations](https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations), [Food chain](https://en.wikipedia.org/wiki/Food_chain)
 
+### Firefly Synchronization
+
+- Concept: Collective blink synchronization from locally coupled phase oscillators.
+- Scientific explanation: Each firefly has an intrinsic phase/frequency and interacts with nearby oscillators through phase coupling. Above a coupling threshold, the population transitions from incoherent flashing to partial or near-global synchrony.
+- Reference implementation inspiration: [visualize-it Firefly Synchronization](https://github.com/visualize-it/visualize-it.github.io/tree/master/firefly_synchronization)
+- Seminal paper (Mirollo and Strogatz, 1990): [Synchronization of Pulse-Coupled Biological Oscillators](https://doi.org/10.1137/0150098)
+- Wikipedia: [Kuramoto model](https://en.wikipedia.org/wiki/Kuramoto_model), [Synchronization](https://en.wikipedia.org/wiki/Synchronization)
+
 ## Deploy to Static Hosting
 
 Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).

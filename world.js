@@ -53,9 +53,11 @@ export function createWorldManager({ params, getBoids, onWorldGeometryChanged } 
     scene.add(boundsLines);
 
     const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
+    const gridSize = Math.max(0.01, Number(params.worldGridSize) || 1);
+    const divisions = Math.max(1, Math.round(groundBase / gridSize));
     floorGrid = new THREE.GridHelper(
       groundBase,
-      Math.max(10, Math.floor(groundBase / 6)),
+      divisions,
       0x4269b2,
       0x1a3558,
     );

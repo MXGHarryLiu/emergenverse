@@ -245,7 +245,8 @@ export class AntSimulation {
     const sensorDistance = Math.max(0.2, this.params.antSensorDistance);
     const foodSenseRadius = Math.max(sensorDistance, this.params.antFoodSenseDistance ?? sensorDistance);
     const foodPickupRadius = Math.max(0.15, this.params.antPickupRadius ?? 0.55);
-    const nestRadius = 1.25;
+    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
+    const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
     const turnGain = Math.max(0, this.params.antTurnGain);
     const goalBias = Math.max(0, this.params.antGoalBias);
     const departureRate = Math.max(0, this.params.antDepartureRate ?? 12);
@@ -415,12 +416,12 @@ export class AntSimulation {
       return;
     }
 
-    const floorZ = -this.params.worldSizeZ * 0.5 + 0.82;
+    const floorZ = -this.params.worldSizeZ * 0.5 + Math.max(0.006, (this.params.antScale ?? 0.003) * 0.7);
     for (let i = 0; i < this.ants.length; i += 1) {
       const ant = this.ants[i];
       this.tempObject.position.set(ant.position.x, ant.position.y, floorZ);
       this.tempObject.rotation.set(0, 0, ant.heading - Math.PI * 0.5);
-      this.tempObject.scale.setScalar(Math.max(0.1, this.params.antScale ?? 0.95));
+      this.tempObject.scale.setScalar(Math.max(0.0005, this.params.antScale ?? 0.003));
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
@@ -468,7 +469,7 @@ export class AntSimulation {
       return;
     }
 
-    const floorZ = -this.params.worldSizeZ * 0.5 + 0.16;
+    const floorZ = -this.params.worldSizeZ * 0.5 + 0.0025;
     const capacity = this.foodMeshCapacity;
     let visibleCount = 0;
 
@@ -481,7 +482,8 @@ export class AntSimulation {
       const radius = this.getFoodRadiusFromMass(source.massUg);
       this.foodTempObject.position.set(source.position.x, source.position.y, floorZ);
       this.foodTempObject.rotation.set(Math.PI * 0.5, 0, 0);
-      this.foodTempObject.scale.set(radius, radius, 1);
+      // Cylinder is rotated to align height with +Z; keep XY radius symmetric.
+      this.foodTempObject.scale.set(radius, 1, radius);
       this.foodTempObject.updateMatrix();
       this.foodMesh.setMatrixAt(visibleCount, this.foodTempObject.matrix);
       visibleCount += 1;
@@ -538,20 +540,23 @@ export class AntSimulation {
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.16;
     this.nestMesh.position.set(this.nest.x, this.nest.y, floorZ);
     this.nestMesh.rotation.set(0, 0, 0);
-    this.nestMesh.scale.set(1.25, 1.25, 1);
+    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
+    const nestMarkerRadius = Math.max(0.02, worldMinAxis * 0.025);
+    this.nestMesh.scale.set(nestMarkerRadius, nestMarkerRadius, 1);
   }
 
   buildFoodSources() {
-    const baseMass = Math.max(1, this.params.antFoodSourceMassUg ?? 8000);
+    const baseMass = Math.max(1, this.params.antFoodSourceMassUg ?? 1000);
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
-    const minAxis = Math.max(1, Math.min(halfX, halfY));
-    const minRadius = Math.max(8, minAxis * 0.24);
-    const maxRadius = Math.max(minRadius + 1, minAxis * 0.5);
+    const minAxis = Math.max(0.05, Math.min(halfX, halfY));
+    const minRadius = Math.max(minAxis * 0.12, 0.08);
+    const maxRadius = Math.max(minRadius + 0.02, minAxis * 0.5);
     const angle = Math.random() * Math.PI * 2;
     const radius = THREE.MathUtils.randFloat(minRadius, maxRadius);
-    const x = THREE.MathUtils.clamp(Math.cos(angle) * radius, -halfX + 1, halfX - 1);
-    const y = THREE.MathUtils.clamp(Math.sin(angle) * radius, -halfY + 1, halfY - 1);
+    const edgeMargin = Math.min(0.2, minAxis * 0.2);
+    const x = THREE.MathUtils.clamp(Math.cos(angle) * radius, -halfX + edgeMargin, halfX - edgeMargin);
+    const y = THREE.MathUtils.clamp(Math.sin(angle) * radius, -halfY + edgeMargin, halfY - edgeMargin);
 
     return [{ position: new THREE.Vector2(x, y), massUg: baseMass }];
   }
@@ -694,7 +699,7 @@ export class AntSimulation {
 
   getFoodRadiusFromMass(massUg) {
     const safeMass = Math.max(0, massUg);
-    return THREE.MathUtils.clamp(0.35 + Math.cbrt(safeMass) * 0.12, 0.35, 8);
+    return THREE.MathUtils.clamp(0.01 + Math.cbrt(safeMass) * 0.0015, 0.008, 0.08);
   }
 
   applyBoundaryConditions(ant) {

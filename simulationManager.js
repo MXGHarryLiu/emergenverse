@@ -21,12 +21,20 @@ export class SimulationManager {
 
   setActive(id) {
     this.activeId = id;
+    this.enforceVisibility();
+  }
+
+  enforceVisibility() {
     for (const [simId, simulation] of this.simulations.entries()) {
-      simulation.setVisible?.(simId === id);
+      simulation.setVisible?.(simId === this.activeId);
     }
   }
 
-  step(dt) {
+  step(dt, activeId = this.activeId) {
+    if (activeId && activeId !== this.activeId) {
+      this.activeId = activeId;
+    }
+    this.enforceVisibility();
     const active = this.activeId ? this.simulations.get(this.activeId) : null;
     active?.step?.(dt);
   }
@@ -41,11 +49,13 @@ export class SimulationManager {
     for (const simulation of this.simulations.values()) {
       simulation.onWorldGeometryChanged?.();
     }
+    this.enforceVisibility();
   }
 
   onBoundaryModeChanged() {
     for (const simulation of this.simulations.values()) {
       simulation.onBoundaryModeChanged?.();
     }
+    this.enforceVisibility();
   }
 }

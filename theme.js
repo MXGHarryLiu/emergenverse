@@ -84,7 +84,7 @@ function saveThemeMode(mode, storageKey) {
 }
 
 function updateToggleVisual(toggleButton, labelEl, iconEl, mode, effectiveTheme) {
-  if (!toggleButton || !labelEl || !iconEl) {
+  if (!toggleButton || !iconEl) {
     return;
   }
 
@@ -94,8 +94,11 @@ function updateToggleVisual(toggleButton, labelEl, iconEl, mode, effectiveTheme)
     light: "bi-sun-fill",
   };
 
-  labelEl.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-  toggleButton.setAttribute("aria-label", `Theme: ${mode}`);
+  if (labelEl) {
+    labelEl.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+  }
+  toggleButton.setAttribute("title", `Theme: ${mode}. Click to switch mode`);
+  toggleButton.setAttribute("aria-label", `Theme: ${mode}. Click to switch mode`);
   iconEl.className = `bi ${iconMap[mode] || "bi-circle-half"}`;
   toggleButton.dataset.effectiveTheme = effectiveTheme;
 }

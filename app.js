@@ -9,6 +9,8 @@ import { FireflySimulation } from "./firefly.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
+import { APPLET_CONFIGS, APPLET_ORDER } from "./appletConfigs.js";
+import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import {
   drawTrendChart as renderTrendChart,
   pushTrendValue as appendTrendValue,
@@ -17,7 +19,7 @@ import {
 
 const params = {
   boidCount: 220,
-  boidScale: 1.4,
+  boidScale: 0.5,
   perceptionRadius: 18,
   separationDistance: 8,
   maxSpeed: 8,
@@ -26,9 +28,10 @@ const params = {
   alignmentWeight: 1.0,
   cohesionWeight: 0.9,
   separationWeight: 1.35,
-  worldSizeX: 120,
-  worldSizeY: 120,
-  worldSizeZ: 120,
+  worldSizeX: 100,
+  worldSizeY: 100,
+  worldSizeZ: 100,
+  worldGridSize: 5,
   boundaryMode: "cyclic",
   colorMode: "speed",
   colormap: "turbo",
@@ -44,20 +47,20 @@ const params = {
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
   paused: false,
-  antCount: 180,
-  antScale: 0.95,
-  antSpeed: 4.0,
-  antSensorDistance: 5.0,
-  antSensorAngle: 40,
-  antTurnGain: 1.6,
+  antCount: 120,
+  antScale: 0.003,
+  antSpeed: 0.12,
+  antSensorDistance: 0.08,
+  antSensorAngle: 35,
+  antTurnGain: 3.0,
   antGoalBias: 1.0,
-  antDepartureRate: 12,
-  antDepositRate: 8.0,
-  antDiffusionRate: 7.5,
-  antEvapRate: 1.8,
+  antDepartureRate: 6,
+  antDepositRate: 5.0,
+  antDiffusionRate: 3.0,
+  antEvapRate: 0.8,
   antNoiseStrength: 0.2,
-  antFoodSenseDistance: 8.0,
-  antPickupRadius: 0.55,
+  antFoodSenseDistance: 0.18,
+  antPickupRadius: 0.04,
   antFoodPlacementEnabled: false,
   antFoodAddMassUg: 50,
   antPickupMassUg: 1,
@@ -83,13 +86,16 @@ const params = {
   preySolidColor: "#ff8d5f",
   fireflyCount: 180,
   fireflySize: 0.8,
-  fireflySpeed: 3.0,
+  fireflySpeed: 1.2,
   fireflyCoupling: 2.2,
   fireflyRadius: 18.0,
   fireflyFrequencyHz: 1.8,
   fireflyFreqJitterHz: 0.2,
   fireflyPhaseNoise: 0.4,
 };
+
+renderAppletSectionsFromConfig();
+scheduleMathRendering();
 
 const cameraDefaults = {
   cameraDistance: 185,
@@ -152,12 +158,16 @@ const dom = {
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
   runState: document.getElementById("run-state"),
   togglePause: document.getElementById("toggle-pause"),
+  defaultSim: document.getElementById("default-sim"),
   resetSim: document.getElementById("reset-sim"),
   toggleAntPause: document.getElementById("toggle-ant-pause"),
+  defaultAntSim: document.getElementById("default-ant-sim"),
   resetAntSim: document.getElementById("reset-ant-sim"),
   togglePreyPause: document.getElementById("toggle-prey-pause"),
+  defaultPreySim: document.getElementById("default-prey-sim"),
   resetPreySim: document.getElementById("reset-prey-sim"),
   toggleFireflyPause: document.getElementById("toggle-firefly-pause"),
+  defaultFireflySim: document.getElementById("default-firefly-sim"),
   resetFireflySim: document.getElementById("reset-firefly-sim"),
   resetCamera: document.getElementById("reset-camera"),
   homeCamera: document.getElementById("home-camera"),
@@ -231,25 +241,19 @@ const panelWidthState = {
 
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
-const APPLET_IDS = new Set(["boid", "ants", "prey", "firefly"]);
-const appletCameraState = {
-  boid: null,
-  ants: null,
-  prey: null,
-  firefly: null,
-};
+const APPLET_IDS = new Set(APPLET_ORDER);
+const appletCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
+const appletWorldState = Object.fromEntries(
+  APPLET_ORDER.map((id) => [id, createDefaultWorldState(id)]),
+);
+let worldStatePersistenceEnabled = false;
 
 let activeApplet = "boid";
 let boidPausedPreference = params.paused;
 let antsPausedPreference = params.paused;
 let preyPausedPreference = params.paused;
 let fireflyPausedPreference = params.paused;
-const appletProjectionInitialized = {
-  boid: false,
-  ants: false,
-  prey: false,
-  firefly: false,
-};
+const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
 let themeManager = null;
 
@@ -506,6 +510,7 @@ setupAntFoodPlacementInteraction();
 setupTrendCharts();
 setupChartCollapses();
 setupAppRouting();
+worldStatePersistenceEnabled = true;
 handleViewportResize();
 
 const resizeObserver = new ResizeObserver(() => handleViewportResize());
@@ -521,9 +526,13 @@ function animate() {
   requestAnimationFrame(animate);
 
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (simulationManager.activeId !== activeApplet) {
+    simulationManager.setActive(activeApplet);
+  }
+  simulationManager.enforceVisibility?.();
   updateFpsMetric(dt);
   if (!params.paused) {
-    simulationManager.step(dt);
+    simulationManager.step(dt, activeApplet);
   }
 
   updateKeyboardTranslation(dt);
@@ -1493,18 +1502,27 @@ function setupControls() {
 
   bindRange("world-size-x", "world-size-x-value", (value) => {
     params.worldSizeX = value;
+    if (worldStatePersistenceEnabled) {
+      persistActiveAppletWorldState();
+    }
     rebuildBoundsAndGrid();
     return `${Math.round(value)} m`;
   });
 
   bindRange("world-size-y", "world-size-y-value", (value) => {
     params.worldSizeY = value;
+    if (worldStatePersistenceEnabled) {
+      persistActiveAppletWorldState();
+    }
     rebuildBoundsAndGrid();
     return `${Math.round(value)} m`;
   });
 
   bindRange("world-size-z", "world-size-z-value", (value) => {
     params.worldSizeZ = value;
+    if (worldStatePersistenceEnabled) {
+      persistActiveAppletWorldState();
+    }
     rebuildBoundsAndGrid();
     return `${Math.round(value)} m`;
   });
@@ -1537,7 +1555,7 @@ function setupControls() {
   bindRange("ant-scale", "ant-scale-value", (value) => {
     params.antScale = value;
     antSimulation.syncInstances();
-    return `${value.toFixed(2)} m`;
+    return `${value.toFixed(3)} m`;
   });
 
   bindRange("ant-sensor-distance", "ant-sensor-distance-value", (value) => {
@@ -1749,6 +1767,12 @@ function setupControls() {
     boidSimulation.reset();
     resetBoidTrendCharts();
   });
+  dom.defaultSim?.addEventListener("click", () => {
+    if (activeApplet !== "boid") {
+      return;
+    }
+    applySimulationDefaultsForApplet("boid");
+  });
 
   dom.resetAntSim?.addEventListener("click", () => {
     if (activeApplet !== "ants") {
@@ -1756,6 +1780,12 @@ function setupControls() {
     }
     antSimulation.reset();
     resetAntTrendCharts();
+  });
+  dom.defaultAntSim?.addEventListener("click", () => {
+    if (activeApplet !== "ants") {
+      return;
+    }
+    applySimulationDefaultsForApplet("ants");
   });
 
   dom.resetPreySim?.addEventListener("click", () => {
@@ -1765,6 +1795,12 @@ function setupControls() {
     preySimulation.reset();
     resetPreyTrendCharts();
   });
+  dom.defaultPreySim?.addEventListener("click", () => {
+    if (activeApplet !== "prey") {
+      return;
+    }
+    applySimulationDefaultsForApplet("prey");
+  });
 
   dom.resetFireflySim?.addEventListener("click", () => {
     if (activeApplet !== "firefly") {
@@ -1772,6 +1808,12 @@ function setupControls() {
     }
     fireflySimulation.reset();
     resetFireflyTrendCharts();
+  });
+  dom.defaultFireflySim?.addEventListener("click", () => {
+    if (activeApplet !== "firefly") {
+      return;
+    }
+    applySimulationDefaultsForApplet("firefly");
   });
 
   dom.showBounds.addEventListener("change", () => {
@@ -1860,6 +1902,22 @@ function setupControls() {
   switchToPerspective();
 }
 
+function applySimulationDefaultsForApplet(appletId) {
+  const sliders = APPLET_CONFIGS[appletId]?.right?.simulation?.sliders;
+  if (!Array.isArray(sliders) || sliders.length === 0) {
+    return;
+  }
+
+  sliders.forEach((slider) => {
+    const input = document.getElementById(slider.id);
+    if (!input) {
+      return;
+    }
+    input.value = String(slider.value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 function setupAppRouting() {
   const initial = getAppletFromUrl();
   applyAppletMode(initial, { updateUrl: true, replaceHistory: true });
@@ -1894,12 +1952,88 @@ function setAppletInUrl(appletId, replaceHistory) {
   window.history[historyMethod]?.({ app: appletId }, "", url);
 }
 
+function getAppletWorldConfig(appletId) {
+  const fallback = {
+    defaults: { x: 100, y: 100, z: 100 },
+    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+    gridSize: 5,
+  };
+  const config = APPLET_CONFIGS[appletId]?.world;
+  return config || fallback;
+}
+
+function createDefaultWorldState(appletId) {
+  const config = getAppletWorldConfig(appletId);
+  return {
+    x: Number(config.defaults?.x ?? 100),
+    y: Number(config.defaults?.y ?? 100),
+    z: Number(config.defaults?.z ?? 100),
+    gridSize: Number(config.gridSize ?? 5),
+  };
+}
+
+function persistActiveAppletWorldState() {
+  if (!APPLET_IDS.has(activeApplet)) {
+    return;
+  }
+
+  appletWorldState[activeApplet] = {
+    x: params.worldSizeX,
+    y: params.worldSizeY,
+    z: params.worldSizeZ,
+    gridSize: params.worldGridSize,
+  };
+}
+
+function applyWorldSliderConstraints(appletId) {
+  const range = getAppletWorldConfig(appletId).range;
+  const xInput = document.getElementById("world-size-x");
+  const yInput = document.getElementById("world-size-y");
+  const zInput = document.getElementById("world-size-z");
+
+  if (xInput) {
+    xInput.min = String(range.minX);
+    xInput.max = String(range.maxX);
+    xInput.step = String(range.step);
+  }
+  if (yInput) {
+    yInput.min = String(range.minY);
+    yInput.max = String(range.maxY);
+    yInput.step = String(range.step);
+  }
+  if (zInput) {
+    zInput.min = String(range.minZ);
+    zInput.max = String(range.maxZ);
+    zInput.step = String(range.step);
+  }
+}
+
+function applyAppletWorldState(appletId) {
+  const config = getAppletWorldConfig(appletId);
+  const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
+  appletWorldState[appletId] = state;
+
+  applyWorldSliderConstraints(appletId);
+
+  params.worldSizeX = state.x;
+  params.worldSizeY = state.y;
+  params.worldSizeZ = state.z;
+  params.worldGridSize = Number.isFinite(state.gridSize) ? state.gridSize : Number(config.gridSize ?? 5);
+
+  setControlValue("world-size-x", params.worldSizeX, "world-size-x-value", (value) => `${Math.round(value)} m`);
+  setControlValue("world-size-y", params.worldSizeY, "world-size-y-value", (value) => `${Math.round(value)} m`);
+  setControlValue("world-size-z", params.worldSizeZ, "world-size-z-value", (value) => `${Math.round(value)} m`);
+
+  rebuildBoundsAndGrid();
+}
+
 function applyDefaultProjectionForApplet(appletId) {
   if (appletProjectionInitialized[appletId]) {
     return;
   }
 
-  if (appletId === "ants" || appletId === "prey") {
+  const projectionMode = APPLET_CONFIGS[appletId]?.defaultProjection || "perspective";
+  if (projectionMode === "orthographic") {
     params.projectionMode = "orthographic";
     switchToOrthographicTop();
   } else {
@@ -1951,6 +2085,33 @@ function refreshVisibleSectionDividers() {
 
 function applySceneObjectVisibility(appletId) {
   simulationManager.setActive(appletId);
+  cleanupLegacySceneArtifacts();
+}
+
+function cleanupLegacySceneArtifacts() {
+  if (boidMesh) {
+    scene.remove(boidMesh);
+    boidMesh.geometry?.dispose?.();
+    if (Array.isArray(boidMesh.material)) {
+      boidMesh.material.forEach((material) => material?.dispose?.());
+    }
+    boidMesh = null;
+  }
+
+  if (antMesh) {
+    scene.remove(antMesh);
+    antMesh.geometry?.dispose?.();
+    if (Array.isArray(antMesh.material)) {
+      antMesh.material.forEach((material) => material?.dispose?.());
+    }
+    antMesh = null;
+  }
+
+  if (antPheromonePlane) {
+    scene.remove(antPheromonePlane);
+    antPheromonePlane.geometry?.dispose?.();
+    antPheromonePlane = null;
+  }
 }
 
 function applyAppletMode(appletId, options = {}) {
@@ -1960,9 +2121,12 @@ function applyAppletMode(appletId, options = {}) {
 
   if (previousApplet && previousApplet !== normalizedId && APPLET_IDS.has(previousApplet)) {
     appletCameraState[previousApplet] = cameraController.getCameraSnapshot();
+    persistActiveAppletWorldState();
   }
 
   activeApplet = normalizedId;
+  applySceneObjectVisibility(normalizedId);
+  applyAppletWorldState(normalizedId);
 
   dom.appletTabs?.forEach((tab) => {
     const tabApplet = tab.getAttribute("data-applet-item");
@@ -1972,7 +2136,6 @@ function applyAppletMode(appletId, options = {}) {
   });
 
   applyAppletVisibility(normalizedId);
-  applySceneObjectVisibility(normalizedId);
   const restoredCamera = cameraController.restoreCameraSnapshot(appletCameraState[normalizedId]);
   if (!restoredCamera) {
     applyDefaultProjectionForApplet(normalizedId);
@@ -1986,6 +2149,8 @@ function applyAppletMode(appletId, options = {}) {
       antsPausedPreference = params.paused;
     } else if (previousApplet === "prey") {
       preyPausedPreference = params.paused;
+    } else if (previousApplet === "firefly") {
+      fireflyPausedPreference = params.paused;
     }
     params.paused = boidPausedPreference;
     updateBoidStats(lastBoidStats);
@@ -1994,17 +2159,31 @@ function applyAppletMode(appletId, options = {}) {
       boidPausedPreference = params.paused;
     } else if (previousApplet === "prey") {
       preyPausedPreference = params.paused;
+    } else if (previousApplet === "firefly") {
+      fireflyPausedPreference = params.paused;
     }
     params.paused = antsPausedPreference;
     updateAntStats(lastAntStats);
+  } else if (normalizedId === "prey") {
+    if (previousApplet === "boid") {
+      boidPausedPreference = params.paused;
+    } else if (previousApplet === "ants") {
+      antsPausedPreference = params.paused;
+    } else if (previousApplet === "firefly") {
+      fireflyPausedPreference = params.paused;
+    }
+    params.paused = preyPausedPreference;
+    updatePreyStats(lastPreyStats);
   } else {
     if (previousApplet === "boid") {
       boidPausedPreference = params.paused;
     } else if (previousApplet === "ants") {
       antsPausedPreference = params.paused;
+    } else if (previousApplet === "prey") {
+      preyPausedPreference = params.paused;
     }
-    params.paused = preyPausedPreference;
-    updatePreyStats(lastPreyStats);
+    params.paused = fireflyPausedPreference;
+    updateFireflyStats(lastFireflyStats);
   }
 
   updateSimulationStateUI();
@@ -2042,6 +2221,10 @@ function updateSimulationStateUI() {
     if (dom.togglePreyPause) {
       dom.togglePreyPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
     }
+    if (dom.toggleFireflyPause) {
+      dom.toggleFireflyPause.innerHTML =
+        '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
+    }
     dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i>';
     dom.runState.setAttribute("title", "Paused. Click to resume simulation");
     dom.runState.setAttribute("aria-label", "Paused. Click to resume simulation");
@@ -2056,6 +2239,10 @@ function updateSimulationStateUI() {
   }
   if (dom.togglePreyPause) {
     dom.togglePreyPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
+  }
+  if (dom.toggleFireflyPause) {
+    dom.toggleFireflyPause.innerHTML =
+      '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
   }
   dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i>';
   dom.runState.setAttribute("title", "Running. Click to pause simulation");
@@ -2679,14 +2866,19 @@ function updateViewportLabel() {
     return;
   }
 
-  const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
-  const divisions = Math.max(10, Math.floor(groundBase / 6));
-  const gridSizeM = groundBase / Math.max(divisions, 1);
+  const gridSizeM = Math.max(0.01, Number(params.worldGridSize) || 1);
   const appLabel =
-    activeApplet === "ants" ? "Ant Trails" : activeApplet === "prey" ? "Prey Chain" : "Boids";
+    activeApplet === "ants"
+      ? "Ant Trails"
+      : activeApplet === "prey"
+        ? "Prey Chain"
+        : activeApplet === "firefly"
+          ? "Firefly Sync"
+          : "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
-  dom.frameSize.textContent = `Grid size: ${gridSizeM.toFixed(1)} m | ${appLabel} | ${projectionLabel}`;
+  const gridText = gridSizeM >= 1 ? gridSizeM.toFixed(1) : gridSizeM.toFixed(2);
+  dom.frameSize.textContent = `Grid size: ${gridText} m | ${appLabel} | ${projectionLabel}`;
 }
 
 function updateCameraTelemetry() {
@@ -2783,4 +2975,33 @@ function randomDirection() {
   }
 
   return direction.normalize();
+}
+
+function scheduleMathRendering() {
+  const render = () => {
+    if (typeof window.renderMathInElement !== "function") {
+      return false;
+    }
+
+    window.renderMathInElement(document.body, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\(", right: "\\)", display: false },
+      ],
+      throwOnError: false,
+    });
+    return true;
+  };
+
+  if (render()) {
+    return;
+  }
+
+  window.addEventListener(
+    "load",
+    () => {
+      render();
+    },
+    { once: true },
+  );
 }
