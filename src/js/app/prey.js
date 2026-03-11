@@ -42,19 +42,39 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
-        "This applet approximates a predator-prey food chain with local pursuit, evasion, and prey reproduction. Predators consume prey to maintain energy; prey expand under favorable conditions.",
-        "The resulting oscillation is qualitatively consistent with Lotka-Volterra-style population cycles.",
+        "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
+        "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping.",
       ],
-      equations: [
-        "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
-        "$$\\mathbf{p}_{k}(t+\\Delta t)=\\mathbf{p}_{k}(t)+\\mathbf{v}_{k}(t)\\Delta t$$",
-        "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
-      ],
-      mapping: [
-        "<strong>Prey Birth Rate</strong> sets prey growth tendency (α).",
-        "<strong>Predation Rate (β)</strong> scales effective capture interaction strength.",
-        "<strong>Predator Gain (δ)</strong> controls predator energy gained per successful predation.",
-        "<strong>Predator Energy Loss (γ)</strong> sets natural predator decay tendency.",
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Population balance coupled to local chase-and-escape motion.",
+      items: [
+        {
+          title: "Population Balance",
+          equation: "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
+          explanation: "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
+          parameters: [
+            "<strong>Prey Birth Rate</strong> sets the prey growth tendency.",
+            "<strong>Predation Rate</strong> scales encounter pressure.",
+            "<strong>Predator Gain</strong> controls how much predators benefit from captures.",
+            "<strong>Predator Energy Loss</strong> sets background predator decline.",
+          ],
+        },
+        {
+          title: "Position Update",
+          equation: "$$\\mathbf{p}_{k}(t+\\Delta t)=\\mathbf{p}_{k}(t)+\\mathbf{v}_{k}(t)\\Delta t$$",
+          explanation: "Each prey or predator moves forward using its current velocity.",
+        },
+        {
+          title: "Velocity Steering",
+          equation: "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
+          explanation: "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
+          parameters: [
+            "<strong>Prey Speed</strong> and <strong>Predator Speed</strong> set the travel rates.",
+            "<strong>Sense Radius</strong> and <strong>Predation Radius</strong> determine when interactions trigger.",
+          ],
+        },
       ],
     },
     stats: {

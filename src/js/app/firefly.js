@@ -33,18 +33,34 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
-        "This applet models firefly blink synchronization as coupled phase oscillators with local interactions in a 3D volume.",
-        "Each agent advances by intrinsic frequency and coupling to nearby phases, producing spontaneous phase-locking and collective flashing.",
+        "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
+        "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure.",
       ],
-      equations: [
-        "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
-        "$$\\theta_i \\mapsto \\theta_i \\bmod 2\\pi,\\quad \\text{blink when } \\theta_i \\to 2\\pi$$",
-        "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
-      ],
-      mapping: [
-        "<strong>Coupling</strong> sets synchronization strength K.",
-        "<strong>Interaction Radius</strong> defines local neighborhood N_i.",
-        "<strong>Base Frequency / Jitter / Phase Noise</strong> set ω_i and stochastic phase perturbations.",
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Local oscillator coupling with blink resets and a global order parameter.",
+      items: [
+        {
+          title: "Phase Evolution",
+          equation: "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
+          explanation: "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
+          parameters: [
+            "<strong>Coupling</strong> sets the synchronization strength.",
+            "<strong>Interaction Radius</strong> defines the local neighborhood.",
+            "<strong>Base Frequency</strong>, <strong>Frequency Jitter</strong>, and <strong>Phase Noise</strong> shape the intrinsic rhythm spread.",
+          ],
+        },
+        {
+          title: "Blink Event",
+          equation: "$$\\theta_i \\mapsto \\theta_i \\bmod 2\\pi,\\quad \\text{blink when } \\theta_i \\to 2\\pi$$",
+          explanation: "A blink occurs when the phase completes a full cycle, after which the oscillator wraps back to the start of the next cycle.",
+        },
+        {
+          title: "Synchronization Order",
+          equation: "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
+          explanation: "The order parameter measures how tightly the fireflies align in phase, from incoherent flashing near zero to near-perfect synchrony near one.",
+        },
       ],
     },
     stats: {

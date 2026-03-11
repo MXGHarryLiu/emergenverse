@@ -26,11 +26,14 @@ export function defineAppletConfig(config) {
   return {
     label: config.label ?? "Applet",
     defaultProjection: config.defaultProjection ?? "perspective",
-    world: config.world ?? {
-      defaults: { x: 100, y: 100, z: 100 },
-      range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-      gridSize: 5,
+    defaultBoundaryMode: config.defaultBoundaryMode ?? "cyclic",
+    world: {
+      defaults: config.world?.defaults ?? { x: 100, y: 100, z: 100 },
+      range: config.world?.range ?? { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+      gridSize: config.world?.gridSize ?? 5,
+      unitLabel: config.world?.unitLabel ?? "m",
     },
+    units: config.units ?? null,
     left: config.left ?? {},
     right: config.right ?? {},
   };

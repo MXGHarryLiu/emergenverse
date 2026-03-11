@@ -2,26 +2,44 @@
 import * as THREE from "three";
 import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
+// Unit metadata used to derive the internal gravity constant from SI.
+const GALAXY_UNITS = {
+  length: { label: "ly", toSI: 9.4607304725808e15 },
+  mass: { label: "M_sun", toSI: 1.98847e30 },
+  time: { label: "Myr", toSI: 31557600000000 },
+};
+const GALAXY_SPEED_UNIT = `${GALAXY_UNITS.length.label}/${GALAXY_UNITS.time.label}`;
+const GALAXY_SI_GRAVITATIONAL_CONSTANT = 6.6743e-11;
+const GALAXY_TIME_SCALE_MYR_PER_SECOND = 8;
+const GALAXY_DISK_MASS_FRACTION = 0.2;
+const GALAXY_GRAVITY_INTERNAL =
+  GALAXY_SI_GRAVITATIONAL_CONSTANT
+  * ((GALAXY_UNITS.time.toSI * GALAXY_UNITS.time.toSI) * GALAXY_UNITS.mass.toSI)
+  / (GALAXY_UNITS.length.toSI ** 3);
+
 // Default applet parameters.
 export const GALAXY_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   count: 500,
-  particleSize: 0.8,
-  spin: 1.2,
-  gravity: 180,
-  centralMass: 2200,
-  softening: 1.8,
-  damping: 0.01,
+  particleSize: 120,
+  spin: 1.35,
+  gravity: GALAXY_GRAVITY_INTERNAL,
+  centralMass: 2.2e12,
+  softening: 180,
+  damping: 0.003,
 };
 
 // Applet UI and metadata configuration.
 export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   label: "Galaxy Gravity",
   defaultProjection: "perspective",
+  defaultBoundaryMode: "lost",
+  units: GALAXY_UNITS,
   world: {
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
+    defaults: { x: 120000, y: 120000, z: 12000 },
+    range: { minX: 20000, maxX: 300000, minY: 20000, maxY: 300000, minZ: 4000, maxZ: 60000, step: 1000 },
+    gridSize: 5000,
+    unitLabel: GALAXY_UNITS.length.label,
   },
   left: {
     intro: {
@@ -30,20 +48,43 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
-        "This applet models a self-gravitating particle system with softened Newtonian gravity to emulate rotating galactic disk formation.",
-        "Particles experience pairwise attraction and an additional central potential, producing orbiting structures and density clustering.",
+        "This applet shows a rotating self-gravitating disk. Matter pulls inward, orbital motion spreads material around the center, and large-scale structure develops from that balance.",
+        "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units.",
       ],
-      equations: [
-        "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
-        "$$\\mathbf{v}_i(t+\\Delta t)=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t$$",
-        "$$\\mathbf{a}_i=G\\sum_{j\\ne i}\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}}$$",
-        "$$\\mathbf{v}_i\\leftarrow (1-\\lambda\\,\\Delta t)\\,\\mathbf{v}_i$$",
-      ],
-      mapping: [
-        "<strong>Gravity (G)</strong> controls pairwise attraction strength.",
-        "<strong>Central Mass (M_c)</strong> controls disk binding around the center.",
-        "<strong>Softening (ε)</strong> regularizes short-range force singularities.",
-        "<strong>Damping (λ)</strong> dissipates kinetic energy to stabilize disk-like structure.",
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Softened gravitational interaction in light years, solar masses, and Myr.",
+      items: [
+        {
+          title: "Position Update",
+          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+          explanation: "Each particle advances according to its current orbital velocity.",
+        },
+        {
+          title: "Velocity Update",
+          equation: "$$\\mathbf{v}_i(t+\\Delta t)=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t$$",
+          explanation: "Velocity changes in response to the current gravitational acceleration before damping is applied.",
+        },
+        {
+          title: "Softened Gravity",
+          equation: "$$\\mathbf{a}_i=G\\sum_{j\\ne i}\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}}$$",
+          explanation: "Acceleration combines particle-particle attraction with a pull from the central mass, while softening prevents singular forces at very small separations.",
+          parameters: [
+            "<strong>Gravity</strong> sets the global attraction strength.",
+            "<strong>Central Mass</strong> controls how strongly the disk stays bound to the center.",
+            "<strong>Softening</strong> sets the short-range smoothing scale.",
+          ],
+        },
+        {
+          title: "Damped Orbit Update",
+          equation: "$$\\mathbf{v}_i\\leftarrow (1-\\lambda\\,\\Delta t)\\,\\mathbf{v}_i$$",
+          explanation: "A damping term removes some kinetic energy each step so the disk can settle into cleaner large-scale structure.",
+          parameters: [
+            "<strong>Damping</strong> controls how quickly orbital energy is dissipated.",
+            "<strong>Initial Spin</strong> sets the starting rotation built into the disk.",
+          ],
+        },
       ],
     },
     stats: {
@@ -54,8 +95,8 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       stats: [{ label: "FPS", valueId: "galaxy-fps-live", initial: "--" }],
       charts: [
         { title: "Count", liveId: "chart-galaxy-count-live", liveInitial: "0", canvasId: "chart-galaxy-count", aria: "galaxy count trend chart" },
-        { title: "Mean Radius", liveId: "chart-galaxy-radius-live", liveInitial: "0.00 m", canvasId: "chart-galaxy-radius", aria: "galaxy mean radius trend chart" },
-        { title: "Mean Speed", liveId: "chart-galaxy-speed-live", liveInitial: "0.00 m/s", canvasId: "chart-galaxy-speed", aria: "galaxy mean speed trend chart" },
+        { title: "Mean Radius", liveId: "chart-galaxy-radius-live", liveInitial: `0 ${GALAXY_UNITS.length.label}`, canvasId: "chart-galaxy-radius", aria: "galaxy mean radius trend chart" },
+        { title: "Mean Speed", liveId: "chart-galaxy-speed-live", liveInitial: `0 ${GALAXY_SPEED_UNIT}`, canvasId: "chart-galaxy-speed", aria: "galaxy mean speed trend chart" },
       ],
     },
   },
@@ -70,12 +111,12 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("galaxy-sim-speed", "Simulation Speed", "bi-stopwatch", "galaxy-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("galaxy-count", "Count", "bi-people-fill", "galaxy-count-value", "500", "50", "2000", "10", "500"),
-        slider("galaxy-particle-size", "Object Size", "bi-rulers", "galaxy-particle-size-value", "0.80 m", "0.2", "2.5", "0.05", "0.8"),
-        slider("galaxy-spin", "Initial Spin", "bi-arrow-clockwise", "galaxy-spin-value", "1.20", "0.0", "3.0", "0.05", "1.2"),
-        slider("galaxy-gravity", "Gravity (G)", "bi-asterisk", "galaxy-gravity-value", "180.0", "20", "500", "1", "180"),
-        slider("galaxy-central-mass", "Central Mass (M_c)", "bi-bullseye", "galaxy-central-mass-value", "2200", "200", "10000", "25", "2200"),
-        slider("galaxy-softening", "Softening (ε)", "bi-dot", "galaxy-softening-value", "1.80 m", "0.2", "8.0", "0.05", "1.8"),
-        slider("galaxy-damping", "Damping (λ)", "bi-sliders", "galaxy-damping-value", "0.010 1/s", "0.0", "0.10", "0.001", "0.01"),
+        slider("galaxy-particle-size", "Object Size", "bi-rulers", "galaxy-particle-size-value", `120 ${GALAXY_UNITS.length.label}`, "20", "600", "5", "120"),
+        slider("galaxy-spin", "Initial Spin", "bi-arrow-clockwise", "galaxy-spin-value", "1.35", "0.2", "2.5", "0.05", "1.35"),
+        slider("galaxy-gravity", "Gravity (G)", "bi-asterisk", "galaxy-gravity-value", GALAXY_GRAVITY_INTERNAL.toExponential(3), "0.001", "0.020", "0.0001", String(GALAXY_GRAVITY_INTERNAL)),
+        slider("galaxy-central-mass", "Central Mass (M_c)", "bi-bullseye", "galaxy-central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12"),
+        slider("galaxy-softening", "Softening (ε)", "bi-dot", "galaxy-softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180"),
+        slider("galaxy-damping", "Damping (λ)", "bi-sliders", "galaxy-damping-value", `0.0030 1/${GALAXY_UNITS.time.label}`, "0.0", "0.020", "0.0005", "0.003"),
       ],
       pauseButtonId: "toggle-galaxy-pause",
       defaultButtonId: "default-galaxy-sim",
@@ -95,18 +136,18 @@ export const GALAXY_APPLET_RUNTIME = {
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-galaxy-radius", "chart-galaxy-radius-live", () => "0.00 m", {
+      createChartMetric("chart-galaxy-radius", "chart-galaxy-radius-live", () => `0 ${GALAXY_UNITS.length.label}`, {
         stroke: "#9de2ff",
         fill: "rgba(157, 226, 255, 0.16)",
-        axisLabel: "m",
-        tickFormatter: (value) => value.toFixed(1),
+        axisLabel: GALAXY_UNITS.length.label,
+        tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-galaxy-speed", "chart-galaxy-speed-live", () => "0.00 m/s", {
+      createChartMetric("chart-galaxy-speed", "chart-galaxy-speed-live", () => `0 ${GALAXY_SPEED_UNIT}`, {
         stroke: "#ffbe8d",
         fill: "rgba(255, 190, 141, 0.16)",
-        axisLabel: "m/s",
-        tickFormatter: (value) => value.toFixed(1),
+        axisLabel: GALAXY_SPEED_UNIT,
+        tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
       }),
     ];
@@ -122,8 +163,8 @@ export const GALAXY_APPLET_RUNTIME = {
 
     ui.updateChartMetrics("galaxy", [count, meanRadius, meanSpeed], [
       String(count),
-      `${meanRadius.toFixed(2)} m`,
-      `${meanSpeed.toFixed(2)} m/s`,
+      `${Math.round(meanRadius).toLocaleString()} ${GALAXY_UNITS.length.label}`,
+      `${Math.round(meanSpeed).toLocaleString()} ${GALAXY_SPEED_UNIT}`,
     ]);
   },
 };
@@ -222,11 +263,13 @@ export class GalaxySimulation {
       return;
     }
 
-    const soft = Math.max(0.05, this.params.softening ?? 1.8);
+    const dtMyr = dt * GALAXY_TIME_SCALE_MYR_PER_SECOND;
+    const soft = Math.max(1, this.params.softening ?? 180);
     const softSq = soft * soft;
-    const G = Math.max(0, this.params.gravity ?? 180);
-    const centralMass = Math.max(0, this.params.centralMass ?? 2200);
-    const damping = THREE.MathUtils.clamp(this.params.damping ?? 0.01, 0, 0.2);
+    const G = Math.max(0, this.params.gravity ?? GALAXY_GRAVITY_INTERNAL);
+    const centralMass = Math.max(0, this.params.centralMass ?? 2.2e12);
+    const particleMass = Math.max(1e6, (centralMass * GALAXY_DISK_MASS_FRACTION) / Math.max(count, 1));
+    const damping = THREE.MathUtils.clamp(this.params.damping ?? 0.003, 0, 0.05);
 
     for (let i = 0; i < count; i += 1) {
       const p = this.particles[i];
@@ -252,7 +295,7 @@ export class GalaxySimulation {
         const distSq = this.tmpDelta.lengthSq() + softSq;
         const invDist = 1 / Math.sqrt(distSq);
         const invDist3 = invDist * invDist * invDist;
-        const factor = G * invDist3;
+        const factor = G * particleMass * invDist3;
 
         a.acceleration.addScaledVector(this.tmpDelta, factor);
         b.acceleration.addScaledVector(this.tmpDelta, -factor);
@@ -272,9 +315,9 @@ export class GalaxySimulation {
       const invDist3 = invDist * invDist * invDist;
       p.acceleration.addScaledVector(this.tmpCenterDelta, G * centralMass * invDist3);
 
-      p.velocity.addScaledVector(p.acceleration, dt);
-      p.velocity.multiplyScalar(1 - damping * dt);
-      p.position.addScaledVector(p.velocity, dt);
+      p.velocity.addScaledVector(p.acceleration, dtMyr);
+      p.velocity.multiplyScalar(Math.max(0, 1 - damping * dtMyr));
+      p.position.addScaledVector(p.velocity, dtMyr);
       this.world.applyBoundaryConditions(p);
     }
 
@@ -345,10 +388,10 @@ export class GalaxySimulation {
   }
 
   createParticle() {
-    const diskRadius = Math.max(2, Math.min(this.params.worldSizeX, this.params.worldSizeY) * 0.45);
+    const diskRadius = Math.max(5000, Math.min(this.params.worldSizeX, this.params.worldSizeY) * 0.45);
     const r = Math.sqrt(Math.random()) * diskRadius;
     const theta = Math.random() * Math.PI * 2;
-    const zJitter = THREE.MathUtils.randFloatSpread(Math.max(0.5, this.params.worldSizeZ * 0.06));
+    const zJitter = THREE.MathUtils.randFloatSpread(Math.max(250, this.params.worldSizeZ * 0.06));
 
     const position = new THREE.Vector3(
       Math.cos(theta) * r,
@@ -357,8 +400,10 @@ export class GalaxySimulation {
     );
 
     const tangential = new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0);
-    const spin = Math.max(0, this.params.spin ?? 1.2);
-    const baseSpeed = spin * Math.sqrt(Math.max(0.1, this.params.gravity) * Math.max(0.5, this.params.centralMass) / Math.max(2, r));
+    const spin = Math.max(0, this.params.spin ?? 1.35);
+    const baseSpeed = spin * Math.sqrt(
+      Math.max(1e-6, this.params.gravity) * Math.max(1e8, this.params.centralMass) / Math.max(200, r),
+    );
     tangential.multiplyScalar(baseSpeed);
     tangential.x += THREE.MathUtils.randFloatSpread(baseSpeed * 0.15);
     tangential.y += THREE.MathUtils.randFloatSpread(baseSpeed * 0.15);

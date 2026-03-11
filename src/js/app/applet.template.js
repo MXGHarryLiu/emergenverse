@@ -36,9 +36,22 @@ export const APPLET_CONFIG = defineAppletConfig({
       title: "Introduction",
       icon: "bi-journal-text",
       hidden: true,
-      paragraphs: ["Describe the model here."],
-      equations: ["$$x(t+\\Delta t)=x(t)+v(t)\\Delta t$$"],
-      mapping: ["<strong>Count</strong> controls the number of agents."],
+      paragraphs: [
+        "Describe the applet in plain language.",
+        "Keep the introduction general. Put symbols, equations, and parameter mapping in the model popup instead.",
+      ],
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Short summary of the governing model.",
+      items: [
+        {
+          title: "State Update",
+          equation: "$$x(t+\\Delta t)=x(t)+v(t)\\Delta t$$",
+          explanation: "Explain what this equation does in plain language.",
+          parameters: ["<strong>Count</strong> controls the number of agents."],
+        },
+      ],
     },
     stats: {
       sectionKey: "example-stats",

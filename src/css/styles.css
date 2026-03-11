@@ -122,6 +122,25 @@ body {
   min-width: 2.4rem;
 }
 
+.nav-callout-btn {
+  position: relative;
+  overflow: visible;
+}
+
+.nav-callout-active {
+  animation: nav-callout-pulse 1.1s ease 3;
+}
+
+.nav-callout-active::after {
+  content: "";
+  position: absolute;
+  inset: -0.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 196, 109, 0.72);
+  animation: nav-callout-ring 1.1s ease 3;
+  pointer-events: none;
+}
+
 .nav-brand-group {
   min-width: 0;
 }
@@ -425,6 +444,15 @@ body {
 .tips-box {
   border-top: 1px dashed var(--line-soft);
   padding-top: 1rem;
+}
+
+.model-action-row {
+  display: flex;
+  justify-content: center;
+}
+
+.model-action-row .btn {
+  margin-top: 0 !important;
 }
 
 .model-box {
@@ -1100,6 +1128,10 @@ body {
   width: min(520px, 100%);
 }
 
+.controls-modal-wide {
+  width: min(860px, 100%);
+}
+
 .share-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1141,6 +1173,63 @@ body {
 
 .controls-modal-body {
   padding: 0.85rem 0.95rem 0.95rem;
+}
+
+.equation-card + .equation-card {
+  margin-top: 0.8rem;
+}
+
+.equation-card {
+  border: 1px solid var(--line-soft);
+  border-radius: 0.85rem;
+  padding: 0.9rem 0.95rem;
+  background: rgba(8, 16, 32, 0.48);
+}
+
+.equation-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.equation-card-index {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.equation-card-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--title-color);
+}
+
+.equation-card-math {
+  padding: 0.35rem 0;
+}
+
+.equation-card-math .katex-display {
+  margin: 0.2rem 0;
+}
+
+.equation-card-math .katex {
+  font-size: clamp(0.92rem, 1.5vw, 1.28rem);
+}
+
+.equation-card-copy {
+  margin: 0.4rem 0 0;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.equation-card-list {
+  margin: 0.55rem 0 0;
+  padding-left: 1rem;
+  color: var(--text-soft);
+  line-height: 1.48;
 }
 
 .controls-modal-subtitle {
@@ -1297,5 +1386,42 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes nav-callout-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    border-color: rgba(135, 197, 255, 0.44);
+    box-shadow: 0 0 0 rgba(255, 196, 109, 0);
+  }
+
+  35% {
+    transform: translateY(-1px) scale(1.06);
+    border-color: rgba(255, 196, 109, 0.92);
+    box-shadow: 0 0 0.9rem rgba(255, 196, 109, 0.32);
+  }
+
+  65% {
+    transform: translateY(0) scale(1.02);
+    border-color: rgba(255, 166, 77, 0.84);
+    box-shadow: 0 0 1.15rem rgba(255, 166, 77, 0.24);
+  }
+}
+
+@keyframes nav-callout-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+
+  30% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
   }
 }

@@ -1,5 +1,5 @@
 // Config-driven sidebar template renderer for applet information and controls.
-import { APPLET_CONFIGS, APPLET_ORDER } from "./appletConfigs.js";
+import { APPLET_CONFIGS, APPLET_ORDER } from "./app/appletConfigs.js";
 
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
@@ -37,7 +37,7 @@ export function renderAppletSectionsFromConfig() {
       return;
     }
     if (config.left?.intro) {
-      leftFragment.appendChild(buildIntroSection(config.left.intro, appletId, templates));
+      leftFragment.appendChild(buildIntroSection(config.left.intro, config.left.model, appletId, templates));
     }
     if (config.left?.stats) {
       leftFragment.appendChild(buildStatsSection(config.left.stats, appletId, templates));
@@ -87,7 +87,7 @@ function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   return section;
 }
 
-function buildIntroSection(introConfig, appletId, templates) {
+function buildIntroSection(introConfig, modelConfig, appletId, templates) {
   const section = buildSectionShell(introConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} introduction section`,
   });
@@ -100,30 +100,15 @@ function buildIntroSection(introConfig, appletId, templates) {
     body.appendChild(p);
   });
 
-  if (Array.isArray(introConfig.equations) && introConfig.equations.length > 0) {
-    const modelBox = document.createElement("div");
-    modelBox.className = "model-box mt-3";
-    modelBox.innerHTML = '<h3 class="tips-title">Model Equations</h3><div class="math-block"></div>';
-    const mathBlock = modelBox.querySelector(".math-block");
-    introConfig.equations.forEach((line) => {
-      const lineEl = document.createElement("div");
-      lineEl.className = "math-line";
-      lineEl.textContent = line;
-      mathBlock.appendChild(lineEl);
-    });
-    body.appendChild(modelBox);
-  }
-
-  if (Array.isArray(introConfig.mapping) && introConfig.mapping.length > 0) {
+  if (modelConfig?.items?.length) {
     const tipsBox = document.createElement("div");
-    tipsBox.className = "tips-box mt-4";
-    tipsBox.innerHTML = '<h3 class="tips-title">Parameter Mapping</h3><ul class="tips-list"></ul>';
-    const ul = tipsBox.querySelector(".tips-list");
-    introConfig.mapping.forEach((item) => {
-      const li = document.createElement("li");
-      li.innerHTML = item;
-      ul.appendChild(li);
-    });
+    tipsBox.className = "model-action-row mt-3";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-sm btn-outline-theme mt-3";
+    button.setAttribute("data-model-info-open", appletId);
+    button.textContent = modelConfig.buttonLabel || "Open Model Equations";
+    tipsBox.appendChild(button);
     body.appendChild(tipsBox);
   }
 

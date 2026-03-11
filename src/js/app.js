@@ -11,7 +11,7 @@ import {
   APPLET_DEFINITIONS,
   APPLET_META,
   APPLET_ORDER,
-} from "./appletConfigs.js";
+} from "./app/appletConfigs.js";
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import {
   drawTrendChart as renderTrendChart,
@@ -71,10 +71,10 @@ const dom = {
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
-  colormapLegends: {
-    boid: createLegendDomRefs(""),
-    prey: createLegendDomRefs("prey-"),
-  },
+  colormapLegend: createLegendDomRefs(""),
+  supportInfoOpen: document.getElementById("support-info-open"),
+  supportInfoClose: document.getElementById("support-info-close"),
+  supportInfoBackdrop: document.getElementById("support-info-backdrop"),
   cameraProjectionToggle: document.getElementById("camera-projection-toggle"),
   themeToggle: document.getElementById("theme-toggle"),
   themeToggleLabel: document.getElementById("theme-toggle-label"),
@@ -82,6 +82,10 @@ const dom = {
   controlsInfoOpen: document.getElementById("controls-info-open"),
   controlsInfoClose: document.getElementById("controls-info-close"),
   controlsInfoBackdrop: document.getElementById("controls-info-backdrop"),
+  modelInfoClose: document.getElementById("model-info-close"),
+  modelInfoBackdrop: document.getElementById("model-info-backdrop"),
+  modelInfoTitle: document.getElementById("model-info-title"),
+  modelInfoBody: document.getElementById("model-info-body"),
   shareInfoOpen: document.getElementById("share-info-open"),
   shareInfoClose: document.getElementById("share-info-close"),
   shareInfoBackdrop: document.getElementById("share-info-backdrop"),
@@ -429,7 +433,7 @@ function updateLegendDisplay(legendDom, { isVisible, gradient, minText, maxText 
 }
 
 function updateColormapLegend() {
-  const legendDom = dom.colormapLegends.boid;
+  const legendDom = dom.colormapLegend;
   const range = getColorModeRange();
   updateLegendDisplay(legendDom, {
     isVisible: params.boid.colorMode !== "none",
@@ -440,7 +444,7 @@ function updateColormapLegend() {
 }
 
 function updatePreyColormapLegend() {
-  const legendDom = dom.colormapLegends.prey;
+  const legendDom = dom.colormapLegend;
   const range = preySimulation.getPredatorEnergyRange?.() ?? {
     min: 0,
     max: Math.max(0.1, (params.prey.predatorSpawnEnergy ?? 2.8) * 2.4),
@@ -511,7 +515,7 @@ function setupControls() {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return `${Math.round(value)} m`;
+    return formatWorldDistance(value);
   });
 
   bindRange("world-size-y", "world-size-y-value", (value) => {
@@ -520,7 +524,7 @@ function setupControls() {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return `${Math.round(value)} m`;
+    return formatWorldDistance(value);
   });
 
   bindRange("world-size-z", "world-size-z-value", (value) => {
@@ -529,7 +533,7 @@ function setupControls() {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
-    return `${Math.round(value)} m`;
+    return formatWorldDistance(value);
   });
 
   bindRange("camera-fov", "camera-fov-value", (value) => {
@@ -550,7 +554,6 @@ function setupControls() {
     resetTrendCharts("boid");
     syncCompactSectionSlider("boid-count");
   });
-  activateCompactRangeControl("boid-count");
 
   bindRange("ant-speed", "ant-speed-value", (value) => {
     params.ants.speed = value;
@@ -624,7 +627,6 @@ function setupControls() {
       resetTrendCharts("ants");
       syncCompactSectionSlider("ant-count");
     });
-    activateCompactRangeControl("ant-count");
   }
 
   bindRange("prey-speed", "prey-speed-value", (value) => {
@@ -683,7 +685,6 @@ function setupControls() {
       resetTrendCharts("prey");
       syncCompactSectionSlider("prey-count");
     });
-    activateCompactRangeControl("prey-count");
   }
 
   const predatorCountInput = document.getElementById("predator-count");
@@ -751,13 +752,12 @@ function setupControls() {
       resetTrendCharts("firefly");
       syncCompactSectionSlider("firefly-count");
     });
-    activateCompactRangeControl("firefly-count");
   }
 
   bindRange("galaxy-particle-size", "galaxy-particle-size-value", (value) => {
     params.galaxy.particleSize = value;
     galaxySimulation.syncInstances?.();
-    return `${value.toFixed(2)} m`;
+    return `${Math.round(value)} ly`;
   });
 
   bindRange("galaxy-sim-speed", "galaxy-sim-speed-value", (value) => {
@@ -772,22 +772,22 @@ function setupControls() {
 
   bindRange("galaxy-gravity", "galaxy-gravity-value", (value) => {
     params.galaxy.gravity = value;
-    return value.toFixed(1);
+    return value.toExponential(3);
   });
 
   bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
     params.galaxy.centralMass = value;
-    return `${Math.round(value)}`;
+    return `${value.toExponential(2)} M_sun`;
   });
 
   bindRange("galaxy-softening", "galaxy-softening-value", (value) => {
     params.galaxy.softening = value;
-    return `${value.toFixed(2)} m`;
+    return `${Math.round(value)} ly`;
   });
 
   bindRange("galaxy-damping", "galaxy-damping-value", (value) => {
     params.galaxy.damping = value;
-    return `${value.toFixed(3)} 1/s`;
+    return `${value.toFixed(4)} 1/Myr`;
   });
 
   const galaxyCountInput = document.getElementById("galaxy-count");
@@ -801,7 +801,6 @@ function setupControls() {
       resetTrendCharts("galaxy");
       syncCompactSectionSlider("galaxy-count");
     });
-    activateCompactRangeControl("galaxy-count");
   }
 
   const toggleCurrentSimulationPause = () => {
@@ -853,6 +852,9 @@ function setupControls() {
 
   dom.boundaryMode.addEventListener("change", () => {
     params.boundaryMode = dom.boundaryMode.value;
+    if (worldStatePersistenceEnabled) {
+      persistActiveAppletWorldState();
+    }
     simulationManager.onBoundaryModeChanged();
   });
 
@@ -982,9 +984,20 @@ function getAppletWorldConfig(appletId) {
     defaults: { x: 100, y: 100, z: 100 },
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
+    unitLabel: "m",
   };
   const config = APPLET_CONFIGS[appletId]?.world;
   return config || fallback;
+}
+
+function getWorldUnitLabel(appletId = activeApplet) {
+  return getAppletWorldConfig(appletId).unitLabel || "m";
+}
+
+function formatWorldDistance(value, appletId = activeApplet) {
+  const rounded = Math.round(value);
+  const unitLabel = getWorldUnitLabel(appletId);
+  return `${unitLabel === "m" ? rounded : rounded.toLocaleString()} ${unitLabel}`;
 }
 
 function createDefaultWorldState(appletId) {
@@ -994,6 +1007,7 @@ function createDefaultWorldState(appletId) {
     y: Number(config.defaults?.y ?? 100),
     z: Number(config.defaults?.z ?? 100),
     gridSize: Number(config.gridSize ?? 5),
+    boundaryMode: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic",
   };
 }
 
@@ -1007,6 +1021,7 @@ function persistActiveAppletWorldState() {
     y: params.worldSizeY,
     z: params.worldSizeZ,
     gridSize: params.worldGridSize,
+    boundaryMode: params.boundaryMode,
   };
 }
 
@@ -1044,12 +1059,17 @@ function applyAppletWorldState(appletId) {
   params.worldSizeY = state.y;
   params.worldSizeZ = state.z;
   params.worldGridSize = Number.isFinite(state.gridSize) ? state.gridSize : Number(config.gridSize ?? 5);
+  params.boundaryMode = state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic";
 
-  setControlValue("world-size-x", params.worldSizeX, "world-size-x-value", (value) => `${Math.round(value)} m`);
-  setControlValue("world-size-y", params.worldSizeY, "world-size-y-value", (value) => `${Math.round(value)} m`);
-  setControlValue("world-size-z", params.worldSizeZ, "world-size-z-value", (value) => `${Math.round(value)} m`);
+  setControlValue("world-size-x", params.worldSizeX, "world-size-x-value", (value) => formatWorldDistance(value, appletId));
+  setControlValue("world-size-y", params.worldSizeY, "world-size-y-value", (value) => formatWorldDistance(value, appletId));
+  setControlValue("world-size-z", params.worldSizeZ, "world-size-z-value", (value) => formatWorldDistance(value, appletId));
+  if (dom.boundaryMode) {
+    dom.boundaryMode.value = params.boundaryMode;
+  }
 
   rebuildBoundsAndGrid();
+  simulationManager.onBoundaryModeChanged();
 }
 
 function applyDefaultProjectionForApplet(appletId) {
@@ -1714,12 +1734,13 @@ function updateViewportLabel() {
     return;
   }
 
-  const gridSizeM = Math.max(0.01, Number(params.worldGridSize) || 1);
+  const gridSize = Math.max(0.01, Number(params.worldGridSize) || 1);
+  const unitLabel = getWorldUnitLabel(activeApplet);
   const appLabel = APPLET_META[activeApplet]?.label ?? "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
-  const gridText = gridSizeM >= 1 ? gridSizeM.toFixed(1) : gridSizeM.toFixed(2);
-  dom.frameSize.textContent = `Grid size: ${gridText} m | ${appLabel} | ${projectionLabel}`;
+  const gridText = gridSize >= 1 ? gridSize.toFixed(1) : gridSize.toFixed(2);
+  dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
 }
 
 function updateCameraTelemetry() {

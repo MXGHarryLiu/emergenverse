@@ -44,18 +44,42 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
-        "This applet uses a pheromone-coupled agent model on a 2D floor embedded in the 3D scene. Ants follow local concentration gradients, deposit trails, and switch between explore/return states based on nest-food encounters.",
-        "Ant color encodes state: cyan/greenish ants are searching, orange ants are carrying food.",
+        "This applet models trail formation from simple foraging behavior. Ants sample local cues, choose a turning direction, and reinforce routes by leaving behind a shared trail field.",
+        "Open the model equations view for the motion rule, the heading update, and the trail-field dynamics.",
       ],
-      equations: [
-        "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
-        "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
-        "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
-      ],
-      mapping: [
-        "<strong>Sensor Distance / Sensor Angle</strong> define left-right probe locations in (S_R-S_L).",
-        "<strong>Turn Gain</strong> maps to k_θ, controlling steering responsiveness.",
-        "<strong>Deposit / Diffusion / Evaporation</strong> map to Q_j, D, and λ.",
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Agent motion coupled to a trail field on the foraging plane.",
+      items: [
+        {
+          title: "Agent Motion",
+          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
+          explanation: "Each ant moves forward according to its current heading and walking speed.",
+          parameters: [
+            "<strong>Speed</strong> sets the walking rate.",
+          ],
+        },
+        {
+          title: "Heading Update",
+          equation: "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
+          explanation: "Heading changes with trail sensing, goal attraction, and a stochastic exploration term.",
+          parameters: [
+            "<strong>Sensor Distance</strong>, <strong>Food Sensing Distance</strong>, and <strong>Sensor Angle</strong> define the sampling geometry.",
+            "<strong>Turn Gain</strong> scales steering responsiveness.",
+            "<strong>Goal Bias</strong> strengthens return-to-target steering.",
+          ],
+        },
+        {
+          title: "Trail Field",
+          equation: "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
+          explanation: "The trail field evaporates, diffuses across the floor, and receives new deposits from ants.",
+          parameters: [
+            "<strong>Deposit Rate</strong> controls how much trail is added.",
+            "<strong>Diffusion Rate</strong> controls how quickly trails spread.",
+            "<strong>Evaporation Rate</strong> controls how quickly trails fade.",
+          ],
+        },
       ],
     },
     stats: {

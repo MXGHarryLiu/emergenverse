@@ -1,4 +1,6 @@
-// Overlay and modal behavior for help, about, share, and screenshot actions.
+// Overlay and modal behavior for help, model equations, about, share, and screenshot actions.
+import { APPLET_CONFIGS, APPLET_META } from "./app/appletConfigs.js";
+
 export function setupUiOverlays({
   dom,
   renderer,
@@ -9,7 +11,9 @@ export function setupUiOverlays({
   setPaused,
   onPauseStateChange,
 }) {
+  setupSupportPopup(dom);
   setupControlsInfoPopup(dom);
+  setupModelInfoPopup(dom, getActiveApplet);
   setupAboutPopup(dom);
   setupSharePopup(dom);
   setupViewportScreenshotButton({
@@ -21,6 +25,125 @@ export function setupUiOverlays({
     getPaused,
     setPaused,
     onPauseStateChange,
+  });
+}
+
+function setupSupportPopup(dom) {
+  bindDismissibleOverlay({
+    openButton: dom.supportInfoOpen,
+    closeButton: dom.supportInfoClose,
+    backdrop: dom.supportInfoBackdrop,
+  });
+
+  if (!dom.supportInfoOpen) {
+    return;
+  }
+
+  dom.supportInfoOpen.classList.add("nav-callout-active");
+  window.setTimeout(() => {
+    dom.supportInfoOpen?.classList.remove("nav-callout-active");
+  }, 4200);
+}
+
+function setupModelInfoPopup(dom, getActiveApplet) {
+  if (!dom.modelInfoBackdrop || !dom.modelInfoClose || !dom.modelInfoTitle || !dom.modelInfoBody) {
+    return;
+  }
+
+  const renderMath = () => {
+    if (typeof window.renderMathInElement !== "function") {
+      return;
+    }
+    window.renderMathInElement(dom.modelInfoBody, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\(", right: "\\)", display: false },
+      ],
+      throwOnError: false,
+    });
+  };
+
+  const renderModelContent = (appletId) => {
+    const modelConfig = APPLET_CONFIGS[appletId]?.left?.model;
+    const appletLabel = APPLET_META[appletId]?.label ?? "Applet";
+    dom.modelInfoTitle.textContent = `${appletLabel} Model Equations`;
+    dom.modelInfoBody.innerHTML = "";
+
+    if (!modelConfig?.items?.length) {
+      const empty = document.createElement("p");
+      empty.className = "panel-copy mb-0";
+      empty.textContent = "No model equations are configured for this applet.";
+      dom.modelInfoBody.appendChild(empty);
+      return;
+    }
+
+    if (modelConfig.subtitle) {
+      const subtitle = document.createElement("p");
+      subtitle.className = "controls-modal-subtitle";
+      subtitle.textContent = modelConfig.subtitle;
+      dom.modelInfoBody.appendChild(subtitle);
+    }
+
+    modelConfig.items.forEach((item, index) => {
+      const card = document.createElement("section");
+      card.className = "equation-card";
+
+      const heading = document.createElement("div");
+      heading.className = "equation-card-head";
+
+      const indexLabel = document.createElement("span");
+      indexLabel.className = "equation-card-index";
+      indexLabel.textContent = `Eq. ${index + 1}`;
+      heading.appendChild(indexLabel);
+
+      const title = document.createElement("h3");
+      title.className = "equation-card-title";
+      title.textContent = item.title || `Equation ${index + 1}`;
+      heading.appendChild(title);
+      card.appendChild(heading);
+
+      if (item.equation) {
+        const equation = document.createElement("div");
+        equation.className = "equation-card-math";
+        equation.textContent = item.equation;
+        card.appendChild(equation);
+      }
+
+      if (item.explanation) {
+        const explanation = document.createElement("p");
+        explanation.className = "equation-card-copy";
+        explanation.textContent = item.explanation;
+        card.appendChild(explanation);
+      }
+
+      if (Array.isArray(item.parameters) && item.parameters.length > 0) {
+        const list = document.createElement("ul");
+        list.className = "equation-card-list";
+        item.parameters.forEach((entry) => {
+          const li = document.createElement("li");
+          li.innerHTML = entry;
+          list.appendChild(li);
+        });
+        card.appendChild(list);
+      }
+
+      dom.modelInfoBody.appendChild(card);
+    });
+
+    renderMath();
+  };
+
+  document.querySelectorAll("[data-model-info-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const appletId = button.getAttribute("data-model-info-open") || getActiveApplet();
+      renderModelContent(appletId);
+      openOverlay(dom.modelInfoBackdrop);
+    });
+  });
+
+  bindDismissibleOverlay({
+    closeButton: dom.modelInfoClose,
+    backdrop: dom.modelInfoBackdrop,
   });
 }
 
@@ -106,14 +229,14 @@ function setupSharePopup(dom) {
 }
 
 function bindDismissibleOverlay({ openButton, closeButton, backdrop }) {
-  if (!openButton || !closeButton || !backdrop) {
+  if (!closeButton || !backdrop) {
     return;
   }
 
   const open = () => openOverlay(backdrop);
   const close = () => closeOverlay(backdrop);
 
-  openButton.addEventListener("click", open);
+  openButton?.addEventListener("click", open);
   closeButton.addEventListener("click", close);
   backdrop.addEventListener("click", (event) => {
     if (event.target === backdrop) {

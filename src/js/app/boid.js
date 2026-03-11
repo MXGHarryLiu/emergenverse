@@ -35,19 +35,38 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       title: "Introduction",
       icon: "bi-journal-text",
       paragraphs: [
-        "This applet implements the 3D Reynolds flocking model as a discrete-time multi-agent system in SI units. Each boid state is position x_i (m) and velocity v_i (m/s), advanced by steering acceleration with bounded speed and acceleration.",
+        "This applet shows flocking as a local coordination process. Each boid responds to nearby neighbors, and large-scale group motion emerges from those simple local interactions.",
+        "Open the model equations view for the update rules and the parameter-to-equation mapping.",
       ],
-      equations: [
-        "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
-        "$$\\mathbf{v}_i(t+\\Delta t)=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)$$",
-        "$$v_{\\min}\\le \\|\\mathbf{v}_i\\|\\le v_{\\max}$$",
-        "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
-        "$$\\|\\mathbf{a}_i\\|\\le a_{\\max}$$",
-      ],
-      mapping: [
-        "<strong>Perception Radius</strong> controls which neighbors contribute to alignment/cohesion.",
-        "<strong>Separation Distance</strong> controls near-field repulsion.",
-        "<strong>Alignment / Cohesion / Separation Weight</strong> map to wₐ, wᶜ, wₛ in the steering equation.",
+    },
+    model: {
+      buttonLabel: "Open Model Equations",
+      subtitle: "Discrete flocking update with bounded steering and speed.",
+      items: [
+        {
+          title: "Position Update",
+          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+          explanation: "Each boid advances according to its current velocity during the next simulation step.",
+        },
+        {
+          title: "Velocity Update",
+          equation: "$$\\mathbf{v}_i(t+\\Delta t)=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)$$",
+          explanation: "Velocity changes by the steering acceleration and is then clamped so the boid stays within its allowed motion limits.",
+          parameters: [
+            "<strong>Max Speed</strong> sets the speed cap.",
+            "<strong>Max Acceleration</strong> sets the steering cap.",
+          ],
+        },
+        {
+          title: "Steering Composition",
+          equation: "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
+          explanation: "The steering vector is formed by combining alignment, cohesion, and separation responses to nearby flockmates.",
+          parameters: [
+            "<strong>Perception Radius</strong> controls which neighbors contribute to alignment and cohesion.",
+            "<strong>Separation Distance</strong> controls the near-field repulsion zone.",
+            "<strong>Alignment Weight</strong>, <strong>Cohesion Weight</strong>, and <strong>Separation Weight</strong> scale the three steering terms.",
+          ],
+        },
       ],
     },
     stats: {
