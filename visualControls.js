@@ -3,7 +3,9 @@ export function createVisualControls({
   dom,
   boidSimulation,
   antSimulation,
+  preySimulation,
   updateBoidColormapLegend,
+  updatePreyColormapLegend,
 }) {
   const antDiscreteColormapOptions = [
     { value: "paired", label: "Paired" },
@@ -112,6 +114,13 @@ export function createVisualControls({
     updateAntColormapLegend();
   };
 
+  const updatePreyVisibility = () => {
+    const useSingleColor = params.preyColorMode === "none";
+    dom.preySingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
+    dom.preyColormapControlWrap?.classList.toggle("is-hidden", useSingleColor);
+    updatePreyColormapLegend?.();
+  };
+
   const bind = () => {
     dom.colorMode?.addEventListener("change", () => {
       params.colorMode = dom.colorMode.value;
@@ -148,6 +157,24 @@ export function createVisualControls({
       params.antSolidColor = dom.antSolidColor.value;
       antSimulation.syncInstances();
     });
+
+    dom.preyColorMode?.addEventListener("change", () => {
+      params.preyColorMode = dom.preyColorMode.value;
+      updatePreyVisibility();
+      preySimulation.syncInstances();
+      updatePreyColormapLegend?.();
+    });
+
+    dom.preyColormap?.addEventListener("change", () => {
+      params.preyColormap = dom.preyColormap.value;
+      preySimulation.syncInstances();
+      updatePreyColormapLegend?.();
+    });
+
+    dom.preySolidColor?.addEventListener("input", () => {
+      params.preySolidColor = dom.preySolidColor.value;
+      preySimulation.syncInstances();
+    });
   };
 
   const syncFromParams = () => {
@@ -171,10 +198,22 @@ export function createVisualControls({
       dom.antSolidColor.value = params.antSolidColor;
     }
 
+    if (dom.preyColorMode) {
+      dom.preyColorMode.value = params.preyColorMode;
+    }
+    if (dom.preyColormap) {
+      dom.preyColormap.value = params.preyColormap;
+    }
+    if (dom.preySolidColor) {
+      dom.preySolidColor.value = params.preySolidColor;
+    }
+
     updateBoidVisibility();
     updateAntVisibility();
+    updatePreyVisibility();
     updateBoidColormapLegend();
     updateAntColormapLegend();
+    updatePreyColormapLegend?.();
   };
 
   return {
@@ -182,5 +221,6 @@ export function createVisualControls({
     syncFromParams,
     updateBoidVisibility,
     updateAntVisibility,
+    updatePreyVisibility,
   };
 }

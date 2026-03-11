@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Emergenverse | 3D Boids</title>
+    <title>Emergenverse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -85,6 +85,15 @@
             >
               Ant
             </button>
+            <button
+              class="applet-tab"
+              type="button"
+              data-applet-item="prey"
+              aria-selected="false"
+              title="Prey applet"
+            >
+              Prey
+            </button>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -92,17 +101,18 @@
             <i class="bi bi-circle-half" id="theme-toggle-icon" aria-hidden="true"></i>
             <span id="theme-toggle-label">Auto</span>
           </button>
-          <button class="chip chip-button" id="controls-info-open" type="button" title="Controls info">
-            <i class="bi bi-info-circle" aria-hidden="true"></i>
-            <span>Controls</span>
-          </button>
           <button class="chip chip-button" id="about-info-open" type="button" title="About">
             <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
             <span>About</span>
           </button>
-          <button class="chip chip-button status-chip run-chip" id="run-state" type="button" title="Pause simulation">
+          <button
+            class="chip chip-button status-chip run-chip"
+            id="run-state"
+            type="button"
+            title="Running. Click to pause simulation"
+            aria-label="Running. Click to pause simulation"
+          >
             <i class="bi bi-play-fill state-icon" aria-hidden="true"></i>
-            <span>Running</span>
           </button>
         </div>
       </div>
@@ -318,6 +328,106 @@
             </div>
           </div>
         </section>
+        <section
+          class="control-section is-hidden"
+          data-control-section="prey-introduction"
+          data-app-visible="prey"
+        >
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle prey introduction section"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-journal-text panel-head-icon" aria-hidden="true"></i>
+              <span>Introduction</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <p class="panel-copy">
+              This applet approximates a predator-prey food chain with local pursuit, evasion, and prey reproduction.
+              Predators consume prey to maintain energy; prey expand under favorable conditions.
+              The resulting oscillation is qualitatively consistent with Lotka-Volterra-style population cycles.
+            </p>
+
+            <div class="model-box mt-3">
+              <h3 class="tips-title">Model Equations</h3>
+              <div class="math-block">
+                <div class="math-line">$$\dot{x}=\alpha x-\beta xy,\qquad \dot{y}=\delta xy-\gamma y$$</div>
+                <div class="math-line">$$\mathbf{p}_{k}(t+\Delta t)=\mathbf{p}_{k}(t)+\mathbf{v}_{k}(t)\Delta t$$</div>
+                <div class="math-line">$$\mathbf{v}_{k}(t+\Delta t)=\mathrm{norm}\!\left(\mathbf{v}_{k}+ \mathbf{u}_{k}\Delta t\right)\,s_k$$</div>
+              </div>
+            </div>
+
+            <div class="tips-box mt-4">
+              <h3 class="tips-title">Parameter Mapping</h3>
+              <ul class="tips-list">
+                <li><strong>Prey Birth Rate</strong> sets prey growth tendency (\(\alpha\)).</li>
+                <li><strong>Predation Rate (\(\beta\))</strong> scales effective capture interaction strength.</li>
+                <li><strong>Predator Gain (\(\delta\))</strong> controls predator energy gained per successful predation.</li>
+                <li><strong>Predator Energy Loss (\(\gamma\))</strong> sets natural predator decay tendency.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+        <section
+          class="control-section is-hidden"
+          data-control-section="prey-stats"
+          data-app-visible="prey"
+        >
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle prey stats section"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-bar-chart-line-fill panel-head-icon" aria-hidden="true"></i>
+              <span>Stats</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <div class="stat-grid mb-3">
+              <div class="stat-card">
+                <div class="stat-inline">
+                  <span class="stat-inline-label">FPS</span>
+                  <span class="stat-inline-value" id="prey-fps-live">--</span>
+                </div>
+              </div>
+            </div>
+            <div class="chart-stack mt-3">
+              <div class="chart-card" data-chart-card>
+                <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle prey count chart">
+                  <span class="chart-title">Prey Count</span>
+                  <span class="chart-live" id="chart-prey-count-live">0</span>
+                  <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+                </button>
+                <canvas id="chart-prey-count" class="trend-chart" width="260" height="96" aria-label="prey count trend chart"></canvas>
+              </div>
+              <div class="chart-card mt-2" data-chart-card>
+                <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle predator count chart">
+                  <span class="chart-title">Predator Count</span>
+                  <span class="chart-live" id="chart-predator-count-live">0</span>
+                  <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+                </button>
+                <canvas id="chart-predator-count" class="trend-chart" width="260" height="96" aria-label="predator count trend chart"></canvas>
+              </div>
+              <div class="chart-card mt-2" data-chart-card>
+                <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle predation chart">
+                  <span class="chart-title">Predation (cum.)</span>
+                  <span class="chart-live" id="chart-prey-eaten-live">0</span>
+                  <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+                </button>
+                <canvas id="chart-prey-eaten" class="trend-chart" width="260" height="96" aria-label="predation events trend chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
       </aside>
       <div
         class="panel-resizer panel-resizer-left"
@@ -331,11 +441,46 @@
         <button class="panel-reveal panel-reveal-left is-hidden" id="show-left-panel" type="button" aria-label="Show left panel">
           <i class="bi bi-chevron-bar-right" aria-hidden="true"></i>
         </button>
-        <button class="panel-reveal panel-reveal-right is-hidden" id="show-right-panel" type="button" aria-label="Show right panel">
-          <i class="bi bi-chevron-bar-left" aria-hidden="true"></i>
-        </button>
-        <div id="scene-host" data-app-visible="boid ants" aria-label="3D simulation viewport"></div>
-        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants">Grid size: -- m | -- | --</div>
+        <div class="viewport-tools" aria-label="Viewport tools">
+          <button
+            class="viewport-tool-btn is-hidden"
+            id="show-right-panel"
+            type="button"
+            title="Show controls panel"
+            aria-label="Show controls panel"
+          >
+            <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
+          </button>
+          <button
+            class="viewport-tool-btn"
+            id="controls-info-open"
+            type="button"
+            title="Controls help"
+            aria-label="Controls help"
+          >
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+          </button>
+          <button
+            class="viewport-tool-btn"
+            id="share-info-open"
+            type="button"
+            title="Share link"
+            aria-label="Share link"
+          >
+            <i class="bi bi-share-fill" aria-hidden="true"></i>
+          </button>
+          <button
+            class="viewport-tool-btn"
+            id="viewport-screenshot-btn"
+            type="button"
+            title="Download viewport screenshot"
+            aria-label="Download viewport screenshot"
+          >
+            <i class="bi bi-camera-fill" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div id="scene-host" data-app-visible="boid ants prey" aria-label="3D simulation viewport"></div>
+        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey">Grid size: -- m | -- | --</div>
       </section>
       <div
         class="panel-resizer panel-resizer-right"
@@ -583,9 +728,9 @@
 
             <label class="form-label" for="ant-goal-bias">
               <span class="label-name"><i class="bi bi-bullseye" aria-hidden="true"></i>Goal Bias (kg)</span>
-              <span class="label-value" id="ant-goal-bias-value">0.20 1/s</span>
+              <span class="label-value" id="ant-goal-bias-value">1.00 1/s</span>
             </label>
-            <input class="form-range" type="range" id="ant-goal-bias" min="0" max="2" step="0.05" value="0.2" />
+            <input class="form-range" type="range" id="ant-goal-bias" min="0" max="2" step="0.05" value="1.0" />
 
             <label class="form-label" for="ant-departure-rate">
               <span class="label-name"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>Departure Rate</span>
@@ -722,7 +867,167 @@
           </div>
         </div>
 
-        <div class="control-section mt-4" data-control-section="camera" data-app-visible="boid ants">
+        <div class="control-section mt-2 is-hidden" data-control-section="prey-simulation" data-app-visible="prey">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle prey simulation controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-sliders2 panel-head-icon" aria-hidden="true"></i>
+              <span>Simulation</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <div class="section-slider-hub" data-slider-hub="prey-simulation" aria-label="Active prey slider">
+              <div class="section-slider-head">
+                <span class="section-slider-title" data-section-slider-title>Prey Count</span>
+                <span class="section-slider-value" data-section-slider-value>260</span>
+              </div>
+              <input
+                class="form-range section-active-slider"
+                type="range"
+                data-section-slider
+                min="20"
+                max="1200"
+                step="10"
+                value="260"
+              />
+            </div>
+
+            <label class="form-label" for="prey-count">
+              <span class="label-name"><i class="bi bi-circle-fill" aria-hidden="true"></i>Prey Count</span>
+              <span class="label-value" id="prey-count-value">260</span>
+            </label>
+            <input class="form-range" type="range" id="prey-count" min="20" max="1200" step="10" value="260" />
+
+            <label class="form-label" for="predator-count">
+              <span class="label-name"><i class="bi bi-triangle-fill" aria-hidden="true"></i>Predator Count</span>
+              <span class="label-value" id="predator-count-value">24</span>
+            </label>
+            <input class="form-range" type="range" id="predator-count" min="2" max="240" step="1" value="24" />
+
+            <label class="form-label" for="prey-speed">
+              <span class="label-name"><i class="bi bi-speedometer2" aria-hidden="true"></i>Prey Speed</span>
+              <span class="label-value" id="prey-speed-value">4.5 m/s</span>
+            </label>
+            <input class="form-range" type="range" id="prey-speed" min="0.5" max="18" step="0.1" value="4.5" />
+
+            <label class="form-label" for="predator-speed">
+              <span class="label-name"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>Predator Speed</span>
+              <span class="label-value" id="predator-speed-value">6.2 m/s</span>
+            </label>
+            <input class="form-range" type="range" id="predator-speed" min="0.5" max="24" step="0.1" value="6.2" />
+
+            <label class="form-label" for="predator-sense-radius">
+              <span class="label-name"><i class="bi bi-broadcast" aria-hidden="true"></i>Sense Radius</span>
+              <span class="label-value" id="predator-sense-radius-value">16.0 m</span>
+            </label>
+            <input class="form-range" type="range" id="predator-sense-radius" min="1" max="60" step="0.5" value="16.0" />
+
+            <label class="form-label" for="predation-radius">
+              <span class="label-name"><i class="bi bi-crosshair2" aria-hidden="true"></i>Predation Radius</span>
+              <span class="label-value" id="predation-radius-value">1.6 m</span>
+            </label>
+            <input class="form-range" type="range" id="predation-radius" min="0.2" max="8" step="0.1" value="1.6" />
+
+            <label class="form-label" for="prey-birth-rate">
+              <span class="label-name"><i class="bi bi-activity" aria-hidden="true"></i>Prey Birth Rate (α)</span>
+              <span class="label-value" id="prey-birth-rate-value">0.08 1/s</span>
+            </label>
+            <input class="form-range" type="range" id="prey-birth-rate" min="0" max="0.8" step="0.01" value="0.08" />
+
+            <label class="form-label" for="predation-rate-beta">
+              <span class="label-name"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>Predation Rate (β)</span>
+              <span class="label-value" id="predation-rate-beta-value">1.00</span>
+            </label>
+            <input class="form-range" type="range" id="predation-rate-beta" min="0" max="3" step="0.05" value="1.00" />
+
+            <label class="form-label" for="predator-energy-gain">
+              <span class="label-name"><i class="bi bi-plus-circle" aria-hidden="true"></i>Predator Gain (δ)</span>
+              <span class="label-value" id="predator-energy-gain-value">1.60</span>
+            </label>
+            <input class="form-range" type="range" id="predator-energy-gain" min="0.1" max="5" step="0.05" value="1.60" />
+
+            <label class="form-label" for="predator-energy-loss">
+              <span class="label-name"><i class="bi bi-dash-circle" aria-hidden="true"></i>Predator Energy Loss (γ)</span>
+              <span class="label-value" id="predator-energy-loss-value">0.45 1/s</span>
+            </label>
+            <input class="form-range" type="range" id="predator-energy-loss" min="0" max="2" step="0.01" value="0.45" />
+
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-sm btn-theme flex-fill" id="toggle-prey-pause">
+                <i class="bi bi-pause-fill me-1" aria-hidden="true"></i>
+                <span>Pause</span>
+              </button>
+              <button class="btn btn-sm btn-outline-theme flex-fill" id="reset-prey-sim">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section mt-2 is-hidden" data-control-section="prey-visual" data-app-visible="prey">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle prey visual controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
+              <span>Visual</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <label class="form-label" for="prey-color-mode">
+              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Predator Color Mode</span>
+            </label>
+            <select class="form-select form-select-sm theme-select" id="prey-color-mode">
+              <option value="none">None (single color)</option>
+              <option value="energy" selected>Predator Energy</option>
+            </select>
+
+            <div id="prey-colormap-control-wrap">
+              <label class="form-label mt-2" for="prey-colormap">
+                <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+              </label>
+              <select class="form-select form-select-sm theme-select" id="prey-colormap">
+                <option value="turbo" selected>Turbo</option>
+                <option value="viridis">Viridis</option>
+                <option value="plasma">Plasma</option>
+                <option value="magma">Magma</option>
+                <option value="inferno">Inferno</option>
+                <option value="cividis">Cividis</option>
+                <option value="coolwarm">Coolwarm</option>
+                <option value="greys">Greys</option>
+              </select>
+              <div class="colormap-legend mt-2" id="prey-colormap-legend" aria-label="Predator energy colormap legend">
+                <div class="colormap-legend-bar" id="prey-colormap-legend-bar"></div>
+                <div class="colormap-legend-meta">
+                  <span id="prey-colormap-cmin">cmin: 0.00</span>
+                  <span id="prey-colormap-cmax">cmax: 6.72</span>
+                </div>
+              </div>
+            </div>
+            <div id="prey-single-color-wrap" class="is-hidden">
+              <label class="form-label mt-2" for="prey-solid-color">
+                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Predator Color</span>
+              </label>
+              <input
+                type="color"
+                class="form-control form-control-color theme-color-input"
+                id="prey-solid-color"
+                value="#ff8d5f"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section mt-4" data-control-section="camera" data-app-visible="boid ants prey">
           <button
             class="section-toggle"
             type="button"
@@ -809,7 +1114,7 @@
           </div>
         </div>
 
-        <div class="control-section mt-4" data-control-section="world" data-app-visible="boid ants">
+        <div class="control-section mt-4" data-control-section="world" data-app-visible="boid ants prey">
           <button
             class="section-toggle"
             type="button"
@@ -876,6 +1181,13 @@
       </aside>
     </main>
 
+    <div class="narrow-screen-blocker is-hidden" id="narrow-screen-blocker" aria-live="polite" aria-hidden="true">
+      <div class="narrow-screen-card">
+        <h2>Screen Too Narrow</h2>
+        <p>This app needs a wider viewport. Please enable desktop mode or widen your browser window.</p>
+      </div>
+    </div>
+
     <div class="controls-modal-backdrop is-hidden" id="controls-info-backdrop" aria-hidden="true">
       <section class="controls-modal" role="dialog" aria-modal="true" aria-labelledby="controls-info-title">
         <header class="controls-modal-head">
@@ -897,6 +1209,7 @@
             <li><strong>Boost (keyboard)</strong>: Hold `Shift` while translating.</li>
             <li><strong>Zoom / View Scale (mouse)</strong>: Scroll wheel changes FOV in perspective and zoom level in top orthographic.</li>
             <li><strong>Ants interaction</strong>: Enable <em>Double Click To Add Food</em>, then double-click in the viewport to place food at that X/Y location.</li>
+            <li><strong>Prey applet</strong>: Use the Prey simulation sliders to control prey/predator populations and interaction radii.</li>
           </ul>
         </div>
       </section>
@@ -929,6 +1242,27 @@
               <a href="#" aria-disabled="true">Buy me a coffee (coming soon)</a>
             </li>
           </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="controls-modal-backdrop is-hidden" id="share-info-backdrop" aria-hidden="true">
+      <section class="controls-modal controls-modal-compact" role="dialog" aria-modal="true" aria-labelledby="share-info-title">
+        <header class="controls-modal-head">
+          <h2 class="panel-title controls-modal-title" id="share-info-title">
+            <i class="bi bi-share-fill panel-head-icon" aria-hidden="true"></i>
+            <span>Share This View</span>
+          </h2>
+          <button class="icon-btn" id="share-info-close" type="button" aria-label="Close share dialog">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="controls-modal-body">
+          <div class="share-row">
+            <input class="share-link-input" id="share-link-input" type="text" readonly aria-label="Share URL" />
+            <button class="btn btn-sm btn-theme" id="share-link-copy" type="button">Copy</button>
+          </div>
+          <p class="control-note mt-2 mb-0" id="share-copy-status">Copy link to share the current app and camera state URL.</p>
         </div>
       </section>
     </div>

@@ -4,8 +4,16 @@ import { createThemeManager } from "./theme.js";
 import { createWorldManager } from "./world.js";
 import { BoidSimulation } from "./boid.js";
 import { AntSimulation } from "./ant.js";
+import { PreySimulation } from "./prey.js";
+import { FireflySimulation } from "./firefly.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
+import { setupUiOverlays } from "./uiOverlays.js";
+import {
+  drawTrendChart as renderTrendChart,
+  pushTrendValue as appendTrendValue,
+  resizeCanvasBackingStore as resizeChartCanvas,
+} from "./chartUtils.js";
 
 const params = {
   boidCount: 220,
@@ -42,7 +50,7 @@ const params = {
   antSensorDistance: 5.0,
   antSensorAngle: 40,
   antTurnGain: 1.6,
-  antGoalBias: 0.2,
+  antGoalBias: 1.0,
   antDepartureRate: 12,
   antDepositRate: 8.0,
   antDiffusionRate: 7.5,
@@ -54,6 +62,33 @@ const params = {
   antFoodAddMassUg: 50,
   antPickupMassUg: 1,
   antFoodSourceMassUg: 1000,
+  preyCount: 260,
+  predatorCount: 24,
+  preySpeed: 4.5,
+  predatorSpeed: 6.2,
+  predatorSenseRadius: 16,
+  predationRadius: 1.6,
+  preyBirthRate: 0.08,
+  predationRateBeta: 1.0,
+  preyAvoidRadius: 14,
+  preyAvoidWeight: 2.4,
+  predatorEnergyLoss: 0.45,
+  predatorEnergyGain: 1.6,
+  predatorSpawnEnergy: 2.8,
+  preyMaxCount: 1200,
+  preyScale: 0.62,
+  predatorScale: 1.0,
+  preyColorMode: "energy",
+  preyColormap: "turbo",
+  preySolidColor: "#ff8d5f",
+  fireflyCount: 180,
+  fireflySize: 0.8,
+  fireflySpeed: 3.0,
+  fireflyCoupling: 2.2,
+  fireflyRadius: 18.0,
+  fireflyFrequencyHz: 1.8,
+  fireflyFreqJitterHz: 0.2,
+  fireflyPhaseNoise: 0.4,
 };
 
 const cameraDefaults = {
@@ -76,24 +111,42 @@ const dom = {
   rightResizer: document.getElementById("right-resizer"),
   sceneHost: document.getElementById("scene-host"),
   frameSize: document.getElementById("frame-size"),
+  narrowScreenBlocker: document.getElementById("narrow-screen-blocker"),
   chartCount: document.getElementById("chart-count"),
   chartSpeed: document.getElementById("chart-speed"),
   chartNeighbors: document.getElementById("chart-neighbors"),
   chartAntTrips: document.getElementById("chart-ant-trips"),
   chartAntPheromone: document.getElementById("chart-ant-pheromone"),
   chartAntCount: document.getElementById("chart-ant-count"),
+  chartPreyCount: document.getElementById("chart-prey-count"),
+  chartPredatorCount: document.getElementById("chart-predator-count"),
+  chartPreyEaten: document.getElementById("chart-prey-eaten"),
+  chartFireflyCount: document.getElementById("chart-firefly-count"),
+  chartFireflyOrder: document.getElementById("chart-firefly-order"),
+  chartFireflyBlink: document.getElementById("chart-firefly-blink"),
   fpsLive: document.getElementById("fps-live"),
   chartCountLive: document.getElementById("chart-count-live"),
   chartSpeedLive: document.getElementById("chart-speed-live"),
   chartNeighborsLive: document.getElementById("chart-neighbors-live"),
   antsFpsLive: document.getElementById("ants-fps-live"),
+  preyFpsLive: document.getElementById("prey-fps-live"),
+  fireflyFpsLive: document.getElementById("firefly-fps-live"),
   antsCountLive: document.getElementById("ants-count-live"),
   antsCarryingLive: document.getElementById("ants-carrying-live"),
   antsTripsLive: document.getElementById("ants-trips-live"),
   antsPheromoneLive: document.getElementById("ants-pheromone-live"),
+  preyCountLive: document.getElementById("prey-count-live"),
+  preyPredatorLive: document.getElementById("prey-predator-live"),
+  preyEatenLive: document.getElementById("prey-eaten-live"),
   chartAntTripsLive: document.getElementById("chart-ant-trips-live"),
   chartAntPheromoneLive: document.getElementById("chart-ant-pheromone-live"),
   chartAntCountLive: document.getElementById("chart-ant-count-live"),
+  chartPreyCountLive: document.getElementById("chart-prey-count-live"),
+  chartPredatorCountLive: document.getElementById("chart-predator-count-live"),
+  chartPreyEatenLive: document.getElementById("chart-prey-eaten-live"),
+  chartFireflyCountLive: document.getElementById("chart-firefly-count-live"),
+  chartFireflyOrderLive: document.getElementById("chart-firefly-order-live"),
+  chartFireflyBlinkLive: document.getElementById("chart-firefly-blink-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
@@ -102,6 +155,10 @@ const dom = {
   resetSim: document.getElementById("reset-sim"),
   toggleAntPause: document.getElementById("toggle-ant-pause"),
   resetAntSim: document.getElementById("reset-ant-sim"),
+  togglePreyPause: document.getElementById("toggle-prey-pause"),
+  resetPreySim: document.getElementById("reset-prey-sim"),
+  toggleFireflyPause: document.getElementById("toggle-firefly-pause"),
+  resetFireflySim: document.getElementById("reset-firefly-sim"),
   resetCamera: document.getElementById("reset-camera"),
   homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
@@ -121,6 +178,15 @@ const dom = {
   antColormapLegendBar: document.getElementById("ant-colormap-legend-bar"),
   antColormapCmin: document.getElementById("ant-colormap-cmin"),
   antColormapCmax: document.getElementById("ant-colormap-cmax"),
+  preyColorMode: document.getElementById("prey-color-mode"),
+  preyColormap: document.getElementById("prey-colormap"),
+  preySolidColor: document.getElementById("prey-solid-color"),
+  preyColormapControlWrap: document.getElementById("prey-colormap-control-wrap"),
+  preySingleColorWrap: document.getElementById("prey-single-color-wrap"),
+  preyColormapLegend: document.getElementById("prey-colormap-legend"),
+  preyColormapLegendBar: document.getElementById("prey-colormap-legend-bar"),
+  preyColormapCmin: document.getElementById("prey-colormap-cmin"),
+  preyColormapCmax: document.getElementById("prey-colormap-cmax"),
   colormapLegend: document.getElementById("colormap-legend"),
   colormapLegendBar: document.getElementById("colormap-legend-bar"),
   colormapCmin: document.getElementById("colormap-cmin"),
@@ -132,6 +198,13 @@ const dom = {
   controlsInfoOpen: document.getElementById("controls-info-open"),
   controlsInfoClose: document.getElementById("controls-info-close"),
   controlsInfoBackdrop: document.getElementById("controls-info-backdrop"),
+  shareInfoOpen: document.getElementById("share-info-open"),
+  shareInfoClose: document.getElementById("share-info-close"),
+  shareInfoBackdrop: document.getElementById("share-info-backdrop"),
+  shareLinkInput: document.getElementById("share-link-input"),
+  shareLinkCopy: document.getElementById("share-link-copy"),
+  shareCopyStatus: document.getElementById("share-copy-status"),
+  viewportScreenshotBtn: document.getElementById("viewport-screenshot-btn"),
   aboutInfoOpen: document.getElementById("about-info-open"),
   aboutInfoClose: document.getElementById("about-info-close"),
   aboutInfoBackdrop: document.getElementById("about-info-backdrop"),
@@ -158,23 +231,33 @@ const panelWidthState = {
 
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
-const APPLET_IDS = new Set(["boid", "ants"]);
+const APPLET_IDS = new Set(["boid", "ants", "prey", "firefly"]);
 const appletCameraState = {
   boid: null,
   ants: null,
+  prey: null,
+  firefly: null,
 };
 
 let activeApplet = "boid";
 let boidPausedPreference = params.paused;
 let antsPausedPreference = params.paused;
+let preyPausedPreference = params.paused;
+let fireflyPausedPreference = params.paused;
 const appletProjectionInitialized = {
   boid: false,
   ants: false,
+  prey: false,
+  firefly: false,
 };
 
 let themeManager = null;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: false,
+  preserveDrawingBuffer: true,
+});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.domElement.setAttribute("aria-label", "3D simulation canvas");
@@ -293,6 +376,18 @@ let lastAntStats = {
   maxPheromone: 0,
 };
 
+let lastPreyStats = {
+  preyCount: 0,
+  predatorCount: 0,
+  eatenTotal: 0,
+};
+
+let lastFireflyStats = {
+  count: 0,
+  order: 0,
+  blinkRate: 0,
+};
+
 const boidSimulation = new BoidSimulation({
   scene,
   params,
@@ -312,8 +407,28 @@ const antSimulation = new AntSimulation({
   },
 });
 
+const preySimulation = new PreySimulation({
+  scene,
+  params,
+  onStats: (stats) => {
+    lastPreyStats = stats;
+    updatePreyStats(stats);
+  },
+});
+
+const fireflySimulation = new FireflySimulation({
+  scene,
+  params,
+  onStats: (stats) => {
+    lastFireflyStats = stats;
+    updateFireflyStats(stats);
+  },
+});
+
 simulationManager.register("boid", boidSimulation);
 simulationManager.register("ants", antSimulation);
+simulationManager.register("prey", preySimulation);
+simulationManager.register("firefly", fireflySimulation);
 
 const separationDelta = new THREE.Vector3();
 const alignment = new THREE.Vector3();
@@ -346,11 +461,20 @@ const neighborHistory = [];
 const antTripsHistory = [];
 const antPheromoneHistory = [];
 const antCountHistory = [];
+const preyCountHistory = [];
+const predatorCountHistory = [];
+const preyEatenHistory = [];
+const fireflyCountHistory = [];
+const fireflyOrderHistory = [];
+const fireflyBlinkHistory = [];
 const chartMaxPoints = 160;
 let boidChartFrameCounter = 0;
 let antChartFrameCounter = 0;
+let preyChartFrameCounter = 0;
+let fireflyChartFrameCounter = 0;
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
+const narrowScreenThresholdPx = 980;
 const antFoodRaycaster = new THREE.Raycaster();
 const antFoodPointerNdc = new THREE.Vector2();
 const antFoodPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -366,8 +490,18 @@ setupPanelToggles();
 setupPanelResizers();
 setupControlSectionCollapses();
 setupThemeToggle();
-setupControlsInfoPopup();
-setupAboutPopup();
+setupUiOverlays({
+  dom,
+  renderer,
+  scene,
+  cameraController,
+  getActiveApplet: () => activeApplet,
+  getPaused: () => params.paused,
+  setPaused: (value) => {
+    params.paused = Boolean(value);
+  },
+  onPauseStateChange: () => updateSimulationStateUI(),
+});
 setupAntFoodPlacementInteraction();
 setupTrendCharts();
 setupChartCollapses();
@@ -418,6 +552,12 @@ function updateFpsMetric(dt) {
   }
   if (dom.antsFpsLive) {
     dom.antsFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  }
+  if (dom.preyFpsLive) {
+    dom.preyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
+  }
+  if (dom.fireflyFpsLive) {
+    dom.fireflyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
   }
 }
 
@@ -877,6 +1017,73 @@ function updateAntStats(stats) {
   }
 }
 
+function updatePreyStats(stats) {
+  if (!stats) {
+    return;
+  }
+
+  const preyCount = stats.preyCount ?? 0;
+  const predatorCount = stats.predatorCount ?? 0;
+  const eatenTotal = stats.eatenTotal ?? 0;
+
+  if (dom.preyCountLive) {
+    dom.preyCountLive.textContent = String(preyCount);
+  }
+  if (dom.preyPredatorLive) {
+    dom.preyPredatorLive.textContent = String(predatorCount);
+  }
+  if (dom.preyEatenLive) {
+    dom.preyEatenLive.textContent = String(eatenTotal);
+  }
+  if (dom.chartPreyCountLive) {
+    dom.chartPreyCountLive.textContent = String(preyCount);
+  }
+  if (dom.chartPredatorCountLive) {
+    dom.chartPredatorCountLive.textContent = String(predatorCount);
+  }
+  if (dom.chartPreyEatenLive) {
+    dom.chartPreyEatenLive.textContent = String(eatenTotal);
+  }
+
+  updatePreyColormapLegend();
+
+  preyChartFrameCounter += 1;
+  if (preyChartFrameCounter % 3 === 0) {
+    pushTrendValue(preyCountHistory, preyCount);
+    pushTrendValue(predatorCountHistory, predatorCount);
+    pushTrendValue(preyEatenHistory, eatenTotal);
+    drawTrendCharts();
+  }
+}
+
+function updateFireflyStats(stats) {
+  if (!stats) {
+    return;
+  }
+
+  const count = stats.count ?? 0;
+  const order = stats.order ?? 0;
+  const blinkRate = stats.blinkRate ?? 0;
+
+  if (dom.chartFireflyCountLive) {
+    dom.chartFireflyCountLive.textContent = String(count);
+  }
+  if (dom.chartFireflyOrderLive) {
+    dom.chartFireflyOrderLive.textContent = order.toFixed(3);
+  }
+  if (dom.chartFireflyBlinkLive) {
+    dom.chartFireflyBlinkLive.textContent = `${blinkRate.toFixed(1)} /s`;
+  }
+
+  fireflyChartFrameCounter += 1;
+  if (fireflyChartFrameCounter % 3 === 0) {
+    pushTrendValue(fireflyCountHistory, count);
+    pushTrendValue(fireflyOrderHistory, order);
+    pushTrendValue(fireflyBlinkHistory, blinkRate);
+    drawTrendCharts();
+  }
+}
+
 function refreshAntWorldGeometry() {
   antFoodSources = buildAntFoodSources();
   updateAntPheromonePlaneTransform();
@@ -1215,6 +1422,28 @@ function updateColormapLegend() {
   dom.colormapCmax.textContent = `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`;
 }
 
+function updatePreyColormapLegend() {
+  if (!dom.preyColormapLegendBar || !dom.preyColormapCmin || !dom.preyColormapCmax) {
+    return;
+  }
+
+  if (params.preyColorMode !== "energy") {
+    dom.preyColormapLegend?.classList.add("is-hidden");
+    return;
+  }
+
+  dom.preyColormapLegend?.classList.remove("is-hidden");
+  const gradient = colormapGradients[params.preyColormap] || colormapGradients.turbo;
+  dom.preyColormapLegendBar.style.background = gradient;
+
+  const range = preySimulation.getPredatorEnergyRange?.() ?? {
+    min: 0,
+    max: Math.max(0.1, (params.predatorSpawnEnergy ?? 2.8) * 2.4),
+  };
+  dom.preyColormapCmin.textContent = `cmin: ${Number(range.min || 0).toFixed(2)}`;
+  dom.preyColormapCmax.textContent = `cmax: ${Number(range.max || 0).toFixed(2)}`;
+}
+
 function rebuildBoundsAndGrid() {
   world.rebuildBoundsAndGrid();
   updateViewportLabel();
@@ -1375,6 +1604,123 @@ function setupControls() {
     activateCompactRangeControl("ant-count");
   }
 
+  bindRange("prey-speed", "prey-speed-value", (value) => {
+    params.preySpeed = value;
+    return `${value.toFixed(1)} m/s`;
+  });
+
+  bindRange("predator-speed", "predator-speed-value", (value) => {
+    params.predatorSpeed = value;
+    return `${value.toFixed(1)} m/s`;
+  });
+
+  bindRange("predator-sense-radius", "predator-sense-radius-value", (value) => {
+    params.predatorSenseRadius = value;
+    return `${value.toFixed(1)} m`;
+  });
+
+  bindRange("predation-radius", "predation-radius-value", (value) => {
+    params.predationRadius = value;
+    return `${value.toFixed(1)} m`;
+  });
+
+  bindRange("prey-birth-rate", "prey-birth-rate-value", (value) => {
+    params.preyBirthRate = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  bindRange("predation-rate-beta", "predation-rate-beta-value", (value) => {
+    params.predationRateBeta = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("predator-energy-gain", "predator-energy-gain-value", (value) => {
+    params.predatorEnergyGain = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("predator-energy-loss", "predator-energy-loss-value", (value) => {
+    params.predatorEnergyLoss = value;
+    return `${value.toFixed(2)} 1/s`;
+  });
+
+  const preyCountInput = document.getElementById("prey-count");
+  const preyCountValue = document.getElementById("prey-count-value");
+  if (preyCountInput && preyCountValue) {
+    registerCompactRangeControl(preyCountInput, preyCountValue);
+    preyCountInput.addEventListener("input", () => {
+      preyCountValue.textContent = preyCountInput.value;
+      params.preyCount = Number(preyCountInput.value);
+      preySimulation.setPreyCount(params.preyCount);
+      resetPreyTrendCharts();
+      syncCompactSectionSlider("prey-count");
+    });
+    activateCompactRangeControl("prey-count");
+  }
+
+  const predatorCountInput = document.getElementById("predator-count");
+  const predatorCountValue = document.getElementById("predator-count-value");
+  if (predatorCountInput && predatorCountValue) {
+    registerCompactRangeControl(predatorCountInput, predatorCountValue);
+    predatorCountInput.addEventListener("input", () => {
+      predatorCountValue.textContent = predatorCountInput.value;
+      params.predatorCount = Number(predatorCountInput.value);
+      preySimulation.setPredatorCount(params.predatorCount);
+      resetPreyTrendCharts();
+      syncCompactSectionSlider("predator-count");
+    });
+  }
+
+  bindRange("firefly-size", "firefly-size-value", (value) => {
+    params.fireflySize = value;
+    fireflySimulation.syncInstances?.();
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("firefly-speed", "firefly-speed-value", (value) => {
+    params.fireflySpeed = value;
+    return `${value.toFixed(1)} m/s`;
+  });
+
+  bindRange("firefly-coupling", "firefly-coupling-value", (value) => {
+    params.fireflyCoupling = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("firefly-radius", "firefly-radius-value", (value) => {
+    params.fireflyRadius = value;
+    return `${value.toFixed(1)} m`;
+  });
+
+  bindRange("firefly-frequency", "firefly-frequency-value", (value) => {
+    params.fireflyFrequencyHz = value;
+    return `${value.toFixed(2)} Hz`;
+  });
+
+  bindRange("firefly-jitter", "firefly-jitter-value", (value) => {
+    params.fireflyFreqJitterHz = value;
+    return `${value.toFixed(2)} Hz`;
+  });
+
+  bindRange("firefly-noise", "firefly-noise-value", (value) => {
+    params.fireflyPhaseNoise = value;
+    return `${value.toFixed(2)} rad/s`;
+  });
+
+  const fireflyCountInput = document.getElementById("firefly-count");
+  const fireflyCountValue = document.getElementById("firefly-count-value");
+  if (fireflyCountInput && fireflyCountValue) {
+    registerCompactRangeControl(fireflyCountInput, fireflyCountValue);
+    fireflyCountInput.addEventListener("input", () => {
+      fireflyCountValue.textContent = fireflyCountInput.value;
+      params.fireflyCount = Number(fireflyCountInput.value);
+      fireflySimulation.setCount(params.fireflyCount);
+      resetFireflyTrendCharts();
+      syncCompactSectionSlider("firefly-count");
+    });
+    activateCompactRangeControl("firefly-count");
+  }
+
   const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
@@ -1382,6 +1728,8 @@ function setupControls() {
 
   dom.togglePause.addEventListener("click", toggleCurrentSimulationPause);
   dom.toggleAntPause?.addEventListener("click", toggleCurrentSimulationPause);
+  dom.togglePreyPause?.addEventListener("click", toggleCurrentSimulationPause);
+  dom.toggleFireflyPause?.addEventListener("click", toggleCurrentSimulationPause);
   dom.runState?.addEventListener("click", toggleCurrentSimulationPause);
 
   dom.appletTabs?.forEach((tab) => {
@@ -1408,6 +1756,22 @@ function setupControls() {
     }
     antSimulation.reset();
     resetAntTrendCharts();
+  });
+
+  dom.resetPreySim?.addEventListener("click", () => {
+    if (activeApplet !== "prey") {
+      return;
+    }
+    preySimulation.reset();
+    resetPreyTrendCharts();
+  });
+
+  dom.resetFireflySim?.addEventListener("click", () => {
+    if (activeApplet !== "firefly") {
+      return;
+    }
+    fireflySimulation.reset();
+    resetFireflyTrendCharts();
   });
 
   dom.showBounds.addEventListener("change", () => {
@@ -1483,7 +1847,9 @@ function setupControls() {
     dom,
     boidSimulation,
     antSimulation,
+    preySimulation,
     updateBoidColormapLegend: updateColormapLegend,
+    updatePreyColormapLegend,
   });
   visualControls.bind();
   visualControls.syncFromParams();
@@ -1533,7 +1899,7 @@ function applyDefaultProjectionForApplet(appletId) {
     return;
   }
 
-  if (appletId === "ants") {
+  if (appletId === "ants" || appletId === "prey") {
     params.projectionMode = "orthographic";
     switchToOrthographicTop();
   } else {
@@ -1616,13 +1982,29 @@ function applyAppletMode(appletId, options = {}) {
   updateProjectionToggleUI();
 
   if (normalizedId === "boid") {
-    antsPausedPreference = params.paused;
+    if (previousApplet === "ants") {
+      antsPausedPreference = params.paused;
+    } else if (previousApplet === "prey") {
+      preyPausedPreference = params.paused;
+    }
     params.paused = boidPausedPreference;
     updateBoidStats(lastBoidStats);
-  } else {
-    boidPausedPreference = params.paused;
+  } else if (normalizedId === "ants") {
+    if (previousApplet === "boid") {
+      boidPausedPreference = params.paused;
+    } else if (previousApplet === "prey") {
+      preyPausedPreference = params.paused;
+    }
     params.paused = antsPausedPreference;
     updateAntStats(lastAntStats);
+  } else {
+    if (previousApplet === "boid") {
+      boidPausedPreference = params.paused;
+    } else if (previousApplet === "ants") {
+      antsPausedPreference = params.paused;
+    }
+    params.paused = preyPausedPreference;
+    updatePreyStats(lastPreyStats);
   }
 
   updateSimulationStateUI();
@@ -1657,8 +2039,12 @@ function updateSimulationStateUI() {
     if (dom.toggleAntPause) {
       dom.toggleAntPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
     }
-    dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i><span>Paused</span>';
-    dom.runState.setAttribute("title", "Resume simulation");
+    if (dom.togglePreyPause) {
+      dom.togglePreyPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
+    }
+    dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i>';
+    dom.runState.setAttribute("title", "Paused. Click to resume simulation");
+    dom.runState.setAttribute("aria-label", "Paused. Click to resume simulation");
     dom.runState.setAttribute("aria-pressed", "true");
     dom.runState.disabled = false;
     return;
@@ -1668,8 +2054,12 @@ function updateSimulationStateUI() {
   if (dom.toggleAntPause) {
     dom.toggleAntPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
   }
-  dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i><span>Running</span>';
-  dom.runState.setAttribute("title", "Pause simulation");
+  if (dom.togglePreyPause) {
+    dom.togglePreyPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
+  }
+  dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i>';
+  dom.runState.setAttribute("title", "Running. Click to pause simulation");
+  dom.runState.setAttribute("aria-label", "Running. Click to pause simulation");
   dom.runState.setAttribute("aria-pressed", "false");
   dom.runState.disabled = false;
 }
@@ -1841,68 +2231,6 @@ function applyPanelVisibility() {
   });
 }
 
-function setupControlsInfoPopup() {
-  if (!dom.controlsInfoOpen || !dom.controlsInfoBackdrop || !dom.controlsInfoClose) {
-    return;
-  }
-
-  const openPopup = () => {
-    dom.controlsInfoBackdrop.classList.remove("is-hidden");
-    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "false");
-  };
-
-  const closePopup = () => {
-    dom.controlsInfoBackdrop.classList.add("is-hidden");
-    dom.controlsInfoBackdrop.setAttribute("aria-hidden", "true");
-  };
-
-  dom.controlsInfoOpen.addEventListener("click", openPopup);
-  dom.controlsInfoClose.addEventListener("click", closePopup);
-
-  dom.controlsInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.controlsInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.controlsInfoBackdrop.classList.contains("is-hidden")) {
-      closePopup();
-    }
-  });
-}
-
-function setupAboutPopup() {
-  if (!dom.aboutInfoOpen || !dom.aboutInfoBackdrop || !dom.aboutInfoClose) {
-    return;
-  }
-
-  const openPopup = () => {
-    dom.aboutInfoBackdrop.classList.remove("is-hidden");
-    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "false");
-  };
-
-  const closePopup = () => {
-    dom.aboutInfoBackdrop.classList.add("is-hidden");
-    dom.aboutInfoBackdrop.setAttribute("aria-hidden", "true");
-  };
-
-  dom.aboutInfoOpen.addEventListener("click", openPopup);
-  dom.aboutInfoClose.addEventListener("click", closePopup);
-
-  dom.aboutInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.aboutInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.aboutInfoBackdrop.classList.contains("is-hidden")) {
-      closePopup();
-    }
-  });
-}
-
 function setupAntFoodPlacementInteraction() {
   const canvas = renderer?.domElement;
   if (!canvas) {
@@ -1940,14 +2268,27 @@ function setupAntFoodPlacementInteraction() {
 }
 
 function handleViewportResize() {
+  updateNarrowScreenBlocker();
   resizeRenderer();
   resizeTrendCharts();
+}
+
+function updateNarrowScreenBlocker() {
+  if (!dom.narrowScreenBlocker) {
+    return;
+  }
+
+  const tooNarrow = window.innerWidth < narrowScreenThresholdPx;
+  dom.narrowScreenBlocker.classList.toggle("is-hidden", !tooNarrow);
+  dom.narrowScreenBlocker.setAttribute("aria-hidden", String(!tooNarrow));
 }
 
 function setupTrendCharts() {
   resizeTrendCharts();
   resetBoidTrendCharts();
   resetAntTrendCharts();
+  resetPreyTrendCharts();
+  resetFireflyTrendCharts();
 }
 
 function setupChartCollapses() {
@@ -1985,6 +2326,22 @@ function resetAntTrendCharts() {
   drawTrendCharts();
 }
 
+function resetPreyTrendCharts() {
+  preyCountHistory.length = 0;
+  predatorCountHistory.length = 0;
+  preyEatenHistory.length = 0;
+  preyChartFrameCounter = 0;
+  drawTrendCharts();
+}
+
+function resetFireflyTrendCharts() {
+  fireflyCountHistory.length = 0;
+  fireflyOrderHistory.length = 0;
+  fireflyBlinkHistory.length = 0;
+  fireflyChartFrameCounter = 0;
+  drawTrendCharts();
+}
+
 function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartCount);
   resizeCanvasBackingStore(dom.chartSpeed);
@@ -1992,24 +2349,17 @@ function resizeTrendCharts() {
   resizeCanvasBackingStore(dom.chartAntTrips);
   resizeCanvasBackingStore(dom.chartAntPheromone);
   resizeCanvasBackingStore(dom.chartAntCount);
+  resizeCanvasBackingStore(dom.chartPreyCount);
+  resizeCanvasBackingStore(dom.chartPredatorCount);
+  resizeCanvasBackingStore(dom.chartPreyEaten);
+  resizeCanvasBackingStore(dom.chartFireflyCount);
+  resizeCanvasBackingStore(dom.chartFireflyOrder);
+  resizeCanvasBackingStore(dom.chartFireflyBlink);
   drawTrendCharts();
 }
 
 function resizeCanvasBackingStore(canvas) {
-  if (!canvas) {
-    return;
-  }
-
-  const cssWidth = Math.max(1, Math.floor(canvas.clientWidth));
-  const cssHeight = Math.max(1, Math.floor(canvas.clientHeight));
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const backingWidth = Math.max(1, Math.floor(cssWidth * dpr));
-  const backingHeight = Math.max(1, Math.floor(cssHeight * dpr));
-
-  if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
-    canvas.width = backingWidth;
-    canvas.height = backingHeight;
-  }
+  resizeChartCanvas(canvas);
 }
 
 function drawTrendCharts() {
@@ -2055,171 +2405,57 @@ function drawTrendCharts() {
     tickFormatter: (value) => value.toFixed(2),
     forceZeroMin: true,
   });
+  drawTrendChart(dom.chartPreyCount, preyCountHistory, {
+    stroke: "#6be39f",
+    fill: "rgba(107, 227, 159, 0.16)",
+    axisLabel: "count",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartPredatorCount, predatorCountHistory, {
+    stroke: "#ff9b70",
+    fill: "rgba(255, 155, 112, 0.18)",
+    axisLabel: "count",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartPreyEaten, preyEatenHistory, {
+    stroke: "#f0cf72",
+    fill: "rgba(240, 207, 114, 0.18)",
+    axisLabel: "events",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartFireflyCount, fireflyCountHistory, {
+    stroke: "#7ec4ff",
+    fill: "rgba(126, 196, 255, 0.14)",
+    axisLabel: "count",
+    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+    forceZeroMin: true,
+  });
+  drawTrendChart(dom.chartFireflyOrder, fireflyOrderHistory, {
+    stroke: "#ffe38d",
+    fill: "rgba(255, 227, 141, 0.18)",
+    axisLabel: "R",
+    tickFormatter: (value) => value.toFixed(2),
+    minValue: 0,
+    maxValue: 1,
+  });
+  drawTrendChart(dom.chartFireflyBlink, fireflyBlinkHistory, {
+    stroke: "#ffd26e",
+    fill: "rgba(255, 210, 110, 0.16)",
+    axisLabel: "/s",
+    tickFormatter: (value) => value.toFixed(1),
+    forceZeroMin: true,
+  });
 }
 
 function drawTrendChart(canvas, values, options) {
-  if (!canvas || canvas.width < 2 || canvas.height < 2) {
-    return;
-  }
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    return;
-  }
-
-  const {
-    stroke,
-    fill,
-    axisLabel = "",
-    tickFormatter = (value) => value.toFixed(1),
-    forceZeroMin = false,
-  } = options;
-
-  const width = canvas.width;
-  const height = canvas.height;
-  const dpr = width / Math.max(canvas.clientWidth, 1);
-  const padLeft = 40 * dpr;
-  const padRight = 10 * dpr;
-  const padTop = 8 * dpr;
-  const padBottom = 12 * dpr;
-
-  ctx.clearRect(0, 0, width, height);
-
-  const plotWidth = width - padLeft - padRight;
-  const plotHeight = height - padTop - padBottom;
-  if (plotWidth <= 1 || plotHeight <= 1) {
-    return;
-  }
-
-  let minValue = values.length > 0 ? values[0] : 0;
-  let maxValue = values.length > 0 ? values[0] : 1;
-  for (let i = 1; i < values.length; i += 1) {
-    const value = values[i];
-    if (value < minValue) {
-      minValue = value;
-    }
-    if (value > maxValue) {
-      maxValue = value;
-    }
-  }
-
-  if (forceZeroMin) {
-    minValue = Math.min(minValue, 0);
-    maxValue = Math.max(maxValue, 0);
-  }
-
-  const span = Math.max(maxValue - minValue, 0.001);
-  const theme = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
-  const palette =
-    theme === "light"
-      ? {
-          grid: "rgba(88, 114, 156, 0.22)",
-          axis: "rgba(78, 104, 150, 0.48)",
-          label: "rgba(50, 72, 110, 0.95)",
-        }
-      : {
-          grid: "rgba(166, 196, 245, 0.16)",
-          axis: "rgba(166, 196, 245, 0.34)",
-          label: "rgba(183, 205, 242, 0.86)",
-        };
-
-  ctx.font = `${Math.max(9, Math.round(9 * dpr))}px "Space Grotesk", "Segoe UI", sans-serif`;
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-
-  const tickCount = 5;
-  for (let i = 0; i < tickCount; i += 1) {
-    const ratio = i / (tickCount - 1);
-    const y = padTop + ratio * plotHeight;
-    const value = maxValue - ratio * span;
-
-    ctx.strokeStyle = palette.grid;
-    ctx.lineWidth = Math.max(1, 0.85 * dpr);
-    ctx.beginPath();
-    ctx.moveTo(padLeft, y);
-    ctx.lineTo(width - padRight, y);
-    ctx.stroke();
-
-    ctx.strokeStyle = palette.axis;
-    ctx.beginPath();
-    ctx.moveTo(padLeft - 4 * dpr, y);
-    ctx.lineTo(padLeft, y);
-    ctx.stroke();
-
-    ctx.fillStyle = palette.label;
-    ctx.fillText(tickFormatter(value), padLeft - 6 * dpr, y);
-  }
-
-  ctx.strokeStyle = palette.axis;
-  ctx.lineWidth = Math.max(1, 1.05 * dpr);
-  ctx.beginPath();
-  ctx.moveTo(padLeft, padTop);
-  ctx.lineTo(padLeft, height - padBottom);
-  ctx.lineTo(width - padRight, height - padBottom);
-  ctx.stroke();
-
-  if (axisLabel) {
-    ctx.save();
-    ctx.translate(9 * dpr, padTop + plotHeight * 0.5);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = palette.label;
-    ctx.fillText(axisLabel, 0, 0);
-    ctx.restore();
-  }
-
-  if (values.length < 2) {
-    return;
-  }
-
-  const mapY = (value) =>
-    padTop + (1 - (value - minValue) / span) * plotHeight;
-
-  const step = plotWidth / (values.length - 1);
-
-  ctx.beginPath();
-  for (let i = 0; i < values.length; i += 1) {
-    const x = padLeft + i * step;
-    const y = mapY(values[i]);
-
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  }
-
-  const firstX = padLeft;
-  const lastX = padLeft + plotWidth;
-
-  ctx.lineTo(lastX, height - padBottom);
-  ctx.lineTo(firstX, height - padBottom);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
-
-  ctx.beginPath();
-  for (let i = 0; i < values.length; i += 1) {
-    const x = padLeft + i * step;
-    const y = mapY(values[i]);
-
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  }
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1.8 * dpr;
-  ctx.stroke();
+  renderTrendChart(canvas, values, options);
 }
 
 function pushTrendValue(series, value) {
-  series.push(value);
-  if (series.length > chartMaxPoints) {
-    series.shift();
-  }
+  appendTrendValue(series, value, chartMaxPoints);
 }
 
 function bindRange(inputId, valueId, applyValue) {
@@ -2446,7 +2682,8 @@ function updateViewportLabel() {
   const groundBase = Math.max(params.worldSizeX, params.worldSizeY);
   const divisions = Math.max(10, Math.floor(groundBase / 6));
   const gridSizeM = groundBase / Math.max(divisions, 1);
-  const appLabel = activeApplet === "ants" ? "Ant Trails" : "Boids";
+  const appLabel =
+    activeApplet === "ants" ? "Ant Trails" : activeApplet === "prey" ? "Prey Chain" : "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
   dom.frameSize.textContent = `Grid size: ${gridSizeM.toFixed(1)} m | ${appLabel} | ${projectionLabel}`;

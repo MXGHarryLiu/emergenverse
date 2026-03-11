@@ -364,10 +364,12 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       }
     } else {
       camera.up.set(0, 1, 0);
-      controls.target.set(position.x, position.y, 0);
-      if (controls.target.distanceToSquared(position) < 0.000001) {
-        controls.target.set(position.x, position.y + 1, position.z);
-      }
+      const lookDistance = Math.max(
+        1,
+        Math.abs(position.z - controls.target.z),
+        params.worldSizeZ * 0.6,
+      );
+      controls.target.set(position.x, position.y, position.z - lookDistance);
     }
 
     camera.position.copy(position);
@@ -377,6 +379,21 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
   function moveActiveCameraToOrigin() {
     const camera = activeCamera;
+    if (camera === orthographicCamera) {
+      // In top-ortho, home should recenter X/Y without changing top-down orientation.
+      const lookDistance = Math.max(
+        1,
+        Math.abs(orthographicCamera.position.z - controls.target.z),
+        params.worldSizeZ * 0.6,
+      );
+      orthographicCamera.position.set(0, 0, orthographicCamera.position.z);
+      orthographicCamera.up.set(0, 1, 0);
+      controls.target.set(0, 0, orthographicCamera.position.z - lookDistance);
+      orthographicCamera.lookAt(controls.target);
+      controls.update();
+      return;
+    }
+
     preservedLook.subVectors(controls.target, camera.position);
 
     if (preservedLook.lengthSq() < 0.000001) {

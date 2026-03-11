@@ -28,6 +28,14 @@ This project is intentionally static-first:
 - Related seminal optimization paper (Dorigo et al., 1996, Ant System): https://doi.org/10.1109/3477.484436
 - Wikipedia: [Trail pheromone](https://en.wikipedia.org/wiki/Trail_pheromone), [Ant colony optimization algorithms](https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms)
 
+### Prey (Food Chain)
+
+- Concept: Predator-prey ecosystem dynamics from local pursuit, evasion, predation, and prey reproduction.
+- Scientific explanation: This applet is an agent-based interpretation of predator-prey coupling. At the population level, it qualitatively reflects Lotka-Volterra-like oscillation behavior: prey growth, predation pressure, predator response, and subsequent decline/recovery cycles.
+- Reference implementation inspiration: [Mesa Wolf-Sheep Predation Example](https://github.com/projectmesa/mesa/tree/main/mesa/examples/basic/wolf_sheep)
+- Foundational paper (Lotka, 1920): [Analytical Note on Certain Rhythmic Relations in Organic Systems](https://doi.org/10.1073/pnas.6.7.410)
+- Wikipedia: [Lotka–Volterra equations](https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations), [Food chain](https://en.wikipedia.org/wiki/Food_chain)
+
 ## Deploy to Static Hosting
 
 Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).
