@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { slider } from "./appletConfigUtils.js";
 
 export const BOID_DEFAULT_PARAMS = {
   boidSimSpeed: 1.0,
@@ -15,6 +16,78 @@ export const BOID_DEFAULT_PARAMS = {
   colorMode: "speed",
   colormap: "turbo",
   solidColor: "#4cd3b6",
+};
+
+export const BOID_APPLET_CONFIG = {
+  defaultProjection: "perspective",
+  world: {
+    defaults: { x: 100, y: 100, z: 100 },
+    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+    gridSize: 5,
+  },
+  left: {
+    intro: {
+      sectionKey: "information-introduction",
+      title: "Introduction",
+      icon: "bi-journal-text",
+      paragraphs: [
+        "This applet implements the 3D Reynolds flocking model as a discrete-time multi-agent system in SI units. Each boid state is position x_i (m) and velocity v_i (m/s), advanced by steering acceleration with bounded speed and acceleration.",
+      ],
+      equations: [
+        "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+        "$$\\mathbf{v}_i(t+\\Delta t)=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)$$",
+        "$$v_{\\min}\\le \\|\\mathbf{v}_i\\|\\le v_{\\max}$$",
+        "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
+        "$$\\|\\mathbf{a}_i\\|\\le a_{\\max}$$",
+      ],
+      mapping: [
+        "<strong>Perception Radius</strong> controls which neighbors contribute to alignment/cohesion.",
+        "<strong>Separation Distance</strong> controls near-field repulsion.",
+        "<strong>Alignment / Cohesion / Separation Weight</strong> map to wₐ, wᶜ, wₛ in the steering equation.",
+      ],
+    },
+    stats: {
+      sectionKey: "information-stats",
+      title: "Stats",
+      icon: "bi-bar-chart-line-fill",
+      stats: [{ label: "FPS", valueId: "fps-live", initial: "--" }],
+      charts: [
+        { title: "Counts", liveId: "chart-count-live", liveInitial: "0", canvasId: "chart-count", aria: "count trend chart" },
+        { title: "Speed", liveId: "chart-speed-live", liveInitial: "0.00 m/s", canvasId: "chart-speed", aria: "speed trend chart" },
+        { title: "Neighbors", liveId: "chart-neighbors-live", liveInitial: "0.00", canvasId: "chart-neighbors", aria: "neighbor trend chart" },
+      ],
+    },
+  },
+  right: {
+    simulation: {
+      sectionKey: "simulation",
+      title: "Simulation",
+      icon: "bi-sliders2",
+      sliderHub: {
+        title: "Count",
+        value: "220",
+        min: "30",
+        max: "650",
+        step: "10",
+        valueNum: "220",
+      },
+      sliders: [
+        slider("boid-sim-speed", "Simulation Speed", "bi-stopwatch", "boid-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("boid-count", "Count", "bi-people-fill", "boid-count-value", "220", "30", "650", "10", "220"),
+        slider("boid-scale", "Object Size", "bi-rulers", "boid-scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5"),
+        slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18"),
+        slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8"),
+        slider("max-speed", "Max Speed", "bi-speedometer2", "max-speed-value", "8.0 m/s", "1", "25", "0.25", "8"),
+        slider("max-accel", "Max Acceleration", "bi-lightning-charge-fill", "max-accel-value", "6.0 m/s²", "0.5", "30", "0.25", "6"),
+        slider("alignment-weight", "Alignment Weight (wₐ)", "bi-layout-three-columns", "alignment-weight-value", "1.00", "0", "3", "0.05", "1"),
+        slider("cohesion-weight", "Cohesion Weight (wᶜ)", "bi-diagram-3-fill", "cohesion-weight-value", "0.90", "0", "3", "0.05", "0.9"),
+        slider("separation-weight", "Separation Weight (wₛ)", "bi-arrow-left-right", "separation-weight-value", "1.35", "0", "4", "0.05", "1.35"),
+      ],
+      pauseButtonId: "toggle-pause",
+      defaultButtonId: "default-sim",
+      resetButtonId: "reset-sim",
+    },
+  },
 };
 
 export class BoidSimulation {

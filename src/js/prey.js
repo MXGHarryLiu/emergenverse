@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { slider } from "./appletConfigUtils.js";
 
 export const PREY_DEFAULT_PARAMS = {
   preySimSpeed: 1.0,
@@ -21,6 +22,76 @@ export const PREY_DEFAULT_PARAMS = {
   preyColorMode: "energy",
   preyColormap: "turbo",
   preySolidColor: "#ff8d5f",
+};
+
+export const PREY_APPLET_CONFIG = {
+  defaultProjection: "orthographic",
+  world: {
+    defaults: { x: 100, y: 100, z: 100 },
+    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+    gridSize: 5,
+  },
+  left: {
+    intro: {
+      sectionKey: "prey-introduction",
+      title: "Introduction",
+      icon: "bi-journal-text",
+      hidden: true,
+      paragraphs: [
+        "This applet approximates a predator-prey food chain with local pursuit, evasion, and prey reproduction. Predators consume prey to maintain energy; prey expand under favorable conditions.",
+        "The resulting oscillation is qualitatively consistent with Lotka-Volterra-style population cycles.",
+      ],
+      equations: [
+        "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
+        "$$\\mathbf{p}_{k}(t+\\Delta t)=\\mathbf{p}_{k}(t)+\\mathbf{v}_{k}(t)\\Delta t$$",
+        "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
+      ],
+      mapping: [
+        "<strong>Prey Birth Rate</strong> sets prey growth tendency (α).",
+        "<strong>Predation Rate (β)</strong> scales effective capture interaction strength.",
+        "<strong>Predator Gain (δ)</strong> controls predator energy gained per successful predation.",
+        "<strong>Predator Energy Loss (γ)</strong> sets natural predator decay tendency.",
+      ],
+    },
+    stats: {
+      sectionKey: "prey-stats",
+      title: "Stats",
+      icon: "bi-bar-chart-line-fill",
+      hidden: true,
+      stats: [{ label: "FPS", valueId: "prey-fps-live", initial: "--" }],
+      charts: [
+        { title: "Prey Count", liveId: "chart-prey-count-live", liveInitial: "0", canvasId: "chart-prey-count", aria: "prey count trend chart" },
+        { title: "Predator Count", liveId: "chart-predator-count-live", liveInitial: "0", canvasId: "chart-predator-count", aria: "predator count trend chart" },
+        { title: "Predation (cum.)", liveId: "chart-prey-eaten-live", liveInitial: "0", canvasId: "chart-prey-eaten", aria: "predation events trend chart" },
+      ],
+    },
+  },
+  right: {
+    simulation: {
+      sectionKey: "prey-simulation",
+      title: "Simulation",
+      icon: "bi-sliders2",
+      hidden: true,
+      className: "mt-2",
+      sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
+      sliders: [
+        slider("prey-sim-speed", "Simulation Speed", "bi-stopwatch", "prey-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260"),
+        slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24"),
+        slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5"),
+        slider("predator-speed", "Predator Speed", "bi-lightning-charge-fill", "predator-speed-value", "6.2 m/s", "0.5", "24", "0.1", "6.2"),
+        slider("predator-sense-radius", "Sense Radius", "bi-broadcast", "predator-sense-radius-value", "16.0 m", "1", "60", "0.5", "16.0"),
+        slider("predation-radius", "Predation Radius", "bi-crosshair2", "predation-radius-value", "1.6 m", "0.2", "8", "0.1", "1.6"),
+        slider("prey-birth-rate", "Prey Birth Rate (α)", "bi-activity", "prey-birth-rate-value", "0.08 1/s", "0", "0.8", "0.01", "0.08"),
+        slider("predation-rate-beta", "Predation Rate (β)", "bi-graph-up-arrow", "predation-rate-beta-value", "1.00", "0", "3", "0.05", "1.00"),
+        slider("predator-energy-gain", "Predator Gain (δ)", "bi-plus-circle", "predator-energy-gain-value", "1.60", "0.1", "5", "0.05", "1.60"),
+        slider("predator-energy-loss", "Predator Energy Loss (γ)", "bi-dash-circle", "predator-energy-loss-value", "0.45 1/s", "0", "2", "0.01", "0.45"),
+      ],
+      pauseButtonId: "toggle-prey-pause",
+      defaultButtonId: "default-prey-sim",
+      resetButtonId: "reset-prey-sim",
+    },
+  },
 };
 
 const PREY_COLORMAP_STOPS = {

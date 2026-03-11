@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { slider } from "./appletConfigUtils.js";
 
 export const ANT_DEFAULT_PARAMS = {
   antSimSpeed: 1.0,
@@ -23,6 +24,87 @@ export const ANT_DEFAULT_PARAMS = {
   antFoodAddMassUg: 50,
   antPickupMassUg: 1,
   antFoodSourceMassUg: 1000,
+};
+
+export const ANT_APPLET_CONFIG = {
+  defaultProjection: "orthographic",
+  world: {
+    defaults: { x: 2, y: 2, z: 2 },
+    range: { minX: 0.5, maxX: 10, minY: 0.5, maxY: 10, minZ: 0.5, maxZ: 8, step: 0.05 },
+    gridSize: 0.1,
+  },
+  left: {
+    intro: {
+      sectionKey: "ants-introduction",
+      title: "Introduction",
+      icon: "bi-journal-text",
+      hidden: true,
+      paragraphs: [
+        "This applet uses a pheromone-coupled agent model on a 2D floor embedded in the 3D scene. Ants follow local concentration gradients, deposit trails, and switch between explore/return states based on nest-food encounters.",
+        "Ant color encodes state: cyan/greenish ants are searching, orange ants are carrying food.",
+      ],
+      equations: [
+        "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
+        "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
+        "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
+      ],
+      mapping: [
+        "<strong>Sensor Distance / Sensor Angle</strong> define left-right probe locations in (S_R-S_L).",
+        "<strong>Turn Gain</strong> maps to k_θ, controlling steering responsiveness.",
+        "<strong>Deposit / Diffusion / Evaporation</strong> map to Q_j, D, and λ.",
+      ],
+    },
+    stats: {
+      sectionKey: "ants-stats",
+      title: "Stats",
+      icon: "bi-bar-chart-line-fill",
+      hidden: true,
+      stats: [
+        { label: "FPS", valueId: "ants-fps-live", initial: "--" },
+        { label: "Carrying", valueId: "ants-carrying-live", initial: "0", labelClass: "ant-carrying-label" },
+      ],
+      charts: [
+        { title: "Counts", liveId: "chart-ant-count-live", liveInitial: "0", canvasId: "chart-ant-count", aria: "ant counts trend chart" },
+        { title: "Trips", liveId: "chart-ant-trips-live", liveInitial: "0", canvasId: "chart-ant-trips", aria: "ant trips trend chart" },
+        { title: "Pheromone", liveId: "chart-ant-pheromone-live", liveInitial: "0.00", canvasId: "chart-ant-pheromone", aria: "ant pheromone trend chart" },
+      ],
+    },
+  },
+  right: {
+    simulation: {
+      sectionKey: "ants-simulation",
+      title: "Simulation",
+      icon: "bi-sliders2",
+      hidden: true,
+      className: "mt-2",
+      sliderHub: {
+        title: "Count",
+        value: "120",
+        min: "20",
+        max: "400",
+        step: "5",
+        valueNum: "120",
+      },
+      sliders: [
+        slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("ant-count", "Count", "bi-people-fill", "ant-count-value", "120", "20", "400", "5", "120"),
+        slider("ant-scale", "Object Size", "bi-rulers", "ant-scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
+        slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
+        slider("ant-sensor-distance", "Sensor Distance", "bi-broadcast", "ant-sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
+        slider("ant-food-sense-distance", "Food Sensing Distance", "bi-bullseye", "ant-food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
+        slider("ant-sensor-angle", "Sensor Angle", "bi-compass", "ant-sensor-angle-value", "35°", "5", "90", "1", "35"),
+        slider("ant-turn-gain", "Turn Gain (kθ)", "bi-arrow-repeat", "ant-turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
+        slider("ant-goal-bias", "Goal Bias (kg)", "bi-bullseye", "ant-goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
+        slider("ant-departure-rate", "Departure Rate", "bi-box-arrow-up-right", "ant-departure-rate-value", "6.0 ants/s", "0", "20", "0.25", "6"),
+        slider("ant-deposit-rate", "Deposit Rate", "bi-droplet-fill", "ant-deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
+        slider("ant-diffusion-rate", "Diffusion Rate", "bi-water", "ant-diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
+        slider("ant-evap-rate", "Evaporation Rate", "bi-wind", "ant-evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
+      ],
+      pauseButtonId: "toggle-ant-pause",
+      defaultButtonId: "default-ant-sim",
+      resetButtonId: "reset-ant-sim",
+    },
+  },
 };
 
 const ANT_COLORMAP_STOPS = {

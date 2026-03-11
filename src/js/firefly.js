@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { slider } from "./appletConfigUtils.js";
 
 const TWO_PI = Math.PI * 2;
 const FIREFLY_COLORMAP_STOPS = {
@@ -35,6 +36,73 @@ export const FIREFLY_DEFAULT_PARAMS = {
   fireflyPhaseNoise: 0.4,
   fireflyColorMode: "blink",
   fireflyColormap: "blue-yellow",
+};
+
+export const FIREFLY_APPLET_CONFIG = {
+  defaultProjection: "perspective",
+  world: {
+    defaults: { x: 100, y: 100, z: 100 },
+    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+    gridSize: 5,
+  },
+  left: {
+    intro: {
+      sectionKey: "firefly-introduction",
+      title: "Introduction",
+      icon: "bi-journal-text",
+      hidden: true,
+      paragraphs: [
+        "This applet models firefly blink synchronization as coupled phase oscillators with local interactions in a 3D volume.",
+        "Each agent advances by intrinsic frequency and coupling to nearby phases, producing spontaneous phase-locking and collective flashing.",
+      ],
+      equations: [
+        "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
+        "$$\\theta_i \\mapsto \\theta_i \\bmod 2\\pi,\\quad \\text{blink when } \\theta_i \\to 2\\pi$$",
+        "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
+      ],
+      mapping: [
+        "<strong>Coupling</strong> sets synchronization strength K.",
+        "<strong>Interaction Radius</strong> defines local neighborhood N_i.",
+        "<strong>Base Frequency / Jitter / Phase Noise</strong> set ω_i and stochastic phase perturbations.",
+      ],
+    },
+    stats: {
+      sectionKey: "firefly-stats",
+      title: "Stats",
+      icon: "bi-bar-chart-line-fill",
+      hidden: true,
+      stats: [{ label: "FPS", valueId: "firefly-fps-live", initial: "--" }],
+      charts: [
+        { title: "Count", liveId: "chart-firefly-count-live", liveInitial: "0", canvasId: "chart-firefly-count", aria: "firefly count trend chart" },
+        { title: "Order (R)", liveId: "chart-firefly-order-live", liveInitial: "0.000", canvasId: "chart-firefly-order", aria: "firefly synchronization order trend chart" },
+        { title: "Blink Rate", liveId: "chart-firefly-blink-live", liveInitial: "0.0 /s", canvasId: "chart-firefly-blink", aria: "firefly blink rate trend chart" },
+      ],
+    },
+  },
+  right: {
+    simulation: {
+      sectionKey: "firefly-simulation",
+      title: "Simulation",
+      icon: "bi-sliders2",
+      hidden: true,
+      className: "mt-2",
+      sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
+      sliders: [
+        slider("firefly-sim-speed", "Simulation Speed", "bi-stopwatch", "firefly-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("firefly-count", "Count", "bi-people-fill", "firefly-count-value", "180", "20", "900", "10", "180"),
+        slider("firefly-size", "Object Size", "bi-rulers", "firefly-size-value", "0.80 m", "0.2", "2.5", "0.05", "0.8"),
+        slider("firefly-speed", "Speed", "bi-arrow-repeat", "firefly-speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
+        slider("firefly-coupling", "Coupling (K)", "bi-diagram-2", "firefly-coupling-value", "2.20", "0", "8", "0.05", "2.2"),
+        slider("firefly-radius", "Interaction Radius", "bi-broadcast", "firefly-radius-value", "18.0 m", "1", "60", "0.5", "18.0"),
+        slider("firefly-frequency", "Base Frequency", "bi-speedometer2", "firefly-frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8"),
+        slider("firefly-jitter", "Frequency Jitter", "bi-slash-circle", "firefly-jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2"),
+        slider("firefly-noise", "Phase Noise", "bi-shuffle", "firefly-noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4"),
+      ],
+      pauseButtonId: "toggle-firefly-pause",
+      defaultButtonId: "default-firefly-sim",
+      resetButtonId: "reset-firefly-sim",
+    },
+  },
 };
 
 export class FireflySimulation {
