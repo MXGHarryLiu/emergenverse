@@ -168,6 +168,57 @@ export const PREY_APPLET_RUNTIME = {
   },
 };
 
+export const PREY_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "prey-color-mode",
+    solidColorId: "prey-solid-color",
+    solidColorValueId: "prey-solid-color-value",
+    singleColorWrapId: "prey-single-color-wrap",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Predator Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "energy", label: "Predator Energy" },
+    ],
+    solidColorLabel: "Predator Color",
+    solidColorDefault: "#FF8D5F",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "energy";
+    const colormap = params?.colormap || "turbo";
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
+    const range = simulation?.getPredatorEnergyRange?.() ?? {
+      min: 0,
+      max: Math.max(0.1, (params?.predatorSpawnEnergy ?? 2.8) * 2.4),
+    };
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+        minText: `cmin: ${Number(range.min).toFixed(2)}`,
+        maxText: `cmax: ${Number(range.max).toFixed(2)}`,
+      },
+    };
+  },
+};
+
 // File-local constants and helpers.
 const PREY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],

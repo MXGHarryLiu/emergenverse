@@ -180,6 +180,40 @@ export const DUNE_APPLET_RUNTIME = {
   },
 };
 
+export const DUNE_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "dune-color-mode",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "mass", label: "Column Mass" },
+    ],
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colormap = params?.colormap || "cividis";
+    const range = simulation?.getColumnMassRange?.() ?? {
+      min: Math.max(0, params?.baseHeight ?? 0),
+      max: Math.max(0, params?.baseHeight ?? 0),
+    };
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.cividis,
+        minText: `cmin: ${Number(range.min).toFixed(2)} a.u.`,
+        maxText: `cmax: ${Number(range.max).toFixed(2)} a.u.`,
+      },
+    };
+  },
+};
+
 // File-local constants and helpers.
 const DUNE_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -395,6 +429,7 @@ export class DuneSimulation {
       maxMass = Math.max(maxMass, massProxy);
     }
     const span = Math.max(maxMass - minMass, 1e-6);
+    const hasMeaningfulRange = (maxMass - minMass) > 1e-5;
 
     for (let y = 0; y < resolution; y += 1) {
       for (let x = 0; x < resolution; x += 1) {
@@ -411,7 +446,9 @@ export class DuneSimulation {
         this.mesh.setMatrixAt(index, this.tempObject.matrix);
 
         const massProxy = this.heights[index] * cellArea;
-        const t = THREE.MathUtils.clamp((massProxy - minMass) / span, 0, 1);
+        const t = hasMeaningfulRange
+          ? THREE.MathUtils.clamp((massProxy - minMass) / span, 0, 1)
+          : 0.5;
         sampleColormap(this.params.colormap || "cividis", t, duneColor);
         this.mesh.setColorAt(index, duneColor);
       }

@@ -151,6 +151,77 @@ export const FIREFLY_APPLET_RUNTIME = {
   },
 };
 
+export const FIREFLY_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "firefly-color-mode",
+    solidColorId: "firefly-solid-color",
+    solidColorValueId: "firefly-solid-color-value",
+    singleColorWrapId: "firefly-single-color-wrap",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "blink", label: "Blink State" },
+      { value: "frequency", label: "Frequency (Hz)" },
+    ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#FFD86B",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "blink";
+    const colormap = params?.colormap || "blue-yellow";
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
+    if (colorMode === "blink") {
+      return {
+        visible: true,
+        value: colormap,
+        options: FIREFLY_DISCRETE_COLORMAP_OPTIONS,
+        setValue(value) {
+          params.colormap = value;
+          simulation?.syncInstances?.();
+        },
+        legend: {
+          gradient:
+            FIREFLY_DISCRETE_LEGEND_GRADIENTS[colormap] ||
+            FIREFLY_DISCRETE_LEGEND_GRADIENTS["blue-yellow"],
+          minText: "idle",
+          maxText: "blink",
+        },
+      };
+    }
+
+    const range = simulation?.getFrequencyRange?.() ?? {
+      min: Math.max(0, (params?.frequencyHz ?? 1.8) - (params?.freqJitterHz ?? 0.2)),
+      max: (params?.frequencyHz ?? 1.8) + (params?.freqJitterHz ?? 0.2),
+    };
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+        minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
+        maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
+      },
+    };
+  },
+};
+
 // File-local constants and helpers.
 const TWO_PI = Math.PI * 2;
 export const FIREFLY_DISCRETE_COLORMAP_OPTIONS = [

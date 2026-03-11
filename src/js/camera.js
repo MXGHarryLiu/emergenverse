@@ -324,10 +324,11 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     const verticalAmount = (dy / height) * screenScale;
 
     if (params.projectionMode === "perspective") {
-      forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
       rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+      upMove.set(0, 1, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
       moveDelta.copy(rightMove).multiplyScalar(horizontalAmount);
-      moveDelta.addScaledVector(forwardMove, verticalAmount);
+      // Keep two-finger translation screen-aligned: horizontal/vertical drag maps to right/up pan.
+      moveDelta.addScaledVector(upMove, verticalAmount);
       perspectiveCamera.position.add(moveDelta);
       controls.target.add(moveDelta);
       controls.update();

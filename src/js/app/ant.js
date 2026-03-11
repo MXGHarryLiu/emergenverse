@@ -185,6 +185,72 @@ export const ANT_APPLET_RUNTIME = {
   },
 };
 
+export const ANT_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "ant-color-mode",
+    solidColorId: "ant-solid-color",
+    solidColorValueId: "ant-solid-color-value",
+    singleColorWrapId: "ant-single-color-wrap",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "state", label: "State (search/carry)" },
+      { value: "heading", label: "Heading" },
+    ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#62D6F9",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "state";
+    const colormap = params?.colormap || "turbo";
+
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
+    if (colorMode === "state") {
+      return {
+        visible: true,
+        value: colormap,
+        options: ANT_DISCRETE_COLORMAP_OPTIONS,
+        setValue(value) {
+          params.colormap = value;
+          simulation?.syncInstances?.();
+        },
+        legend: {
+          gradient: ANT_DISCRETE_LEGEND_GRADIENTS[colormap] || ANT_DISCRETE_LEGEND_GRADIENTS.paired,
+          minText: "searching",
+          maxText: "carrying",
+        },
+      };
+    }
+
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+        minText: "cmin: -180°",
+        maxText: "cmax: 180°",
+      },
+    };
+  },
+};
+
 // File-local constants and helpers.
 export const ANT_DISCRETE_COLORMAP_OPTIONS = [
   { value: "paired", label: "Paired" },

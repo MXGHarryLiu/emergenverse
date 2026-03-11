@@ -1,12 +1,5 @@
 // Visual styling controls shared across applet rendering modes.
-import {
-  ANT_DISCRETE_COLORMAP_OPTIONS,
-  ANT_DISCRETE_LEGEND_GRADIENTS,
-} from "./app/ant.js";
-import {
-  FIREFLY_DISCRETE_COLORMAP_OPTIONS,
-  FIREFLY_DISCRETE_LEGEND_GRADIENTS,
-} from "./app/firefly.js";
+import { APPLET_VISUALS } from "./app/appletConfigs.js";
 
 const CONTINUOUS_COLORMAP_OPTIONS = [
   { value: "turbo", label: "Turbo" },
@@ -39,16 +32,16 @@ export function createVisualControls({
   galaxySimulation,
   duneSimulation,
   getActiveApplet,
-  updateBoidColormapLegend,
-  updatePreyColormapLegend,
 }) {
   const dom = getVisualControlsDom();
-  const boidParams = params.boid;
-  const antParams = params.ants;
-  const preyParams = params.prey;
-  const fireflyParams = params.firefly;
-  const galaxyParams = params.galaxy;
-  const duneParams = params.dune;
+  const simulations = {
+    boid: boidSimulation,
+    ants: antSimulation,
+    prey: preySimulation,
+    firefly: fireflySimulation,
+    galaxy: galaxySimulation,
+    dune: duneSimulation,
+  };
 
   function formatHexColor(value) {
     if (typeof value !== "string") {
@@ -120,168 +113,33 @@ export function createVisualControls({
     return nextValue;
   }
 
-  function updateAntColormapLegend() {
-    if (antParams.colorMode === "state") {
-      const gradient = ANT_DISCRETE_LEGEND_GRADIENTS[antParams.colormap] || ANT_DISCRETE_LEGEND_GRADIENTS.paired;
-      updateLegendDisplay({
-        gradient,
-        minText: "searching",
-        maxText: "carrying",
-      });
-      return;
-    }
-
-    const gradient = CONTINUOUS_COLORMAP_GRADIENTS[antParams.colormap] || CONTINUOUS_COLORMAP_GRADIENTS.turbo;
-    updateLegendDisplay({
-      gradient,
-      minText: "cmin: -180°",
-      maxText: "cmax: 180°",
-    });
-  }
-
-  function updateFireflyColormapLegend() {
-    if (fireflyParams.colorMode === "none") {
-      dom.colormapPanel.legend.container?.classList.add("is-hidden");
-      return;
-    }
-
-    if (fireflyParams.colorMode === "blink") {
-      const gradient =
-        FIREFLY_DISCRETE_LEGEND_GRADIENTS[fireflyParams.colormap] || FIREFLY_DISCRETE_LEGEND_GRADIENTS["blue-yellow"];
-      updateLegendDisplay({
-        gradient,
-        minText: "idle",
-        maxText: "blink",
-      });
-      return;
-    }
-
-    const gradient =
-      CONTINUOUS_COLORMAP_GRADIENTS[fireflyParams.colormap] || CONTINUOUS_COLORMAP_GRADIENTS.turbo;
-    const range = fireflySimulation?.getFrequencyRange?.() ?? {
-      min: Math.max(0, (fireflyParams.frequencyHz ?? 1.8) - (fireflyParams.freqJitterHz ?? 0.2)),
-      max: (fireflyParams.frequencyHz ?? 1.8) + (fireflyParams.freqJitterHz ?? 0.2),
-    };
-    updateLegendDisplay({
-      gradient,
-      minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
-      maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
-    });
-  }
-
-  function updateGalaxyColormapLegend() {
-    if (galaxyParams.colorMode === "none") {
-      dom.colormapPanel.legend.container?.classList.add("is-hidden");
-      return;
-    }
-
-    const gradient =
-      CONTINUOUS_COLORMAP_GRADIENTS[galaxyParams.colormap] || CONTINUOUS_COLORMAP_GRADIENTS.magma;
-    const range = galaxySimulation?.getSpeedRange?.() ?? { min: 0, max: 1 };
-    updateLegendDisplay({
-      gradient,
-      minText: `cmin: ${Number(range.min).toFixed(0)} ly/Myr`,
-      maxText: `cmax: ${Number(range.max).toFixed(0)} ly/Myr`,
-    });
-  }
-
-  function updateDuneColormapLegend() {
-    const gradient =
-      CONTINUOUS_COLORMAP_GRADIENTS[duneParams.colormap] || CONTINUOUS_COLORMAP_GRADIENTS.cividis;
-    const range = duneSimulation?.getColumnMassRange?.() ?? {
-      min: Math.max(0, duneParams.baseHeight ?? 0),
-      max: Math.max(0, duneParams.baseHeight ?? 0),
-    };
-    updateLegendDisplay({
-      gradient,
-      minText: `cmin: ${Number(range.min).toFixed(2)} a.u.`,
-      maxText: `cmax: ${Number(range.max).toFixed(2)} a.u.`,
-    });
+  function getAppletControls(appletId) {
+    return dom.appletControls[appletId] || {};
   }
 
   function getColormapConfig(appletId) {
-    switch (appletId) {
-      case "boid":
-        return {
-          visible: boidParams.colorMode !== "none",
-          value: boidParams.colormap,
-          options: CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            boidParams.colormap = value;
-            boidSimulation.syncInstances();
-          },
-          updateLegend() {
-            updateBoidColormapLegend();
-          },
-        };
-      case "ants":
-        return {
-          visible: antParams.colorMode !== "none",
-          value: antParams.colormap,
-          options: antParams.colorMode === "state" ? ANT_DISCRETE_COLORMAP_OPTIONS : CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            antParams.colormap = value;
-            antSimulation.syncInstances();
-          },
-          updateLegend() {
-            updateAntColormapLegend();
-          },
-        };
-      case "prey":
-        return {
-          visible: preyParams.colorMode !== "none",
-          value: preyParams.colormap,
-          options: CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            preyParams.colormap = value;
-            preySimulation.syncInstances();
-          },
-          updateLegend() {
-            updatePreyColormapLegend?.();
-          },
-        };
-      case "firefly":
-        return {
-          visible: fireflyParams.colorMode !== "none",
-          value: fireflyParams.colormap,
-          options: fireflyParams.colorMode === "blink" ? FIREFLY_DISCRETE_COLORMAP_OPTIONS : CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            fireflyParams.colormap = value;
-            fireflySimulation.syncInstances();
-          },
-          updateLegend() {
-            updateFireflyColormapLegend();
-          },
-        };
-      case "galaxy":
-        return {
-          visible: galaxyParams.colorMode !== "none",
-          value: galaxyParams.colormap,
-          options: CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            galaxyParams.colormap = value;
-            galaxySimulation.syncInstances();
-          },
-          updateLegend() {
-            updateGalaxyColormapLegend();
-          },
-        };
-      case "dune":
-        return {
-          visible: true,
-          value: duneParams.colormap,
-          options: CONTINUOUS_COLORMAP_OPTIONS,
-          setValue(value) {
-            duneParams.colormap = value;
-            duneSimulation.syncInstances();
-          },
-          updateLegend() {
-            updateDuneColormapLegend();
-          },
-        };
-      default:
-        return null;
+    const visualAdapter = APPLET_VISUALS[appletId];
+    const appletParams = params?.[appletId];
+    if (!visualAdapter?.getColormapConfig || !appletParams) {
+      return null;
     }
+
+    return visualAdapter.getColormapConfig({
+      appletId,
+      params: appletParams,
+      simulation: simulations[appletId],
+      continuousColormapOptions: CONTINUOUS_COLORMAP_OPTIONS,
+      continuousColormapGradients: CONTINUOUS_COLORMAP_GRADIENTS,
+    });
+  }
+
+  function renderConfigLegend(config) {
+    if (!config?.legend) {
+      dom.colormapPanel.legend.container?.classList.add("is-hidden");
+      return;
+    }
+
+    updateLegendDisplay(config.legend);
   }
 
   function syncColormapPanel() {
@@ -303,46 +161,50 @@ export function createVisualControls({
     if (nextValue !== config.value) {
       config.setValue(nextValue);
     }
-    config.updateLegend();
+    renderConfigLegend(config);
   }
 
-  function updateBoidVisibility() {
-    const useSingleColor = boidParams.colorMode === "none";
-    dom.singleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    syncColormapPanel();
+  function syncSingleColorVisibility(appletId) {
+    const appletParams = params?.[appletId];
+    const controls = getAppletControls(appletId);
+    if (!appletParams || !controls.singleColorWrap) {
+      return;
+    }
+
+    controls.singleColorWrap.classList.toggle("is-hidden", appletParams.colorMode !== "none");
   }
 
-  function updateAntVisibility() {
-    const useSingleColor = antParams.colorMode === "none";
-    dom.antSingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    syncColormapPanel();
-  }
+  function bindColorModeControls() {
+    Object.keys(APPLET_VISUALS).forEach((appletId) => {
+      const appletParams = params?.[appletId];
+      const simulation = simulations[appletId];
+      const controls = getAppletControls(appletId);
+      if (!appletParams) {
+        return;
+      }
 
-  function updatePreyVisibility() {
-    const useSingleColor = preyParams.colorMode === "none";
-    dom.preySingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    syncColormapPanel();
-  }
+      if (controls.colorMode) {
+        controls.colorMode.addEventListener("change", () => {
+          appletParams.colorMode = controls.colorMode.value || appletParams.colorMode;
+          syncSingleColorVisibility(appletId);
+          syncColormapPanel();
+          simulation?.syncInstances?.();
+          refreshLegend(appletId);
+        });
+      }
 
-  function updateFireflyVisibility() {
-    const useSingleColor = fireflyParams.colorMode === "none";
-    dom.fireflySingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    syncColormapPanel();
-  }
-
-  function updateGalaxyVisibility() {
-    const useSingleColor = galaxyParams.colorMode === "none";
-    dom.galaxySingleColorWrap?.classList.toggle("is-hidden", !useSingleColor);
-    syncColormapPanel();
+      if (controls.solidColor) {
+        controls.solidColor.addEventListener("input", () => {
+          appletParams.solidColor = controls.solidColor.value;
+          syncColorInput(controls.solidColor, controls.solidColorValue, appletParams.solidColor);
+          simulation?.syncInstances?.();
+        });
+      }
+    });
   }
 
   function bind() {
-    dom.colorMode?.addEventListener("change", () => {
-      boidParams.colorMode = dom.colorMode.value;
-      updateBoidVisibility();
-      boidSimulation.syncInstances();
-      updateBoidColormapLegend();
-    });
+    bindColorModeControls();
 
     dom.colormapPanel.select?.addEventListener("change", () => {
       const activeApplet = getActiveApplet?.();
@@ -351,135 +213,36 @@ export function createVisualControls({
         return;
       }
       config.setValue(dom.colormapPanel.select.value);
-      config.updateLegend();
-    });
-
-    dom.solidColor?.addEventListener("input", () => {
-      boidParams.solidColor = dom.solidColor.value;
-      syncColorInput(dom.solidColor, dom.solidColorValue, boidParams.solidColor);
-      boidSimulation.syncInstances();
-    });
-
-    dom.antColorMode?.addEventListener("change", () => {
-      antParams.colorMode = dom.antColorMode.value;
-      updateAntVisibility();
-      antSimulation.syncInstances();
-      updateAntColormapLegend();
-    });
-
-    dom.antSolidColor?.addEventListener("input", () => {
-      antParams.solidColor = dom.antSolidColor.value;
-      syncColorInput(dom.antSolidColor, dom.antSolidColorValue, antParams.solidColor);
-      antSimulation.syncInstances();
-    });
-
-    dom.preyColorMode?.addEventListener("change", () => {
-      preyParams.colorMode = dom.preyColorMode.value;
-      updatePreyVisibility();
-      preySimulation.syncInstances();
-      updatePreyColormapLegend?.();
-    });
-
-    dom.preySolidColor?.addEventListener("input", () => {
-      preyParams.solidColor = dom.preySolidColor.value;
-      syncColorInput(dom.preySolidColor, dom.preySolidColorValue, preyParams.solidColor);
-      preySimulation.syncInstances();
-    });
-
-    dom.fireflyColorMode?.addEventListener("change", () => {
-      fireflyParams.colorMode = dom.fireflyColorMode.value;
-      updateFireflyVisibility();
-      fireflySimulation.syncInstances();
-      updateFireflyColormapLegend();
-    });
-
-    dom.fireflySolidColor?.addEventListener("input", () => {
-      fireflyParams.solidColor = dom.fireflySolidColor.value;
-      syncColorInput(dom.fireflySolidColor, dom.fireflySolidColorValue, fireflyParams.solidColor);
-      fireflySimulation.syncInstances();
-    });
-
-    dom.galaxyColorMode?.addEventListener("change", () => {
-      galaxyParams.colorMode = dom.galaxyColorMode.value || "speed";
-      updateGalaxyVisibility();
-      galaxySimulation.syncInstances();
-      updateGalaxyColormapLegend();
-    });
-
-    dom.galaxySolidColor?.addEventListener("input", () => {
-      galaxyParams.solidColor = dom.galaxySolidColor.value;
-      syncColorInput(dom.galaxySolidColor, dom.galaxySolidColorValue, galaxyParams.solidColor);
-      galaxySimulation.syncInstances();
-    });
-
-    dom.duneColorMode?.addEventListener("change", () => {
-      duneParams.colorMode = dom.duneColorMode.value || "mass";
-      syncColormapPanel();
-      duneSimulation.syncInstances();
-      updateDuneColormapLegend();
+      renderConfigLegend(getColormapConfig(activeApplet));
     });
   }
 
   function syncFromParams() {
-    if (dom.colorMode) {
-      dom.colorMode.value = boidParams.colorMode;
-    }
-    syncColorInput(dom.solidColor, dom.solidColorValue, boidParams.solidColor);
+    Object.keys(APPLET_VISUALS).forEach((appletId) => {
+      const appletParams = params?.[appletId];
+      const controls = getAppletControls(appletId);
+      if (!appletParams) {
+        return;
+      }
 
-    if (dom.antColorMode) {
-      dom.antColorMode.value = antParams.colorMode;
-    }
-    syncColorInput(dom.antSolidColor, dom.antSolidColorValue, antParams.solidColor);
+      if (controls.colorMode) {
+        controls.colorMode.value = appletParams.colorMode;
+      }
+      if (controls.solidColor) {
+        syncColorInput(controls.solidColor, controls.solidColorValue, appletParams.solidColor);
+      }
+      syncSingleColorVisibility(appletId);
+    });
 
-    if (dom.preyColorMode) {
-      dom.preyColorMode.value = preyParams.colorMode;
-    }
-    syncColorInput(dom.preySolidColor, dom.preySolidColorValue, preyParams.solidColor);
-
-    if (dom.fireflyColorMode) {
-      dom.fireflyColorMode.value = fireflyParams.colorMode;
-    }
-    syncColorInput(dom.fireflySolidColor, dom.fireflySolidColorValue, fireflyParams.solidColor);
-    if (dom.galaxyColorMode) {
-      dom.galaxyColorMode.value = galaxyParams.colorMode;
-    }
-    syncColorInput(dom.galaxySolidColor, dom.galaxySolidColorValue, galaxyParams.solidColor);
-    if (dom.duneColorMode) {
-      dom.duneColorMode.value = duneParams.colorMode;
-    }
-
-    updateBoidVisibility();
-    updateAntVisibility();
-    updatePreyVisibility();
-    updateFireflyVisibility();
-    updateGalaxyVisibility();
     syncColormapPanel();
   }
 
   function refreshLegend(appletId = getActiveApplet?.()) {
-    const activeId = appletId || getActiveApplet?.();
-    switch (activeId) {
-      case "boid":
-        updateBoidColormapLegend?.();
-        break;
-      case "ants":
-        updateAntColormapLegend();
-        break;
-      case "prey":
-        updatePreyColormapLegend?.();
-        break;
-      case "firefly":
-        updateFireflyColormapLegend();
-        break;
-      case "galaxy":
-        updateGalaxyColormapLegend();
-        break;
-      case "dune":
-        updateDuneColormapLegend();
-        break;
-      default:
-        break;
+    const config = getColormapConfig(appletId || getActiveApplet?.());
+    if (!config) {
+      return;
     }
+    renderConfigLegend(config);
   }
 
   return {
@@ -487,37 +250,31 @@ export function createVisualControls({
     syncFromParams,
     syncColormapPanel,
     refreshLegend,
-    updateBoidVisibility,
-    updateAntVisibility,
-    updatePreyVisibility,
-    updateFireflyVisibility,
-    updateGalaxyVisibility,
   };
 }
 
 function getVisualControlsDom() {
+  const hosts = {};
+  const appletControls = {};
+
+  Object.entries(APPLET_VISUALS).forEach(([id, adapter]) => {
+    hosts[id] = document.querySelector(`[data-shared-colormap-host="${id}"]`);
+
+    const controlsConfig = adapter?.controls || {};
+    appletControls[id] = {
+      colorMode: controlsConfig.colorModeId ? document.getElementById(controlsConfig.colorModeId) : null,
+      solidColor: controlsConfig.solidColorId ? document.getElementById(controlsConfig.solidColorId) : null,
+      solidColorValue: controlsConfig.solidColorValueId
+        ? document.getElementById(controlsConfig.solidColorValueId)
+        : null,
+      singleColorWrap: controlsConfig.singleColorWrapId
+        ? document.getElementById(controlsConfig.singleColorWrapId)
+        : null,
+    };
+  });
+
   return {
-    colorMode: document.getElementById("color-mode"),
-    solidColor: document.getElementById("solid-color"),
-    solidColorValue: document.getElementById("solid-color-value"),
-    singleColorWrap: document.getElementById("single-color-wrap"),
-    antColorMode: document.getElementById("ant-color-mode"),
-    antSolidColor: document.getElementById("ant-solid-color"),
-    antSolidColorValue: document.getElementById("ant-solid-color-value"),
-    antSingleColorWrap: document.getElementById("ant-single-color-wrap"),
-    preyColorMode: document.getElementById("prey-color-mode"),
-    preySolidColor: document.getElementById("prey-solid-color"),
-    preySolidColorValue: document.getElementById("prey-solid-color-value"),
-    preySingleColorWrap: document.getElementById("prey-single-color-wrap"),
-    fireflyColorMode: document.getElementById("firefly-color-mode"),
-    fireflySolidColor: document.getElementById("firefly-solid-color"),
-    fireflySolidColorValue: document.getElementById("firefly-solid-color-value"),
-    fireflySingleColorWrap: document.getElementById("firefly-single-color-wrap"),
-    galaxyColorMode: document.getElementById("galaxy-color-mode"),
-    galaxySolidColor: document.getElementById("galaxy-solid-color"),
-    galaxySolidColorValue: document.getElementById("galaxy-solid-color-value"),
-    galaxySingleColorWrap: document.getElementById("galaxy-single-color-wrap"),
-    duneColorMode: document.getElementById("dune-color-mode"),
+    appletControls,
     colormapPanel: {
       panel: document.getElementById("shared-colormap-panel"),
       select: document.getElementById("colormap"),
@@ -527,14 +284,7 @@ function getVisualControlsDom() {
         cmin: document.getElementById("colormap-cmin"),
         cmax: document.getElementById("colormap-cmax"),
       },
-      hosts: {
-        boid: document.querySelector('[data-shared-colormap-host="boid"]'),
-        ants: document.querySelector('[data-shared-colormap-host="ants"]'),
-        prey: document.querySelector('[data-shared-colormap-host="prey"]'),
-        firefly: document.querySelector('[data-shared-colormap-host="firefly"]'),
-        galaxy: document.querySelector('[data-shared-colormap-host="galaxy"]'),
-        dune: document.querySelector('[data-shared-colormap-host="dune"]'),
-      },
+      hosts,
     },
   };
 }

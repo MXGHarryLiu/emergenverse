@@ -19,6 +19,8 @@ import {
   resizeCanvasBackingStore as resizeChartCanvas,
 } from "./chartUtils.js";
 
+const DEFAULT_APPLET_ID = APPLET_ORDER[0] || "boid";
+
 const params = {
   worldSizeX: 100,
   worldSizeY: 100,
@@ -39,6 +41,7 @@ const params = {
 };
 
 renderAppletSectionsFromConfig();
+renderAppletNavigationFromConfig();
 scheduleMathRendering();
 
 const cameraDefaults = {
@@ -57,6 +60,31 @@ function getAppletCameraDefaults(appletId = activeApplet) {
     cameraFov: Number(camera?.fov ?? cameraDefaults.cameraFov),
     cameraLocked: Boolean(camera?.locked ?? cameraDefaults.cameraLocked),
   };
+}
+
+function renderAppletNavigationFromConfig() {
+  const navHost = document.getElementById("applet-nav");
+  if (!navHost) {
+    return;
+  }
+
+  navHost.replaceChildren();
+  APPLET_ORDER.forEach((id, index) => {
+    const meta = APPLET_META[id] || {};
+    const tabLabel = String(meta.shortLabel ?? meta.label ?? id);
+    const titleLabel = String(meta.label ?? tabLabel);
+    const button = document.createElement("button");
+    button.className = "applet-tab";
+    if (index === 0) {
+      button.classList.add("is-active");
+    }
+    button.type = "button";
+    button.setAttribute("data-applet-item", id);
+    button.setAttribute("aria-selected", String(index === 0));
+    button.setAttribute("title", `${titleLabel} applet`);
+    button.textContent = tabLabel;
+    navHost.appendChild(button);
+  });
 }
 
 const dom = {
@@ -81,7 +109,6 @@ const dom = {
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
-  colormapLegend: createLegendDomRefs(""),
   supportInfoOpen: document.getElementById("support-info-open"),
   supportInfoClose: document.getElementById("support-info-close"),
   supportInfoBackdrop: document.getElementById("support-info-backdrop"),
@@ -139,15 +166,6 @@ function setElementText(id, text) {
   if (element) {
     element.textContent = text;
   }
-}
-
-function createLegendDomRefs(idPrefix) {
-  return {
-    container: document.getElementById(`${idPrefix}colormap-legend`),
-    bar: document.getElementById(`${idPrefix}colormap-legend-bar`),
-    cmin: document.getElementById(`${idPrefix}colormap-cmin`),
-    cmax: document.getElementById(`${idPrefix}colormap-cmax`),
-  };
 }
 
 const uiState = {
@@ -258,7 +276,7 @@ const appletWorldState = Object.fromEntries(
 );
 let worldStatePersistenceEnabled = false;
 
-let activeApplet = "boid";
+let activeApplet = DEFAULT_APPLET_ID;
 const appletPausedPreferences = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, params.paused]),
 );
@@ -350,19 +368,6 @@ const preySimulation = simulations.prey;
 const fireflySimulation = simulations.firefly;
 const galaxySimulation = simulations.galaxy;
 const duneSimulation = simulations.dune;
-
-const colormapStops = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-
-const colormapGradients = buildColormapGradients(colormapStops);
 
 const chartMaxPoints = 160;
 const chartState = Object.fromEntries(
@@ -478,100 +483,6 @@ function updateFpsMetric(dt) {
   });
 }
 
-
-function buildColormapGradients(stopMap) {
-  const gradients = {};
-  for (const [name, stops] of Object.entries(stopMap)) {
-    gradients[name] = `linear-gradient(90deg, ${stops
-      .map((hex) => `#${hex.toString(16).padStart(6, "0")}`)
-      .join(", ")})`;
-  }
-  return gradients;
-}
-
-
-function getColorModeRange() {
-  if (params.boid.colorMode === "speed") {
-    return {
-      min: 0,
-      max: params.boid.maxSpeed,
-      unit: "m/s",
-      digits: 1,
-    };
-  }
-
-  if (params.boid.colorMode === "altitude") {
-    const halfZ = params.worldSizeZ * 0.5;
-    return {
-      min: -halfZ,
-      max: halfZ,
-      unit: "m",
-      digits: 1,
-    };
-  }
-
-  if (params.boid.colorMode === "neighbors") {
-    return {
-      min: 0,
-      max: 16,
-      unit: "",
-      digits: 0,
-    };
-  }
-
-  return {
-    min: -1,
-    max: 1,
-    unit: "",
-    digits: 2,
-  };
-}
-
-function formatLegendValue(value, unit, digits) {
-  const prefix = value >= 0 ? "" : "-";
-  const absolute = Math.abs(value).toFixed(digits);
-  return `${prefix}${absolute}${unit ? ` ${unit}` : ""}`;
-}
-
-function updateLegendDisplay(legendDom, { isVisible, gradient, minText, maxText }) {
-  if (!legendDom?.bar || !legendDom.cmin || !legendDom.cmax) {
-    return;
-  }
-
-  legendDom.container?.classList.toggle("is-hidden", !isVisible);
-  if (!isVisible) {
-    return;
-  }
-
-  legendDom.bar.style.background = gradient;
-  legendDom.cmin.textContent = minText;
-  legendDom.cmax.textContent = maxText;
-}
-
-function updateColormapLegend() {
-  const legendDom = dom.colormapLegend;
-  const range = getColorModeRange();
-  updateLegendDisplay(legendDom, {
-    isVisible: params.boid.colorMode !== "none",
-    gradient: colormapGradients[params.boid.colormap] || colormapGradients.turbo,
-    minText: `cmin: ${formatLegendValue(range.min, range.unit, range.digits)}`,
-    maxText: `cmax: ${formatLegendValue(range.max, range.unit, range.digits)}`,
-  });
-}
-
-function updatePreyColormapLegend() {
-  const legendDom = dom.colormapLegend;
-  const range = preySimulation.getPredatorEnergyRange?.() ?? {
-    min: 0,
-    max: Math.max(0.1, (params.prey.predatorSpawnEnergy ?? 2.8) * 2.4),
-  };
-  updateLegendDisplay(legendDom, {
-    isVisible: params.prey.colorMode === "energy",
-    gradient: colormapGradients[params.prey.colormap] || colormapGradients.turbo,
-    minText: `cmin: ${Number(range.min || 0).toFixed(2)}`,
-    maxText: `cmax: ${Number(range.max || 0).toFixed(2)}`,
-  });
-}
 
 function rebuildBoundsAndGrid() {
   world.rebuildBoundsAndGrid();
@@ -1102,8 +1013,6 @@ function setupControls() {
     galaxySimulation,
     duneSimulation,
     getActiveApplet: () => activeApplet,
-    updateBoidColormapLegend: updateColormapLegend,
-    updatePreyColormapLegend,
   });
   visualControls.bind();
   visualControls.syncFromParams();
@@ -1141,11 +1050,11 @@ function setupAppRouting() {
 
 function normalizeAppletId(value) {
   if (typeof value !== "string") {
-    return "boid";
+    return DEFAULT_APPLET_ID;
   }
 
   const normalized = value.toLowerCase().trim();
-  return APPLET_IDS.has(normalized) ? normalized : "boid";
+  return APPLET_IDS.has(normalized) ? normalized : DEFAULT_APPLET_ID;
 }
 
 function getAppletFromUrl() {
@@ -1153,7 +1062,7 @@ function getAppletFromUrl() {
     const url = new URL(window.location.href);
     return normalizeAppletId(url.searchParams.get("app"));
   } catch (error) {
-    return "boid";
+    return DEFAULT_APPLET_ID;
   }
 }
 
@@ -1287,7 +1196,10 @@ function applyAppletVisibility(appletId) {
           .map((item) => item.trim().toLowerCase())
           .filter(Boolean)
       : [];
-    const isVisible = visibleOnApps.includes(appletId);
+    const isVisible = !visibleValue ||
+      visibleOnApps.includes("*") ||
+      visibleOnApps.includes("all") ||
+      visibleOnApps.includes(appletId);
     element.classList.toggle("is-hidden", !isVisible);
   });
 
@@ -1718,7 +1630,7 @@ function bindRange(inputId, valueId, applyValue) {
     const display = applyValue(value);
     output.textContent = display;
     syncCompactSectionSlider(inputId);
-    updateColormapLegend();
+    visualControls?.refreshLegend?.(activeApplet);
   };
 
   input.addEventListener("input", handle);

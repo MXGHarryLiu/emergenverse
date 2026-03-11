@@ -67,62 +67,7 @@
             <div class="brand-title">Emergenverse</div>
             <div class="brand-subtitle">Discover patterns from simple rules</div>
           </div>
-          <div class="applet-nav" role="tablist" aria-label="Applet mode">
-            <button
-              class="applet-tab is-active"
-              type="button"
-              data-applet-item="boid"
-              aria-selected="true"
-              title="Boid applet"
-            >
-              Boid
-            </button>
-            <button
-              class="applet-tab"
-              type="button"
-              data-applet-item="ants"
-              aria-selected="false"
-              title="Ant applet"
-            >
-              Ant
-            </button>
-            <button
-              class="applet-tab"
-              type="button"
-              data-applet-item="prey"
-              aria-selected="false"
-              title="Prey applet"
-            >
-              Prey
-            </button>
-            <button
-              class="applet-tab"
-              type="button"
-              data-applet-item="firefly"
-              aria-selected="false"
-              title="Firefly applet"
-            >
-              Firefly
-            </button>
-            <button
-              class="applet-tab"
-              type="button"
-              data-applet-item="galaxy"
-              aria-selected="false"
-              title="Galaxy applet"
-            >
-              Galaxy
-            </button>
-            <button
-              class="applet-tab"
-              type="button"
-              data-applet-item="dune"
-              aria-selected="false"
-              title="Dune applet"
-            >
-              Dune
-            </button>
-          </div>
+          <div class="applet-nav" id="applet-nav" role="tablist" aria-label="Applet mode"></div>
         </div>
         <div class="d-flex align-items-center gap-2">
           <button
@@ -235,8 +180,8 @@
             <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
           </button>
         </div>
-        <div id="scene-host" data-app-visible="boid ants prey firefly galaxy dune" aria-label="3D simulation viewport"></div>
-        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey firefly galaxy dune">Grid size: -- m | -- | --</div>
+        <div id="scene-host" data-app-visible="*" aria-label="3D simulation viewport"></div>
+        <div class="overlay-corner" id="frame-size" data-app-visible="*">Grid size: -- m | -- | --</div>
       </section>
       <div
         class="panel-resizer panel-resizer-right"
@@ -256,45 +201,6 @@
             <i class="bi bi-chevron-bar-right" aria-hidden="true"></i>
           </button>
         </div>
-
-
-        <div class="control-section" data-control-section="boid-visual" data-app-visible="boid">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle boid visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="color-mode">
-              <option value="none">None (single color)</option>
-              <option value="speed" selected>Speed (m/s)</option>
-              <option value="altitude">Altitude (z, m)</option>
-              <option value="neighbors">Neighbor Count</option>
-              <option value="heading">Heading (z component)</option>
-            </select>
-
-            <div data-shared-colormap-host="boid"></div>
-            <div id="single-color-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="solid-color">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
-                <span class="label-value" id="solid-color-value">#4CD3B6</span>
-              </label>
-              <input type="color" class="form-control form-control-color theme-color-input" id="solid-color" value="#4cd3b6" />
-            </div>
-          </div>
-        </div>
-
 
         <div class="control-section is-hidden" data-control-section="ants-interaction" data-app-visible="ants">
           <button
@@ -342,176 +248,6 @@
           </div>
         </div>
 
-        <div class="control-section is-hidden" data-control-section="ants-visual" data-app-visible="ants">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle ants visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="ant-color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="ant-color-mode">
-              <option value="none">None (single color)</option>
-              <option value="state" selected>State (search/carry)</option>
-              <option value="heading">Heading</option>
-            </select>
-
-            <div data-shared-colormap-host="ants"></div>
-            <div id="ant-single-color-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="ant-solid-color">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
-                <span class="label-value" id="ant-solid-color-value">#62D6F9</span>
-              </label>
-              <input type="color" class="form-control form-control-color theme-color-input" id="ant-solid-color" value="#62d6f9" />
-            </div>
-          </div>
-        </div>
-
-
-        <div class="control-section is-hidden" data-control-section="prey-visual" data-app-visible="prey">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle prey visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="prey-color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Predator Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="prey-color-mode">
-              <option value="none">None (single color)</option>
-              <option value="energy" selected>Predator Energy</option>
-            </select>
-
-            <div data-shared-colormap-host="prey"></div>
-            <div id="prey-single-color-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="prey-solid-color">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Predator Color</span>
-                <span class="label-value" id="prey-solid-color-value">#FF8D5F</span>
-              </label>
-              <input
-                type="color"
-                class="form-control form-control-color theme-color-input"
-                id="prey-solid-color"
-                value="#ff8d5f"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div class="control-section is-hidden" data-control-section="firefly-visual" data-app-visible="firefly">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle firefly visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="firefly-color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="firefly-color-mode">
-              <option value="none">None (single color)</option>
-              <option value="blink" selected>Blink State</option>
-              <option value="frequency">Frequency (Hz)</option>
-            </select>
-
-            <div data-shared-colormap-host="firefly"></div>
-            <div id="firefly-single-color-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="firefly-solid-color">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
-                <span class="label-value" id="firefly-solid-color-value">#FFD86B</span>
-              </label>
-              <input type="color" class="form-control form-control-color theme-color-input" id="firefly-solid-color" value="#ffd86b" />
-            </div>
-          </div>
-        </div>
-
-        <div class="control-section is-hidden" data-control-section="galaxy-visual" data-app-visible="galaxy">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle galaxy visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="galaxy-color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="galaxy-color-mode">
-              <option value="none">None (single color)</option>
-              <option value="speed" selected>Orbital Speed</option>
-            </select>
-
-            <div data-shared-colormap-host="galaxy"></div>
-            <div id="galaxy-single-color-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="galaxy-solid-color">
-                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
-                <span class="label-value" id="galaxy-solid-color-value">#C9DDFF</span>
-              </label>
-              <input type="color" class="form-control form-control-color theme-color-input" id="galaxy-solid-color" value="#c9ddff" />
-            </div>
-          </div>
-        </div>
-
-        <div class="control-section is-hidden" data-control-section="dune-visual" data-app-visible="dune">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle dune visual controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
-              <span>Visual</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <label class="form-label" for="dune-color-mode">
-              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
-            </label>
-            <select class="form-select form-select-sm theme-select" id="dune-color-mode">
-              <option value="mass" selected>Column Mass</option>
-            </select>
-
-            <div data-shared-colormap-host="dune"></div>
-          </div>
-        </div>
-
         <div id="shared-colormap-panel" class="is-hidden">
           <label class="form-label mt-2" for="colormap">
             <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
@@ -536,7 +272,7 @@
         </div>
 
 
-        <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly galaxy dune">
+        <div class="control-section" data-control-section="world" data-app-visible="*">
           <button
             class="section-toggle"
             type="button"
@@ -625,7 +361,7 @@
           <p class="controls-modal-subtitle">6-DOF camera control (when camera lock is off)</p>
           <ul class="controls-list">
             <li><strong>Translate (keyboard/mouse)</strong>: `A/S/D/Q/W/E` for camera-relative XYZ movement, or hold right mouse and drag.</li>
-            <li><strong>Translate (touch)</strong>: Two-finger drag moves the camera relative to the current view. In perspective it strafes and moves forward/back like `A/D` and `W/S`; in top orthographic it pans across the plane.</li>
+            <li><strong>Translate (touch)</strong>: Two-finger drag pans the camera relative to the current view (screen-space horizontal/vertical). In top orthographic it pans across the plane.</li>
             <li><strong>Yaw (keyboard/mouse)</strong>: `ArrowLeft` / `ArrowRight`, or left-drag horizontally (perspective mode).</li>
             <li><strong>Pitch (keyboard/mouse)</strong>: `ArrowUp` / `ArrowDown`, or left-drag vertically (perspective mode).</li>
             <li><strong>Roll (keyboard)</strong>: `[` / `]`.</li>
@@ -823,7 +559,7 @@
     </template>
 
     <template id="tpl-camera-section">
-      <div class="control-section" data-control-section="camera" data-app-visible="boid ants prey firefly galaxy dune">
+      <div class="control-section" data-control-section="camera" data-app-visible="*">
         <button
           class="section-toggle"
           type="button"

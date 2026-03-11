@@ -156,6 +156,72 @@ export const BOID_APPLET_RUNTIME = {
   },
 };
 
+export const BOID_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "color-mode",
+    solidColorId: "solid-color",
+    solidColorValueId: "solid-color-value",
+    singleColorWrapId: "single-color-wrap",
+  },
+  section: {
+    hidden: false,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "speed", label: "Speed (m/s)" },
+      { value: "altitude", label: "Altitude (z, m)" },
+      { value: "neighbors", label: "Neighbor Count" },
+      { value: "heading", label: "Heading (z component)" },
+    ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#4CD3B6",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "none";
+    const colormap = params?.colormap || "turbo";
+    let range = { min: -1, max: 1, unit: "", digits: 2 };
+
+    if (colorMode === "speed") {
+      range = {
+        min: 0,
+        max: params?.maxSpeed ?? 1,
+        unit: "m/s",
+        digits: 1,
+      };
+    } else if (colorMode === "altitude") {
+      const halfZ = (params?.worldSizeZ ?? 100) * 0.5;
+      range = {
+        min: -halfZ,
+        max: halfZ,
+        unit: "m",
+        digits: 1,
+      };
+    } else if (colorMode === "neighbors") {
+      range = {
+        min: 0,
+        max: 16,
+        unit: "",
+        digits: 0,
+      };
+    }
+
+    return {
+      visible: colorMode !== "none",
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+        minText: `cmin: ${Number(range.min).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
+        maxText: `cmax: ${Number(range.max).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
+      },
+    };
+  },
+};
+
 // Simulation implementation.
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {

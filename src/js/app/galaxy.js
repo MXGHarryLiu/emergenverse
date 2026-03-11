@@ -181,6 +181,54 @@ export const GALAXY_APPLET_RUNTIME = {
   },
 };
 
+export const GALAXY_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "galaxy-color-mode",
+    solidColorId: "galaxy-solid-color",
+    solidColorValueId: "galaxy-solid-color-value",
+    singleColorWrapId: "galaxy-single-color-wrap",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "speed", label: "Orbital Speed" },
+    ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#C9DDFF",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "speed";
+    const colormap = params?.colormap || "magma";
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
+    const range = simulation?.getSpeedRange?.() ?? { min: 0, max: 1 };
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.magma,
+        minText: `cmin: ${Number(range.min).toFixed(0)} ly/Myr`,
+        maxText: `cmax: ${Number(range.max).toFixed(0)} ly/Myr`,
+      },
+    };
+  },
+};
+
 // File-local constants and helpers.
 const GALAXY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],

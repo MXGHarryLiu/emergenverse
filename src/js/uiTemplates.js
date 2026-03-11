@@ -1,5 +1,5 @@
 // Config-driven sidebar template renderer for applet information and controls.
-import { APPLET_CONFIGS, APPLET_ORDER } from "./app/appletConfigs.js";
+import { APPLET_CONFIGS, APPLET_ORDER, APPLET_VISUALS } from "./app/appletConfigs.js";
 
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
@@ -44,6 +44,10 @@ export function renderAppletSectionsFromConfig() {
     }
     if (config.right?.simulation) {
       rightFragment.appendChild(buildSimulationSection(config.right.simulation, appletId, templates));
+    }
+    const visualAdapter = APPLET_VISUALS[appletId];
+    if (visualAdapter?.section) {
+      rightFragment.appendChild(buildVisualSection(appletId, visualAdapter, templates));
     }
   });
 
@@ -229,6 +233,78 @@ function buildSimulationSection(simConfig, appletId, templates) {
     </button>
   `;
   body.appendChild(actions);
+
+  return section;
+}
+
+function buildVisualSection(appletId, visualAdapter, templates) {
+  const sectionConfig = {
+    sectionKey: `${appletId}-visual`,
+    title: "Visual",
+    icon: "bi-palette",
+    hidden: Boolean(visualAdapter?.section?.hidden),
+  };
+  const section = buildSectionShell(sectionConfig, appletId, templates, {
+    toggleAriaLabel: `Toggle ${appletId} visual controls`,
+  });
+  const body = section.querySelector("[data-control-section-body]");
+  const controls = visualAdapter?.controls || {};
+  const meta = visualAdapter?.section || {};
+  const colorModeId = controls.colorModeId;
+  if (!colorModeId) {
+    return section;
+  }
+
+  const colorModeLabel = meta.colorModeLabel || "Color Mode";
+  const colorModeOptions = Array.isArray(meta.colorModeOptions)
+    ? meta.colorModeOptions
+    : [];
+
+  const colorLabel = document.createElement("label");
+  colorLabel.className = "form-label";
+  colorLabel.setAttribute("for", colorModeId);
+  colorLabel.innerHTML =
+    `<span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>${colorModeLabel}</span>`;
+  body.appendChild(colorLabel);
+
+  const select = document.createElement("select");
+  select.className = "form-select form-select-sm theme-select";
+  select.id = colorModeId;
+  colorModeOptions.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.value;
+    option.textContent = item.label;
+    select.appendChild(option);
+  });
+  body.appendChild(select);
+
+  const colormapHost = document.createElement("div");
+  colormapHost.setAttribute("data-shared-colormap-host", appletId);
+  body.appendChild(colormapHost);
+
+  if (controls.solidColorId && controls.solidColorValueId && controls.singleColorWrapId) {
+    const wrap = document.createElement("div");
+    wrap.id = controls.singleColorWrapId;
+    wrap.className = "is-hidden";
+
+    const solidColorLabel = meta.solidColorLabel || "Color";
+    const defaultColor = String(meta.solidColorDefault || "#ffffff");
+    const normalizedColor = defaultColor.startsWith("#") ? defaultColor : `#${defaultColor}`;
+
+    wrap.innerHTML = `
+      <label class="form-label mt-2" for="${controls.solidColorId}">
+        <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>${solidColorLabel}</span>
+        <span class="label-value" id="${controls.solidColorValueId}">${normalizedColor.toUpperCase()}</span>
+      </label>
+      <input
+        type="color"
+        class="form-control form-control-color theme-color-input"
+        id="${controls.solidColorId}"
+        value="${normalizedColor.toLowerCase()}"
+      />
+    `;
+    body.appendChild(wrap);
+  }
 
   return section;
 }

@@ -1,87 +1,62 @@
 // Central applet registry that aggregates per-applet configs for the app shell.
-import {
-  BoidSimulation,
-  BOID_APPLET_CONFIG,
-  BOID_DEFAULT_PARAMS,
-  BOID_APPLET_RUNTIME,
-} from "./boid.js";
-import {
-  AntSimulation,
-  ANT_APPLET_CONFIG,
-  ANT_DEFAULT_PARAMS,
-  ANT_APPLET_RUNTIME,
-} from "./ant.js";
-import {
-  PreySimulation,
-  PREY_APPLET_CONFIG,
-  PREY_DEFAULT_PARAMS,
-  PREY_APPLET_RUNTIME,
-} from "./prey.js";
-import {
-  FireflySimulation,
-  FIREFLY_APPLET_CONFIG,
-  FIREFLY_DEFAULT_PARAMS,
-  FIREFLY_APPLET_RUNTIME,
-} from "./firefly.js";
-import {
-  GalaxySimulation,
-  GALAXY_APPLET_CONFIG,
-  GALAXY_DEFAULT_PARAMS,
-  GALAXY_APPLET_RUNTIME,
-} from "./galaxy.js";
-import {
-  DuneSimulation,
-  DUNE_APPLET_CONFIG,
-  DUNE_DEFAULT_PARAMS,
-  DUNE_APPLET_RUNTIME,
-} from "./dune.js";
+import * as boidApplet from "./boid.js";
+import * as antApplet from "./ant.js";
+import * as preyApplet from "./prey.js";
+import * as fireflyApplet from "./firefly.js";
+import * as galaxyApplet from "./galaxy.js";
+import * as duneApplet from "./dune.js";
 
-export const APPLET_ORDER = ["boid", "ants", "prey", "firefly", "galaxy", "dune"];
+const APPLET_MODULES = [
+  { id: "boid", module: boidApplet },
+  { id: "ants", module: antApplet },
+  { id: "prey", module: preyApplet },
+  { id: "firefly", module: fireflyApplet },
+  { id: "galaxy", module: galaxyApplet },
+  { id: "dune", module: duneApplet },
+];
 
-export const APPLET_DEFINITIONS = {
-  boid: {
-    config: BOID_APPLET_CONFIG,
-    defaultParams: BOID_DEFAULT_PARAMS,
-    runtime: BOID_APPLET_RUNTIME,
+function pickModuleExport(module, id, suffix, label, predicate = () => true) {
+  const matches = Object.entries(module)
+    .filter(([key, value]) => key.endsWith(suffix) && predicate(value))
+    .map(([, value]) => value);
+
+  if (matches.length !== 1) {
+    throw new Error(
+      `[appletConfigs] Expected exactly one ${label} export ending in "${suffix}" for "${id}", found ${matches.length}.`,
+    );
+  }
+
+  return matches[0];
+}
+
+function buildAppletDefinition(id, module) {
+  const SimulationClass = pickModuleExport(
+    module,
+    id,
+    "Simulation",
+    "simulation class",
+    (value) => typeof value === "function",
+  );
+  const config = pickModuleExport(module, id, "_APPLET_CONFIG", "applet config");
+  const defaultParams = pickModuleExport(module, id, "_DEFAULT_PARAMS", "default params");
+  const runtime = pickModuleExport(module, id, "_APPLET_RUNTIME", "runtime hooks");
+  const visual = pickModuleExport(module, id, "_APPLET_VISUAL", "visual hooks");
+
+  return {
+    config,
+    defaultParams,
+    runtime,
+    visual,
     createSimulation: ({ scene, params, world, onStats }) =>
-      new BoidSimulation({ scene, params, world, onStats }),
-  },
-  ants: {
-    config: ANT_APPLET_CONFIG,
-    defaultParams: ANT_DEFAULT_PARAMS,
-    runtime: ANT_APPLET_RUNTIME,
-    createSimulation: ({ scene, params, onStats }) =>
-      new AntSimulation({ scene, params, onStats }),
-  },
-  prey: {
-    config: PREY_APPLET_CONFIG,
-    defaultParams: PREY_DEFAULT_PARAMS,
-    runtime: PREY_APPLET_RUNTIME,
-    createSimulation: ({ scene, params, onStats }) =>
-      new PreySimulation({ scene, params, onStats }),
-  },
-  firefly: {
-    config: FIREFLY_APPLET_CONFIG,
-    defaultParams: FIREFLY_DEFAULT_PARAMS,
-    runtime: FIREFLY_APPLET_RUNTIME,
-    createSimulation: ({ scene, params, onStats }) =>
-      new FireflySimulation({ scene, params, onStats }),
-  },
-  galaxy: {
-    config: GALAXY_APPLET_CONFIG,
-    defaultParams: GALAXY_DEFAULT_PARAMS,
-    runtime: GALAXY_APPLET_RUNTIME,
-    createSimulation: ({ scene, params, world, onStats }) =>
-      new GalaxySimulation({ scene, params, world, onStats }),
-  },
-  dune: {
-    config: DUNE_APPLET_CONFIG,
-    defaultParams: DUNE_DEFAULT_PARAMS,
-    runtime: DUNE_APPLET_RUNTIME,
-    createSimulation: ({ scene, params, world, onStats }) =>
-      new DuneSimulation({ scene, params, world, onStats }),
-  },
-};
+      new SimulationClass({ scene, params, world, onStats }),
+  };
+}
+
+export const APPLET_ORDER = APPLET_MODULES.map(({ id }) => id);
+
+export const APPLET_DEFINITIONS = Object.fromEntries(
+  APPLET_MODULES.map(({ id, module }) => [id, buildAppletDefinition(id, module)]),
+);
 
 export const APPLET_CONFIGS = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, APPLET_DEFINITIONS[id].config]),
@@ -105,4 +80,8 @@ export const APPLET_META = Object.fromEntries(
       },
     ];
   }),
+);
+
+export const APPLET_VISUALS = Object.fromEntries(
+  APPLET_ORDER.map((id) => [id, APPLET_DEFINITIONS[id].visual ?? null]),
 );
