@@ -888,11 +888,6 @@ function setupControls() {
     return value.toFixed(2);
   });
 
-  bindRange("galaxy-gravity", "galaxy-gravity-value", (value) => {
-    params.galaxy.gravity = value;
-    return `${value.toExponential(3)} m^3 kg^-1 s^-2`;
-  });
-
   bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
     params.galaxy.centralMass = value;
     return `${value.toExponential(2)} M_sun`;
@@ -933,6 +928,12 @@ function setupControls() {
     resetTrendCharts("dune");
     refreshAppletLegend("dune");
     return String(params.dune.resolution);
+  });
+
+  bindRange("dune-column-size", "dune-column-size-value", (value) => {
+    params.dune.columnSizeScale = value;
+    duneSimulation.syncInstances?.();
+    return `${value.toFixed(2)}x`;
   });
 
   bindRange("dune-height-scale", "dune-height-scale-value", (value) => {

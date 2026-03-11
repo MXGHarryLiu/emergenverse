@@ -8,6 +8,7 @@ export const DUNE_DEFAULT_PARAMS = {
   colorMode: "mass",
   colormap: "cividis",
   resolution: 40,
+  columnSizeScale: 0.94,
   heightScale: 1.8,
   windDirectionDeg: 20,
   windStrength: 0.9,
@@ -23,9 +24,9 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
   label: "Dune Dynamics",
   defaultProjection: "perspective",
   camera: {
-    distance: 110,
-    height: 70,
-    fov: 42,
+    distance: 95,
+    height: 26,
+    fov: 46,
     locked: false,
   },
   world: {
@@ -81,9 +82,10 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
         },
         {
           title: "Rendered Height",
-          equation: "$$z_{ij}=S_h\\,h_{ij}$$",
-          explanation: "Each square column is drawn using its local sand height scaled into scene height. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint.",
+          equation: "$$w_{ij}=S_{xy}\\,\\Delta x,\\qquad \\ell_{ij}=S_{xy}\\,\\Delta y,\\qquad z_{ij}=S_h\\,h_{ij}$$",
+          explanation: "Each square column is drawn using the simulation cell size scaled into a visual footprint in x and y, together with a separate visual height scale in z. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint in the underlying model.",
           parameters: [
+            "<strong>Object Visual Size</strong> (<em>S<sub>xy</sub></em>) scales the rendered column width and length without changing the simulation grid.",
             "<strong>Vertical Exaggeration</strong> (<em>S<sub>h</sub></em>) scales column height in the rendered scene.",
           ],
         },
@@ -116,6 +118,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("dune-sim-speed", "Simulation Speed", "bi-stopwatch", "dune-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("dune-resolution", "Resolution", "bi-grid-3x3-gap-fill", "dune-resolution-value", "40", "16", "96", "2", "40"),
+        slider("dune-column-size", "Object Visual Size", "bi-rulers", "dune-column-size-value", "0.94x", "0.2", "1.0", "0.02", "0.94"),
         slider("dune-height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "dune-height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8"),
         slider("dune-wind-direction", "Wind Direction", "bi-compass", "dune-wind-direction-value", "20°", "-180", "180", "1", "20"),
         slider("dune-wind-strength", "Wind Strength", "bi-wind", "dune-wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9"),
@@ -204,6 +207,8 @@ export class DuneSimulation {
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshPhongMaterial({
       color: 0xd8b36a,
+      vertexColors: true,
+      fog: false,
       specular: 0x3a2b18,
       shininess: 16,
       flatShading: false,
@@ -379,6 +384,7 @@ export class DuneSimulation {
     const cellHeight = this.params.worldSizeY / resolution;
     const cellArea = cellWidth * cellHeight;
     const floorZ = -this.params.worldSizeZ * 0.5;
+    const footprintScale = THREE.MathUtils.clamp(this.params.columnSizeScale ?? 0.94, 0.05, 1);
     const renderScale = Math.max(0.4, this.params.heightScale ?? 1.8);
 
     let minMass = Infinity;
@@ -399,7 +405,7 @@ export class DuneSimulation {
           -this.params.worldSizeY * 0.5 + cellHeight * (y + 0.5),
           floorZ + height * 0.5,
         );
-        this.tempObject.scale.set(cellWidth * 0.94, cellHeight * 0.94, height);
+        this.tempObject.scale.set(cellWidth * footprintScale, cellHeight * footprintScale, height);
         this.tempObject.rotation.set(0, 0, 0);
         this.tempObject.updateMatrix();
         this.mesh.setMatrixAt(index, this.tempObject.matrix);

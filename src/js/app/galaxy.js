@@ -26,7 +26,6 @@ export const GALAXY_DEFAULT_PARAMS = {
   count: 500,
   particleSize: 900,
   spin: 1.35,
-  gravity: GALAXY_SI_GRAVITATIONAL_CONSTANT,
   centralMass: 2.2e12,
   softening: 180,
   damping: 0.003,
@@ -39,14 +38,14 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   defaultBoundaryMode: "lost",
   camera: {
     distance: 130000,
-    height: 50000,
+    height: 70000,
     fov: 34,
     locked: false,
   },
   units: GALAXY_UNITS,
   world: {
-    defaults: { x: 120000, y: 120000, z: 12000 },
-    range: { minX: 20000, maxX: 300000, minY: 20000, maxY: 300000, minZ: 4000, maxZ: 60000, step: 1000 },
+    defaults: { x: 120000, y: 120000, z: 120000 },
+    range: { minX: 20000, maxX: 300000, minY: 20000, maxY: 300000, minZ: 20000, maxZ: 300000, step: 1000 },
     gridSize: 5000,
     lengthUnit: {
       name: GALAXY_UNITS.length.label,
@@ -85,9 +84,8 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         {
           title: "Softened Gravity",
           equation: "$$\\mathbf{a}_i=G\\sum_{j\\ne i}\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}}$$",
-          explanation: "Acceleration combines particle-particle attraction with a pull from the central mass, while softening prevents singular forces at very small separations.",
+          explanation: "Acceleration combines particle-particle attraction with a pull from the central mass, while softening prevents singular forces at very small separations. In this applet, G is fixed to the physical SI gravitational constant and converted internally into galaxy units.",
           parameters: [
-            "<strong>Gravity</strong> (<em>G</em>) sets the global attraction strength.",
             "<strong>Central Mass</strong> (<em>M<sub>c</sub></em>) controls how strongly the disk stays bound to the center.",
             "<strong>Softening</strong> (<em>&epsilon;</em>) sets the short-range smoothing scale.",
           ],
@@ -128,7 +126,6 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         slider("galaxy-count", "Count", "bi-people-fill", "galaxy-count-value", "500", "50", "2000", "10", "500"),
         slider("galaxy-particle-size", "Object Visual Size", "bi-rulers", "galaxy-particle-size-value", `900 ${GALAXY_UNITS.length.label}`, "80", "4000", "20", "900"),
         slider("galaxy-spin", "Initial Spin", "bi-arrow-clockwise", "galaxy-spin-value", "1.35", "0.2", "2.5", "0.05", "1.35"),
-        slider("galaxy-gravity", "Gravity (G)", "bi-asterisk", "galaxy-gravity-value", `${GALAXY_SI_GRAVITATIONAL_CONSTANT.toExponential(3)} m^3 kg^-1 s^-2`, "1.0e-12", "5.0e-10", "1.0e-12", String(GALAXY_SI_GRAVITATIONAL_CONSTANT)),
         slider("galaxy-central-mass", "Central Mass (M_c)", "bi-bullseye", "galaxy-central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12"),
         slider("galaxy-softening", "Softening (ε)", "bi-dot", "galaxy-softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180"),
         slider("galaxy-damping", "Damping (λ)", "bi-sliders", "galaxy-damping-value", `0.0030 1/${GALAXY_UNITS.time.label}`, "0.0", "0.020", "0.0005", "0.003"),
@@ -198,10 +195,6 @@ const GALAXY_COLORMAP_STOPS = {
 const GALAXY_COLORMAPS = buildColormapLUT(GALAXY_COLORMAP_STOPS);
 const lerpA = new THREE.Color();
 const lerpB = new THREE.Color();
-
-function gravitySIToInternal(value) {
-  return value * GALAXY_GRAVITY_INTERNAL_SCALE;
-}
 
 function massToInternalSolarMass(value) {
   return value;
@@ -290,7 +283,7 @@ export class GalaxySimulation {
     const dtMyr = dt * GALAXY_TIME_SCALE_MYR_PER_SECOND;
     const soft = Math.max(1, lengthToInternalLightYears(this.params.softening ?? 180));
     const softSq = soft * soft;
-    const G = gravitySIToInternal(Math.max(0, this.params.gravity ?? GALAXY_SI_GRAVITATIONAL_CONSTANT));
+    const G = GALAXY_GRAVITY_INTERNAL;
     const centralMass = Math.max(0, massToInternalSolarMass(this.params.centralMass ?? 2.2e12));
     const particleMass = Math.max(1e6, (centralMass * GALAXY_DISK_MASS_FRACTION) / Math.max(count, 1));
     const damping = THREE.MathUtils.clamp(this.params.damping ?? 0.003, 0, 0.05);
@@ -430,7 +423,7 @@ export class GalaxySimulation {
 
     const tangential = new THREE.Vector3(-Math.sin(theta), Math.cos(theta), 0);
     const spin = Math.max(0, this.params.spin ?? 1.35);
-    const gravityInternal = gravitySIToInternal(Math.max(0, this.params.gravity ?? GALAXY_SI_GRAVITATIONAL_CONSTANT));
+    const gravityInternal = GALAXY_GRAVITY_INTERNAL;
     const centralMassInternal = Math.max(1e8, massToInternalSolarMass(this.params.centralMass ?? 2.2e12));
     const baseSpeed = spin * Math.sqrt(
       Math.max(1e-12, gravityInternal) * centralMassInternal / Math.max(200, r),
