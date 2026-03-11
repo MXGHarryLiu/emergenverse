@@ -117,25 +117,6 @@ const dom = {
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
-  colorMode: document.getElementById("color-mode"),
-  colormap: document.getElementById("colormap"),
-  solidColor: document.getElementById("solid-color"),
-  colormapControlWrap: document.getElementById("colormap-control-wrap"),
-  singleColorWrap: document.getElementById("single-color-wrap"),
-  antColorMode: document.getElementById("ant-color-mode"),
-  antColormap: document.getElementById("ant-colormap"),
-  antSolidColor: document.getElementById("ant-solid-color"),
-  antColormapControlWrap: document.getElementById("ant-colormap-control-wrap"),
-  antSingleColorWrap: document.getElementById("ant-single-color-wrap"),
-  antColormapLegend: document.getElementById("ant-colormap-legend"),
-  antColormapLegendBar: document.getElementById("ant-colormap-legend-bar"),
-  antColormapCmin: document.getElementById("ant-colormap-cmin"),
-  antColormapCmax: document.getElementById("ant-colormap-cmax"),
-  preyColorMode: document.getElementById("prey-color-mode"),
-  preyColormap: document.getElementById("prey-colormap"),
-  preySolidColor: document.getElementById("prey-solid-color"),
-  preyColormapControlWrap: document.getElementById("prey-colormap-control-wrap"),
-  preySingleColorWrap: document.getElementById("prey-single-color-wrap"),
   preyColormapLegend: document.getElementById("prey-colormap-legend"),
   preyColormapLegendBar: document.getElementById("prey-colormap-legend-bar"),
   preyColormapCmin: document.getElementById("prey-colormap-cmin"),
@@ -162,8 +143,6 @@ const dom = {
   aboutInfoClose: document.getElementById("about-info-close"),
   aboutInfoBackdrop: document.getElementById("about-info-backdrop"),
   controlSectionToggles: document.querySelectorAll("[data-control-toggle]"),
-  antFoodPlacementEnabled: document.getElementById("ant-food-placement-enabled"),
-  antFoodAddMass: document.getElementById("ant-food-add-mass"),
   cameraPosX: document.getElementById("camera-pos-x"),
   cameraPosY: document.getElementById("camera-pos-y"),
   cameraPosZ: document.getElementById("camera-pos-z"),
@@ -231,71 +210,6 @@ const orthographicCamera = cameraController.orthographicCamera;
 const controls = cameraController.controls;
 const onKeyDown = cameraController.onKeyDown;
 const onKeyUp = cameraController.onKeyUp;
-
-const boidGeometry = new THREE.ConeGeometry(0.7, 2.6, 10);
-boidGeometry.rotateX(Math.PI / 2);
-const boidMaterial = new THREE.MeshPhongMaterial({
-  color: 0xffffff,
-  specular: 0x222222,
-  shininess: 34,
-  flatShading: true,
-  side: THREE.DoubleSide,
-  // For InstancedMesh setColorAt(), rely on instancing color, not geometry vertex color.
-  vertexColors: false,
-  toneMapped: false,
-});
-
-const antGeometry = new THREE.ConeGeometry(0.45, 1.05, 8);
-const antMaterial = new THREE.MeshPhongMaterial({
-  color: 0xffffff,
-  shininess: 28,
-  specular: 0x1d1d1d,
-  flatShading: true,
-  side: THREE.DoubleSide,
-  vertexColors: false,
-  toneMapped: false,
-});
-
-const boids = [];
-let boidMesh = null;
-const tempObject = new THREE.Object3D();
-const forwardVector = new THREE.Vector3(0, 0, 1);
-
-const ants = [];
-let antMesh = null;
-let antPheromonePlane = null;
-const antTempObject = new THREE.Object3D();
-const antColor = new THREE.Color();
-const antNest = new THREE.Vector2(0, 0);
-let antFoodSources = [];
-const antPheromoneFieldSize = 128;
-let antFoodField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
-let antHomeField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
-let antNextFoodField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
-let antNextHomeField = new Float32Array(antPheromoneFieldSize * antPheromoneFieldSize);
-const antPheromoneTextureData = new Uint8Array(antPheromoneFieldSize * antPheromoneFieldSize * 4);
-const antPheromoneTexture = new THREE.DataTexture(
-  antPheromoneTextureData,
-  antPheromoneFieldSize,
-  antPheromoneFieldSize,
-  THREE.RGBAFormat,
-);
-antPheromoneTexture.flipY = false;
-antPheromoneTexture.colorSpace = THREE.SRGBColorSpace;
-antPheromoneTexture.needsUpdate = true;
-const antPheromoneMaterial = new THREE.MeshBasicMaterial({
-  map: antPheromoneTexture,
-  transparent: true,
-  opacity: 0.72,
-  depthWrite: false,
-  side: THREE.DoubleSide,
-});
-const antStats = {
-  trips: 0,
-  carrying: 0,
-  meanPheromone: 0,
-  maxPheromone: 0,
-};
 
 const world = createWorldManager({
   params,
@@ -376,17 +290,6 @@ simulationManager.register("ants", antSimulation);
 simulationManager.register("prey", preySimulation);
 simulationManager.register("firefly", fireflySimulation);
 
-const separationDelta = new THREE.Vector3();
-const alignment = new THREE.Vector3();
-const cohesion = new THREE.Vector3();
-const separation = new THREE.Vector3();
-const velocityDir = new THREE.Vector3();
-
-const instanceColor = new THREE.Color();
-const colormapLerpA = new THREE.Color();
-const colormapLerpB = new THREE.Color();
-const solidColorValue = new THREE.Color(params.solidColor);
-
 const colormapStops = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
@@ -398,7 +301,6 @@ const colormapStops = {
   greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
 };
 
-const colormaps = buildColormapLUT(colormapStops);
 const colormapGradients = buildColormapGradients(colormapStops);
 
 const speedHistory = [];
@@ -421,10 +323,6 @@ let fireflyChartFrameCounter = 0;
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
 const narrowScreenThresholdPx = 980;
-const antFoodRaycaster = new THREE.Raycaster();
-const antFoodPointerNdc = new THREE.Vector2();
-const antFoodPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-
 setPerspectiveCameraFromParams(false);
 updateOrthographicCamera(true);
 applyCameraInteractivity();
@@ -448,7 +346,6 @@ setupUiOverlays({
   },
   onPauseStateChange: () => updateSimulationStateUI(),
 });
-setupAntFoodPlacementInteraction();
 setupTrendCharts();
 setupChartCollapses();
 setupAppRouting();
@@ -474,7 +371,13 @@ function animate() {
   simulationManager.enforceVisibility?.();
   updateFpsMetric(dt);
   if (!params.paused) {
-    simulationManager.step(dt, activeApplet);
+    let remaining = dt * getActiveSimulationSpeed();
+    const maxSubstep = 0.05;
+    while (remaining > 0) {
+      const stepDt = Math.min(maxSubstep, remaining);
+      simulationManager.step(stepDt, activeApplet);
+      remaining -= stepDt;
+    }
   }
 
   updateKeyboardTranslation(dt);
@@ -510,421 +413,6 @@ function updateFpsMetric(dt) {
   if (dom.fireflyFpsLive) {
     dom.fireflyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
   }
-}
-
-function spawnBoids(count) {
-  boids.length = 0;
-
-  const spawnRangeX = params.worldSizeX * 0.9;
-  const spawnRangeY = params.worldSizeY * 0.9;
-  const spawnRangeZ = params.worldSizeZ * 0.9;
-
-  for (let i = 0; i < count; i += 1) {
-    const startVelocity = randomDirection().multiplyScalar(
-      THREE.MathUtils.randFloat(params.maxSpeed * 0.45, params.maxSpeed * 0.95),
-    );
-
-    boids.push({
-      position: new THREE.Vector3(
-        THREE.MathUtils.randFloatSpread(spawnRangeX),
-        THREE.MathUtils.randFloatSpread(spawnRangeY),
-        THREE.MathUtils.randFloatSpread(spawnRangeZ),
-      ),
-      velocity: startVelocity,
-      acceleration: new THREE.Vector3(),
-      neighbors: 0,
-      lost: false,
-    });
-  }
-
-  rebuildBoidMeshForCurrentBoids();
-
-  resetBoidTrendCharts();
-  syncBoidInstances();
-  updateBoidStats(0, 0);
-}
-
-function rebuildBoidMeshForCurrentBoids() {
-  if (boidMesh) {
-    scene.remove(boidMesh);
-    boidMesh = null;
-  }
-
-  const capacity = Math.max(boids.length, 1);
-  boidMesh = new THREE.InstancedMesh(boidGeometry, boidMaterial, capacity);
-  boidMesh.count = boids.length;
-  boidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  boidMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
-  boidMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
-  for (let i = 0; i < capacity; i += 1) {
-    boidMesh.instanceColor.setXYZ(i, 1, 1, 1);
-  }
-  boidMaterial.needsUpdate = true;
-  scene.add(boidMesh);
-  applySceneObjectVisibility(activeApplet);
-}
-
-function initializeAntSimulationAssets() {
-  if (!antPheromonePlane) {
-    const pheromoneGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
-    antPheromonePlane = new THREE.Mesh(pheromoneGeometry, antPheromoneMaterial);
-    antPheromonePlane.renderOrder = 2;
-    antPheromonePlane.position.z = -params.worldSizeZ * 0.5 + 0.08;
-    scene.add(antPheromonePlane);
-  }
-
-  rebuildAntMeshForCurrentAnts();
-  updateAntPheromonePlaneTransform();
-}
-
-function resetAntSimulation() {
-  ants.length = 0;
-  antStats.trips = 0;
-  antStats.carrying = 0;
-  antStats.meanPheromone = 0;
-  antStats.maxPheromone = 0;
-
-  antFoodField.fill(0);
-  antHomeField.fill(0);
-  antNextFoodField.fill(0);
-  antNextHomeField.fill(0);
-
-  antFoodSources = buildAntFoodSources();
-
-  const spawnRadius = Math.max(3.5, Math.min(params.worldSizeX, params.worldSizeY) * 0.06);
-  for (let i = 0; i < params.antCount; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.random() * spawnRadius;
-    ants.push({
-      position: new THREE.Vector2(Math.cos(angle) * radius, Math.sin(angle) * radius),
-      heading: Math.random() * Math.PI * 2,
-      carrying: false,
-      lost: false,
-    });
-  }
-
-  rebuildAntMeshForCurrentAnts();
-  syncAntInstances();
-  updateAntPheromoneTexture();
-  resetAntTrendCharts();
-  updateAntStats();
-}
-
-function rebuildAntMeshForCurrentAnts() {
-  if (antMesh) {
-    scene.remove(antMesh);
-    antMesh = null;
-  }
-
-  const capacity = Math.max(ants.length, 1);
-  antMesh = new THREE.InstancedMesh(antGeometry, antMaterial, capacity);
-  antMesh.count = ants.length;
-  antMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  antMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
-  antMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
-  for (let i = 0; i < capacity; i += 1) {
-    antMesh.instanceColor.setXYZ(i, 1, 1, 1);
-  }
-  scene.add(antMesh);
-  applySceneObjectVisibility(activeApplet);
-}
-
-function updateAntPheromonePlaneTransform() {
-  if (!antPheromonePlane) {
-    return;
-  }
-
-  antPheromonePlane.scale.set(params.worldSizeX, params.worldSizeY, 1);
-  antPheromonePlane.position.z = -params.worldSizeZ * 0.5 + 0.06;
-}
-
-function buildAntFoodSources() {
-  const rx = params.worldSizeX * 0.34;
-  const ry = params.worldSizeY * 0.32;
-  return [
-    new THREE.Vector2(-rx, ry * 0.9),
-    new THREE.Vector2(rx * 0.9, -ry),
-    new THREE.Vector2(rx * 0.25, ry * 0.24),
-  ];
-}
-
-function stepAntSimulation(dt) {
-  const sensorAngleRad = THREE.MathUtils.degToRad(params.antSensorAngle);
-  const sensorDistance = Math.max(0.2, params.antSensorDistance);
-  const nestRadius = Math.max(2.2, sensorDistance * 0.5);
-  const foodRadius = Math.max(2.6, sensorDistance * 0.58);
-  const turnGain = Math.max(0, params.antTurnGain);
-  const goalBias = Math.max(0, params.antGoalBias);
-  const depositRate = Math.max(0, params.antDepositRate);
-  const speed = Math.max(0, params.antSpeed);
-
-  for (let i = 0; i < ants.length; i += 1) {
-    const ant = ants[i];
-    const trackField = ant.carrying ? antHomeField : antFoodField;
-
-    const leftSignal = sampleAntField(
-      trackField,
-      ant.position.x + Math.cos(ant.heading + sensorAngleRad) * sensorDistance,
-      ant.position.y + Math.sin(ant.heading + sensorAngleRad) * sensorDistance,
-    );
-    const rightSignal = sampleAntField(
-      trackField,
-      ant.position.x + Math.cos(ant.heading - sensorAngleRad) * sensorDistance,
-      ant.position.y + Math.sin(ant.heading - sensorAngleRad) * sensorDistance,
-    );
-
-    const target = ant.carrying ? antNest : getClosestFoodSource(ant.position);
-    const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
-    const headingError = shortestAngleDelta(desiredHeading - ant.heading);
-    const stochastic = (Math.random() * 2 - 1) * params.antNoiseStrength;
-
-    ant.heading = wrapAngle(
-      ant.heading +
-        ((rightSignal - leftSignal) * turnGain + headingError * goalBias + stochastic) * dt,
-    );
-
-    ant.position.x += Math.cos(ant.heading) * speed * dt;
-    ant.position.y += Math.sin(ant.heading) * speed * dt;
-
-    if (!applyAntBoundaryConditions(ant)) {
-      continue;
-    }
-
-    const toNestSq = ant.position.distanceToSquared(antNest);
-    if (!ant.carrying && isNearAnyFoodSource(ant.position, foodRadius)) {
-      ant.carrying = true;
-      ant.heading = wrapAngle(ant.heading + Math.PI);
-    } else if (ant.carrying && toNestSq < nestRadius * nestRadius) {
-      ant.carrying = false;
-      ant.heading = wrapAngle(ant.heading + Math.PI);
-      antStats.trips += 1;
-    }
-
-    const depositField = ant.carrying ? antFoodField : antHomeField;
-    depositAntField(depositField, ant.position.x, ant.position.y, depositRate * dt);
-
-  }
-
-  if (params.boundaryMode === "lost") {
-    removeLostAnts();
-  }
-
-  diffuseAndEvaporateAntFields(dt);
-  updateAntPheromoneTexture();
-  syncAntInstances();
-
-  updateAntStats();
-}
-
-function removeLostAnts() {
-  let removed = false;
-  for (let i = ants.length - 1; i >= 0; i -= 1) {
-    if (ants[i].lost) {
-      ants.splice(i, 1);
-      removed = true;
-    }
-  }
-
-  if (removed) {
-    rebuildAntMeshForCurrentAnts();
-  }
-}
-
-function syncAntInstances() {
-  if (!antMesh) {
-    return;
-  }
-
-  const floorZ = -params.worldSizeZ * 0.5 + 0.82;
-  for (let i = 0; i < ants.length; i += 1) {
-    const ant = ants[i];
-    antTempObject.position.set(ant.position.x, ant.position.y, floorZ);
-    antTempObject.rotation.set(0, 0, ant.heading - Math.PI * 0.5);
-    antTempObject.scale.setScalar(0.95);
-    antTempObject.updateMatrix();
-    antMesh.setMatrixAt(i, antTempObject.matrix);
-
-    if (ant.carrying) {
-      antColor.setRGB(0.98, 0.69, 0.26);
-    } else {
-      antColor.setRGB(0.37, 0.84, 0.98);
-    }
-    antMesh.setColorAt(i, antColor);
-  }
-
-  antMesh.count = ants.length;
-  antMesh.instanceMatrix.needsUpdate = true;
-  if (antMesh.instanceColor) {
-    antMesh.instanceColor.needsUpdate = true;
-  }
-}
-
-function updateAntPheromoneTexture() {
-  let maxCombined = 0;
-  let totalCombined = 0;
-  const cellCount = antPheromoneFieldSize * antPheromoneFieldSize;
-
-  for (let i = 0; i < cellCount; i += 1) {
-    const combined = antFoodField[i] + antHomeField[i];
-    if (combined > maxCombined) {
-      maxCombined = combined;
-    }
-    totalCombined += combined;
-  }
-
-  antStats.meanPheromone = cellCount > 0 ? totalCombined / cellCount : 0;
-  antStats.maxPheromone = maxCombined;
-  const invMax = maxCombined > 0.000001 ? 1 / maxCombined : 0;
-
-  for (let i = 0; i < cellCount; i += 1) {
-    const i4 = i * 4;
-    const food = antFoodField[i] * invMax;
-    const home = antHomeField[i] * invMax;
-    const combined = THREE.MathUtils.clamp(food + home, 0, 1);
-
-    antPheromoneTextureData[i4] = Math.round(210 * food + 28 * home);
-    antPheromoneTextureData[i4 + 1] = Math.round(168 * combined + 18);
-    antPheromoneTextureData[i4 + 2] = Math.round(225 * home + 42 * food);
-    antPheromoneTextureData[i4 + 3] = Math.round(230 * combined);
-  }
-
-  antPheromoneTexture.needsUpdate = true;
-}
-
-function diffuseAndEvaporateAntFields(dt) {
-  const size = antPheromoneFieldSize;
-  const diffusion = THREE.MathUtils.clamp(params.antDiffusionRate * dt, 0, 0.45);
-  const decay = THREE.MathUtils.clamp(params.antEvapRate * dt, 0, 0.95);
-
-  for (let y = 0; y < size; y += 1) {
-    const yUp = y === 0 ? (params.boundaryMode === "cyclic" ? size - 1 : 0) : y - 1;
-    const yDown = y === size - 1 ? (params.boundaryMode === "cyclic" ? 0 : size - 1) : y + 1;
-
-    for (let x = 0; x < size; x += 1) {
-      const xLeft = x === 0 ? (params.boundaryMode === "cyclic" ? size - 1 : 0) : x - 1;
-      const xRight = x === size - 1 ? (params.boundaryMode === "cyclic" ? 0 : size - 1) : x + 1;
-
-      const idx = y * size + x;
-      const idxL = y * size + xLeft;
-      const idxR = y * size + xRight;
-      const idxU = yUp * size + x;
-      const idxD = yDown * size + x;
-
-      const food = antFoodField[idx];
-      const home = antHomeField[idx];
-
-      const foodNeighborAvg = (antFoodField[idxL] + antFoodField[idxR] + antFoodField[idxU] + antFoodField[idxD]) * 0.25;
-      const homeNeighborAvg = (antHomeField[idxL] + antHomeField[idxR] + antHomeField[idxU] + antHomeField[idxD]) * 0.25;
-
-      antNextFoodField[idx] = Math.max(0, food * (1 - decay) + (foodNeighborAvg - food) * diffusion);
-      antNextHomeField[idx] = Math.max(0, home * (1 - decay) + (homeNeighborAvg - home) * diffusion);
-    }
-  }
-
-  const tmpFood = antFoodField;
-  antFoodField = antNextFoodField;
-  antNextFoodField = tmpFood;
-
-  const tmpHome = antHomeField;
-  antHomeField = antNextHomeField;
-  antNextHomeField = tmpHome;
-}
-
-function depositAntField(field, x, y, amount) {
-  if (amount <= 0) {
-    return;
-  }
-
-  const size = antPheromoneFieldSize;
-  const u = ((x / Math.max(params.worldSizeX, 1)) + 0.5) * (size - 1);
-  const v = ((y / Math.max(params.worldSizeY, 1)) + 0.5) * (size - 1);
-  const ix = THREE.MathUtils.clamp(Math.round(u), 0, size - 1);
-  const iy = THREE.MathUtils.clamp(Math.round(v), 0, size - 1);
-
-  const center = iy * size + ix;
-  field[center] += amount;
-
-  if (ix > 0) {
-    field[center - 1] += amount * 0.35;
-  }
-  if (ix < size - 1) {
-    field[center + 1] += amount * 0.35;
-  }
-  if (iy > 0) {
-    field[center - size] += amount * 0.35;
-  }
-  if (iy < size - 1) {
-    field[center + size] += amount * 0.35;
-  }
-}
-
-function sampleAntField(field, x, y) {
-  const size = antPheromoneFieldSize;
-  const u = ((x / Math.max(params.worldSizeX, 1)) + 0.5) * (size - 1);
-  const v = ((y / Math.max(params.worldSizeY, 1)) + 0.5) * (size - 1);
-  const ix = THREE.MathUtils.clamp(Math.round(u), 0, size - 1);
-  const iy = THREE.MathUtils.clamp(Math.round(v), 0, size - 1);
-  return field[iy * size + ix];
-}
-
-function isNearAnyFoodSource(position, radius) {
-  const radiusSq = radius * radius;
-  for (let i = 0; i < antFoodSources.length; i += 1) {
-    if (position.distanceToSquared(antFoodSources[i]) <= radiusSq) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function getClosestFoodSource(position) {
-  let best = antFoodSources[0] || antNest;
-  let bestDistSq = position.distanceToSquared(best);
-
-  for (let i = 1; i < antFoodSources.length; i += 1) {
-    const distanceSq = position.distanceToSquared(antFoodSources[i]);
-    if (distanceSq < bestDistSq) {
-      bestDistSq = distanceSq;
-      best = antFoodSources[i];
-    }
-  }
-
-  return best;
-}
-
-function applyAntBoundaryConditions(ant) {
-  const halfX = params.worldSizeX * 0.5;
-  const halfY = params.worldSizeY * 0.5;
-
-  if (params.boundaryMode === "cyclic") {
-    ant.position.x = wrapAxisLocal(ant.position.x, halfX);
-    ant.position.y = wrapAxisLocal(ant.position.y, halfY);
-    ant.lost = false;
-    return true;
-  }
-
-  const outOfBounds = Math.abs(ant.position.x) > halfX || Math.abs(ant.position.y) > halfY;
-  ant.lost = outOfBounds;
-  return !outOfBounds;
-}
-
-function wrapAxisLocal(value, halfExtent) {
-  const span = halfExtent * 2;
-  if (span <= 0) {
-    return 0;
-  }
-  if (value > halfExtent || value < -halfExtent) {
-    return ((((value + halfExtent) % span) + span) % span) - halfExtent;
-  }
-  return value;
-}
-
-function shortestAngleDelta(value) {
-  return Math.atan2(Math.sin(value), Math.cos(value));
-}
-
-function wrapAngle(value) {
-  return Math.atan2(Math.sin(value), Math.cos(value));
 }
 
 function updateAntStats(stats) {
@@ -1035,232 +523,6 @@ function updateFireflyStats(stats) {
   }
 }
 
-function refreshAntWorldGeometry() {
-  antFoodSources = buildAntFoodSources();
-  updateAntPheromonePlaneTransform();
-
-  for (let i = 0; i < ants.length; i += 1) {
-    applyAntBoundaryConditions(ants[i]);
-  }
-
-  if (params.boundaryMode === "lost") {
-    removeLostAnts();
-  }
-
-  syncAntInstances();
-}
-
-function stepSimulation(dt) {
-  const perceptionSq = params.perceptionRadius * params.perceptionRadius;
-  const separationSq = params.separationDistance * params.separationDistance;
-  const usingLostBounds = params.boundaryMode === "lost";
-
-  let speedSum = 0;
-  let neighborSum = 0;
-
-  for (let i = 0; i < boids.length; i += 1) {
-    const boid = boids[i];
-
-    alignment.set(0, 0, 0);
-    cohesion.set(0, 0, 0);
-    separation.set(0, 0, 0);
-
-    let neighborCount = 0;
-    let separationCount = 0;
-
-    for (let j = 0; j < boids.length; j += 1) {
-      if (j === i) {
-        continue;
-      }
-
-      const other = boids[j];
-      const distSq = boid.position.distanceToSquared(other.position);
-
-      if (distSq < perceptionSq) {
-        alignment.add(other.velocity);
-        cohesion.add(other.position);
-        neighborCount += 1;
-      }
-
-      if (distSq < separationSq && distSq > 0.000001) {
-        separationDelta.subVectors(boid.position, other.position);
-        separationDelta.divideScalar(distSq);
-        separation.add(separationDelta);
-        separationCount += 1;
-      }
-    }
-
-    boid.neighbors = neighborCount;
-    boid.acceleration.set(0, 0, 0);
-
-    if (neighborCount > 0) {
-      alignment.divideScalar(neighborCount);
-      if (alignment.lengthSq() > 0) {
-        alignment.setLength(params.maxSpeed);
-        alignment.sub(boid.velocity);
-        limitVector(alignment, params.maxAccel);
-        alignment.multiplyScalar(params.alignmentWeight);
-        boid.acceleration.add(alignment);
-      }
-
-      cohesion.divideScalar(neighborCount);
-      cohesion.sub(boid.position);
-      if (cohesion.lengthSq() > 0) {
-        cohesion.setLength(params.maxSpeed);
-        cohesion.sub(boid.velocity);
-        limitVector(cohesion, params.maxAccel);
-        cohesion.multiplyScalar(params.cohesionWeight);
-        boid.acceleration.add(cohesion);
-      }
-    }
-
-    if (separationCount > 0) {
-      separation.divideScalar(separationCount);
-      if (separation.lengthSq() > 0) {
-        separation.setLength(params.maxSpeed);
-        separation.sub(boid.velocity);
-        limitVector(separation, params.maxAccel);
-        separation.multiplyScalar(params.separationWeight);
-        boid.acceleration.add(separation);
-      }
-    }
-
-    boid.velocity.addScaledVector(boid.acceleration, dt);
-    const minSpeed = Math.min(params.minSpeed, params.maxSpeed * 0.85);
-    enforceSpeedBounds(boid.velocity, minSpeed, params.maxSpeed);
-    boid.position.addScaledVector(boid.velocity, dt);
-
-    const activeBoid = applyBoundaryConditions(boid);
-    if (!activeBoid) {
-      continue;
-    }
-
-    speedSum += boid.velocity.length();
-    neighborSum += boid.neighbors;
-  }
-
-  if (usingLostBounds) {
-    removeLostBoids();
-  }
-
-  syncBoidInstances();
-  updateBoidStats(speedSum, neighborSum);
-}
-
-function syncBoidInstances() {
-  const halfZ = params.worldSizeZ * 0.5;
-  const colorBounds =
-    params.colorMode === "none" ? null : getColorScalarBounds(halfZ);
-
-  for (let i = 0; i < boids.length; i += 1) {
-    const boid = boids[i];
-
-    velocityDir.copy(boid.velocity);
-    if (velocityDir.lengthSq() < 0.00001) {
-      velocityDir.copy(forwardVector);
-    } else {
-      velocityDir.normalize();
-    }
-
-    tempObject.position.copy(boid.position);
-    tempObject.quaternion.setFromUnitVectors(forwardVector, velocityDir);
-    tempObject.scale.setScalar(params.boidScale);
-    tempObject.updateMatrix();
-    boidMesh.setMatrixAt(i, tempObject.matrix);
-
-    if (params.colorMode === "none") {
-      solidColorValue.set(params.solidColor);
-      instanceColor.copy(solidColorValue);
-    } else {
-      const scalar = computeColorScalar(boid, halfZ);
-      const span = Math.max((colorBounds?.max ?? 1) - (colorBounds?.min ?? 0), 0.000001);
-      const factor = THREE.MathUtils.clamp((scalar - (colorBounds?.min ?? 0)) / span, 0, 1);
-      const liftedFactor = 0.08 + factor * 0.84;
-      applyColormap(liftedFactor, instanceColor);
-    }
-    ensureVisibleColor(instanceColor, 0.25);
-
-    boidMesh.setColorAt(i, instanceColor);
-  }
-
-  boidMesh.instanceMatrix.needsUpdate = true;
-  if (boidMesh.instanceColor) {
-    boidMesh.instanceColor.needsUpdate = true;
-  }
-}
-
-function computeColorScalar(boid, halfZ) {
-  if (params.colorMode === "speed") {
-    return boid.velocity.length();
-  }
-
-  if (params.colorMode === "altitude") {
-    return boid.position.z;
-  }
-
-  if (params.colorMode === "neighbors") {
-    return boid.neighbors;
-  }
-
-  if (params.colorMode === "heading") {
-    velocityDir.copy(boid.velocity);
-    if (velocityDir.lengthSq() < 0.00001) {
-      return 0;
-    }
-    velocityDir.normalize();
-    return velocityDir.z;
-  }
-
-  return 0;
-}
-
-function getColorScalarBounds(halfZ) {
-  if (params.colorMode === "altitude") {
-    return { min: -halfZ, max: halfZ };
-  }
-
-  if (params.colorMode === "heading") {
-    return { min: -1, max: 1 };
-  }
-
-  if (boids.length === 0) {
-    return params.colorMode === "neighbors"
-      ? { min: 0, max: 16 }
-      : { min: 0, max: Math.max(params.maxSpeed, 1) };
-  }
-
-  let min = Infinity;
-  let max = -Infinity;
-  for (let i = 0; i < boids.length; i += 1) {
-    const scalar = computeColorScalar(boids[i], halfZ);
-    if (scalar < min) {
-      min = scalar;
-    }
-    if (scalar > max) {
-      max = scalar;
-    }
-  }
-
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return params.colorMode === "neighbors"
-      ? { min: 0, max: 16 }
-      : { min: 0, max: Math.max(params.maxSpeed, 1) };
-  }
-
-  if (max - min < 0.0001) {
-    return { min: min - 0.5, max: max + 0.5 };
-  }
-
-  return { min, max };
-}
-
-function buildColormapLUT(stopMap) {
-  const lut = {};
-  for (const [name, stops] of Object.entries(stopMap)) {
-    lut[name] = stops.map((hex) => new THREE.Color(hex));
-  }
-  return lut;
-}
 
 function buildColormapGradients(stopMap) {
   const gradients = {};
@@ -1272,39 +534,6 @@ function buildColormapGradients(stopMap) {
   return gradients;
 }
 
-function applyColormap(value, outColor) {
-  const colors = colormaps[params.colormap] || colormaps.turbo;
-  if (!colors || colors.length === 0) {
-    return outColor.setRGB(1, 1, 1);
-  }
-
-  const clamped = THREE.MathUtils.clamp(value, 0, 1);
-  if (colors.length === 1) {
-    return outColor.copy(colors[0]);
-  }
-
-  const scaled = clamped * (colors.length - 1);
-  const index = Math.min(colors.length - 2, Math.floor(scaled));
-  const t = scaled - index;
-
-  colormapLerpA.copy(colors[index]);
-  colormapLerpB.copy(colors[index + 1]);
-  return outColor.copy(colormapLerpA).lerp(colormapLerpB, t);
-}
-
-function ensureVisibleColor(color, minLuminance) {
-  const luminance =
-    0.2126 * color.r +
-    0.7152 * color.g +
-    0.0722 * color.b;
-
-  if (luminance >= minLuminance) {
-    return color;
-  }
-
-  const deficiency = THREE.MathUtils.clamp((minLuminance - luminance) / Math.max(minLuminance, 0.0001), 0, 1);
-  return color.lerp(new THREE.Color(1, 1, 1), deficiency * 0.55);
-}
 
 function getColorModeRange() {
   if (params.colorMode === "speed") {
@@ -1401,6 +630,11 @@ function rebuildBoundsAndGrid() {
 }
 
 function setupControls() {
+  bindRange("boid-sim-speed", "boid-sim-speed-value", (value) => {
+    params.boidSimSpeed = value;
+    return `${value.toFixed(1)}x`;
+  });
+
   bindRange("boid-scale", "boid-scale-value", (value) => {
     params.boidScale = value;
     return `${value.toFixed(1)} m`;
@@ -1491,7 +725,12 @@ function setupControls() {
 
   bindRange("ant-speed", "ant-speed-value", (value) => {
     params.antSpeed = value;
-    return `${value.toFixed(1)} m/s`;
+    return `${value.toFixed(3)} m/s`;
+  });
+
+  bindRange("ant-sim-speed", "ant-sim-speed-value", (value) => {
+    params.antSimSpeed = value;
+    return `${value.toFixed(1)}x`;
   });
 
   bindRange("ant-scale", "ant-scale-value", (value) => {
@@ -1545,11 +784,6 @@ function setupControls() {
     return `${value.toFixed(2)} 1/s`;
   });
 
-  bindRange("ant-food-add-mass", "ant-food-add-mass-value", (value) => {
-    params.antFoodAddMassUg = value;
-    return `${Math.round(value)} ug`;
-  });
-
   const antCountInput = document.getElementById("ant-count");
   const antCountValue = document.getElementById("ant-count-value");
   if (antCountInput && antCountValue) {
@@ -1567,6 +801,11 @@ function setupControls() {
   bindRange("prey-speed", "prey-speed-value", (value) => {
     params.preySpeed = value;
     return `${value.toFixed(1)} m/s`;
+  });
+
+  bindRange("prey-sim-speed", "prey-sim-speed-value", (value) => {
+    params.preySimSpeed = value;
+    return `${value.toFixed(1)}x`;
   });
 
   bindRange("predator-speed", "predator-speed-value", (value) => {
@@ -1635,6 +874,11 @@ function setupControls() {
     params.fireflySize = value;
     fireflySimulation.syncInstances?.();
     return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("firefly-sim-speed", "firefly-sim-speed-value", (value) => {
+    params.fireflySimSpeed = value;
+    return `${value.toFixed(1)}x`;
   });
 
   bindRange("firefly-speed", "firefly-speed-value", (value) => {
@@ -1819,19 +1063,19 @@ function setupControls() {
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
   dom.boundaryMode.value = params.boundaryMode;
-  if (dom.antFoodPlacementEnabled) {
-    dom.antFoodPlacementEnabled.checked = params.antFoodPlacementEnabled;
-    dom.antFoodPlacementEnabled.addEventListener("change", () => {
-      params.antFoodPlacementEnabled = dom.antFoodPlacementEnabled.checked;
-    });
-  }
+  antSimulation.bindInteractionControls({
+    cameraController,
+    canvas: renderer?.domElement,
+    getActiveApplet: () => activeApplet,
+    bindRange,
+  });
 
   const visualControls = createVisualControls({
     params,
-    dom,
     boidSimulation,
     antSimulation,
     preySimulation,
+    fireflySimulation,
     updateBoidColormapLegend: updateColormapLegend,
     updatePreyColormapLegend,
   });
@@ -2027,33 +1271,6 @@ function refreshVisibleSectionDividers() {
 
 function applySceneObjectVisibility(appletId) {
   simulationManager.setActive(appletId);
-  cleanupLegacySceneArtifacts();
-}
-
-function cleanupLegacySceneArtifacts() {
-  if (boidMesh) {
-    scene.remove(boidMesh);
-    boidMesh.geometry?.dispose?.();
-    if (Array.isArray(boidMesh.material)) {
-      boidMesh.material.forEach((material) => material?.dispose?.());
-    }
-    boidMesh = null;
-  }
-
-  if (antMesh) {
-    scene.remove(antMesh);
-    antMesh.geometry?.dispose?.();
-    if (Array.isArray(antMesh.material)) {
-      antMesh.material.forEach((material) => material?.dispose?.());
-    }
-    antMesh = null;
-  }
-
-  if (antPheromonePlane) {
-    scene.remove(antPheromonePlane);
-    antPheromonePlane.geometry?.dispose?.();
-    antPheromonePlane = null;
-  }
 }
 
 function applyAppletMode(appletId, options = {}) {
@@ -2355,42 +1572,6 @@ function applyPanelVisibility() {
 
   requestAnimationFrame(() => {
     handleViewportResize();
-  });
-}
-
-function setupAntFoodPlacementInteraction() {
-  const canvas = renderer?.domElement;
-  if (!canvas) {
-    return;
-  }
-
-  canvas.addEventListener("dblclick", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-    if (activeApplet !== "ants" || !params.antFoodPlacementEnabled) {
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width <= 1 || rect.height <= 1) {
-      return;
-    }
-
-    antFoodPointerNdc.set(
-      ((event.clientX - rect.left) / rect.width) * 2 - 1,
-      -((event.clientY - rect.top) / rect.height) * 2 + 1,
-    );
-
-    antFoodRaycaster.setFromCamera(antFoodPointerNdc, cameraController.getActiveCamera());
-    const floorZ = -params.worldSizeZ * 0.5 + 0.06;
-    antFoodPlane.constant = -floorZ;
-    const hitPoint = new THREE.Vector3();
-    if (!antFoodRaycaster.ray.intersectPlane(antFoodPlane, hitPoint)) {
-      return;
-    }
-
-    antSimulation.addFoodAt(hitPoint.x, hitPoint.y, params.antFoodAddMassUg);
   });
 }
 
@@ -2825,6 +2006,19 @@ function updateCameraTelemetry() {
   cameraController.updateTelemetry();
 }
 
+function getActiveSimulationSpeed() {
+  if (activeApplet === "ants") {
+    return THREE.MathUtils.clamp(Number(params.antSimSpeed) || 1, 0.1, 10);
+  }
+  if (activeApplet === "prey") {
+    return THREE.MathUtils.clamp(Number(params.preySimSpeed) || 1, 0.1, 10);
+  }
+  if (activeApplet === "firefly") {
+    return THREE.MathUtils.clamp(Number(params.fireflySimSpeed) || 1, 0.1, 10);
+  }
+  return THREE.MathUtils.clamp(Number(params.boidSimSpeed) || 1, 0.1, 10);
+}
+
 function updateBoidStats(stats) {
   if (!stats) {
     return;
@@ -2853,68 +2047,6 @@ function updateBoidStats(stats) {
     pushTrendValue(neighborHistory, avgNeighbors);
     drawTrendCharts();
   }
-}
-
-function removeLostBoids() {
-  let removed = false;
-  for (let i = boids.length - 1; i >= 0; i -= 1) {
-    if (boids[i].lost) {
-      boids.splice(i, 1);
-      removed = true;
-    }
-  }
-
-  if (removed) {
-    rebuildBoidMeshForCurrentBoids();
-  }
-
-  return removed;
-}
-
-function applyBoundaryConditions(boid) {
-  return world.applyBoundaryConditions(boid);
-}
-
-function limitVector(vector, maxLength) {
-  if (maxLength <= 0) {
-    vector.set(0, 0, 0);
-    return vector;
-  }
-
-  const maxLengthSq = maxLength * maxLength;
-  if (vector.lengthSq() > maxLengthSq) {
-    vector.setLength(maxLength);
-  }
-  return vector;
-}
-
-function enforceSpeedBounds(vector, minSpeed, maxSpeed) {
-  const clampedMin = Math.max(0, minSpeed);
-  const clampedMax = Math.max(clampedMin, maxSpeed);
-  const speed = vector.length();
-
-  if (speed < 0.000001) {
-    vector.copy(randomDirection()).multiplyScalar(Math.max(clampedMin, 0.0001));
-    return vector;
-  }
-
-  const bounded = THREE.MathUtils.clamp(speed, clampedMin, clampedMax);
-  vector.multiplyScalar(bounded / speed);
-  return vector;
-}
-
-function randomDirection() {
-  const direction = new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-  );
-
-  if (direction.lengthSq() < 0.000001) {
-    direction.set(0, 0, 1);
-  }
-
-  return direction.normalize();
 }
 
 function scheduleMathRendering() {

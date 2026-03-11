@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 export const PREY_DEFAULT_PARAMS = {
+  preySimSpeed: 1.0,
   preyCount: 260,
   predatorCount: 24,
   preySpeed: 4.5,

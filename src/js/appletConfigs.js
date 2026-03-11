@@ -55,6 +55,7 @@ export const APPLET_CONFIGS = {
           valueNum: "220",
         },
         sliders: [
+          slider("boid-sim-speed", "Simulation Speed", "bi-stopwatch", "boid-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
           slider("boid-count", "Count", "bi-people-fill", "boid-count-value", "220", "30", "650", "10", "220"),
           slider("boid-scale", "Object Size", "bi-rulers", "boid-scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5"),
           slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18"),
@@ -131,9 +132,10 @@ export const APPLET_CONFIGS = {
           valueNum: "120",
         },
         sliders: [
+          slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
           slider("ant-count", "Count", "bi-people-fill", "ant-count-value", "120", "20", "400", "5", "120"),
           slider("ant-scale", "Object Size", "bi-rulers", "ant-scale-value", "0.003 m", "0.001", "0.005", "0.0001", "0.003"),
-          slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.12 m/s", "0.02", "0.40", "0.005", "0.12"),
+          slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
           slider("ant-sensor-distance", "Sensor Distance", "bi-broadcast", "ant-sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
           slider("ant-food-sense-distance", "Food Sensing Distance", "bi-bullseye", "ant-food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
           slider("ant-sensor-angle", "Sensor Angle", "bi-compass", "ant-sensor-angle-value", "35°", "5", "90", "1", "35"),
@@ -201,6 +203,7 @@ export const APPLET_CONFIGS = {
         className: "mt-2",
         sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
         sliders: [
+          slider("prey-sim-speed", "Simulation Speed", "bi-stopwatch", "prey-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
           slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260"),
           slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24"),
           slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5"),
@@ -268,7 +271,8 @@ export const APPLET_CONFIGS = {
         className: "mt-2",
         sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
         sliders: [
-          slider("firefly-count", "Count", "bi-lightbulb-fill", "firefly-count-value", "180", "20", "900", "10", "180"),
+          slider("firefly-sim-speed", "Simulation Speed", "bi-stopwatch", "firefly-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+          slider("firefly-count", "Count", "bi-people-fill", "firefly-count-value", "180", "20", "900", "10", "180"),
           slider("firefly-size", "Object Size", "bi-rulers", "firefly-size-value", "0.80 m", "0.2", "2.5", "0.05", "0.8"),
           slider("firefly-speed", "Speed", "bi-arrow-repeat", "firefly-speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
           slider("firefly-coupling", "Coupling (K)", "bi-diagram-2", "firefly-coupling-value", "2.20", "0", "8", "0.05", "2.2"),

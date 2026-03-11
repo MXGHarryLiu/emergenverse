@@ -1,12 +1,13 @@
 import * as THREE from "three";
 
 export const ANT_DEFAULT_PARAMS = {
+  antSimSpeed: 1.0,
   antColorMode: "state",
   antColormap: "turbo",
   antSolidColor: "#62d6f9",
   antCount: 120,
   antScale: 0.003,
-  antSpeed: 0.12,
+  antSpeed: 0.012,
   antSensorDistance: 0.08,
   antSensorAngle: 35,
   antTurnGain: 3.0,
@@ -123,6 +124,10 @@ export class AntSimulation {
       meanPheromone: 0,
       maxPheromone: 0,
     };
+
+    this.foodRaycaster = new THREE.Raycaster();
+    this.foodPointerNdc = new THREE.Vector2();
+    this.foodPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   }
 
   init() {
@@ -222,6 +227,59 @@ export class AntSimulation {
     }
 
     this.syncFoodInstances();
+  }
+
+  bindInteractionControls({ cameraController, canvas, getActiveApplet, bindRange }) {
+    const placementToggle = document.getElementById("ant-food-placement-enabled");
+    const massInput = document.getElementById("ant-food-add-mass");
+    const massValue = document.getElementById("ant-food-add-mass-value");
+
+    if (placementToggle) {
+      placementToggle.checked = Boolean(this.params.antFoodPlacementEnabled);
+      placementToggle.addEventListener("change", () => {
+        this.params.antFoodPlacementEnabled = placementToggle.checked;
+      });
+    }
+
+    if (typeof bindRange === "function" && massInput && massValue) {
+      bindRange("ant-food-add-mass", "ant-food-add-mass-value", (value) => {
+        this.params.antFoodAddMassUg = value;
+        return `${Math.round(value)} ug`;
+      });
+    }
+
+    if (!canvas || typeof getActiveApplet !== "function") {
+      return;
+    }
+
+    canvas.addEventListener("dblclick", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      if (getActiveApplet() !== "ants" || !this.params.antFoodPlacementEnabled) {
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 1 || rect.height <= 1) {
+        return;
+      }
+
+      this.foodPointerNdc.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+
+      this.foodRaycaster.setFromCamera(this.foodPointerNdc, cameraController.getActiveCamera());
+      const floorZ = -this.params.worldSizeZ * 0.5 + 0.06;
+      this.foodPlane.constant = -floorZ;
+      const hitPoint = new THREE.Vector3();
+      if (!this.foodRaycaster.ray.intersectPlane(this.foodPlane, hitPoint)) {
+        return;
+      }
+
+      this.addFoodAt(hitPoint.x, hitPoint.y, this.params.antFoodAddMassUg);
+    });
   }
 
   getCount() {

@@ -47,7 +47,7 @@ This project is intentionally static-first:
 ## Deploy to Static Hosting
 
 Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).
-Use `index.html` as the entry point.
+Use `src/index.html` as the entry point.
 
 The app pulls Bootstrap and Three.js directly from CDN at runtime.
 

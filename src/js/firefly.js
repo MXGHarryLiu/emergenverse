@@ -23,6 +23,7 @@ const fireflyLerpA = new THREE.Color();
 const fireflyLerpB = new THREE.Color();
 
 export const FIREFLY_DEFAULT_PARAMS = {
+  fireflySimSpeed: 1.0,
   fireflyCount: 180,
   fireflySize: 0.8,
   fireflySpeed: 1.2,

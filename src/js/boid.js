@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 export const BOID_DEFAULT_PARAMS = {
+  boidSimSpeed: 1.0,
   boidCount: 220,
   boidScale: 0.5,
   perceptionRadius: 18,

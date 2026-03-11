@@ -449,6 +449,49 @@
           </div>
         </div>
 
+        <div class="control-section is-hidden" data-control-section="firefly-visual" data-app-visible="firefly">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle firefly visual controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
+              <span>Visual</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <label class="form-label" for="firefly-color-mode">
+              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
+            </label>
+            <select class="form-select form-select-sm theme-select" id="firefly-color-mode">
+              <option value="blink" selected>Blink State</option>
+              <option value="frequency">Frequency (Hz)</option>
+            </select>
+
+            <label class="form-label mt-2" for="firefly-colormap">
+              <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+            </label>
+            <select class="form-select form-select-sm theme-select" id="firefly-colormap">
+              <option value="paired" selected>Paired</option>
+              <option value="set1">Set1</option>
+              <option value="set2">Set2</option>
+              <option value="dark2">Dark2</option>
+              <option value="tableau10">Tableau10</option>
+            </select>
+            <div class="colormap-legend mt-2" id="firefly-colormap-legend" aria-label="Firefly colormap legend">
+              <div class="colormap-legend-bar" id="firefly-colormap-legend-bar"></div>
+              <div class="colormap-legend-meta">
+                <span id="firefly-colormap-cmin">idle</span>
+                <span id="firefly-colormap-cmax">blink</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
 
         <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly">
           <button
