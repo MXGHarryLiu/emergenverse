@@ -45,6 +45,9 @@ export function renderAppletSectionsFromConfig() {
     if (config.right?.simulation) {
       rightFragment.appendChild(buildSimulationSection(config.right.simulation, appletId, templates));
     }
+    if (config.right?.interaction) {
+      rightFragment.appendChild(buildInteractionSection(config.right.interaction, appletId, templates));
+    }
     const visualAdapter = APPLET_VISUALS[appletId];
     if (visualAdapter?.section) {
       rightFragment.appendChild(buildVisualSection(appletId, visualAdapter, templates));
@@ -233,6 +236,88 @@ function buildSimulationSection(simConfig, appletId, templates) {
     </button>
   `;
   body.appendChild(actions);
+
+  return section;
+}
+
+function buildInteractionSection(interactionConfig, appletId, templates) {
+  const section = buildSectionShell(interactionConfig, appletId, templates, {
+    toggleAriaLabel: `Toggle ${appletId} interaction controls`,
+  });
+  const body = section.querySelector("[data-control-section-body]");
+
+  if (interactionConfig.sliderHub) {
+    const hub = document.createElement("div");
+    hub.className = "section-slider-hub";
+    hub.setAttribute("data-slider-hub", interactionConfig.sectionKey);
+    hub.setAttribute("aria-label", `Active ${appletId} interaction slider`);
+    hub.innerHTML = `
+      <div class="section-slider-head">
+        <span class="section-slider-title" data-section-slider-title>${interactionConfig.sliderHub.title}</span>
+        <span class="section-slider-value" data-section-slider-value>${interactionConfig.sliderHub.value}</span>
+      </div>
+      <input
+        class="form-range section-active-slider"
+        type="range"
+        data-section-slider
+        min="${interactionConfig.sliderHub.min}"
+        max="${interactionConfig.sliderHub.max}"
+        step="${interactionConfig.sliderHub.step}"
+        value="${interactionConfig.sliderHub.valueNum}"
+      />
+    `;
+    body.appendChild(hub);
+  }
+
+  (interactionConfig.switches || []).forEach((switchConfig, index) => {
+    const switchWrap = document.createElement("div");
+    switchWrap.className = `form-check form-switch${index > 0 ? " mt-2" : ""}`;
+
+    const input = document.createElement("input");
+    input.className = "form-check-input";
+    input.type = "checkbox";
+    input.setAttribute("role", "switch");
+    input.id = switchConfig.id;
+    input.checked = Boolean(switchConfig.checked);
+
+    const label = document.createElement("label");
+    label.className = "form-check-label";
+    label.setAttribute("for", switchConfig.id);
+    label.textContent = switchConfig.label || "";
+
+    switchWrap.appendChild(input);
+    switchWrap.appendChild(label);
+    body.appendChild(switchWrap);
+  });
+
+  (interactionConfig.sliders || []).forEach((slider) => {
+    const fragment = templates.sliderRow.content.cloneNode(true);
+    const label = fragment.querySelector("label.form-label");
+    if (slider.className) {
+      label.classList.add(...slider.className.split(/\s+/).filter(Boolean));
+    }
+    label.setAttribute("for", slider.id);
+    const labelName = label.querySelector(".label-name");
+    labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i>${slider.label}`;
+    const value = label.querySelector(".label-value");
+    value.id = slider.valueId;
+    value.textContent = slider.valueText;
+
+    const input = fragment.querySelector("input.form-range");
+    input.id = slider.id;
+    input.min = slider.min;
+    input.max = slider.max;
+    input.step = slider.step;
+    input.value = slider.value;
+    body.appendChild(fragment);
+  });
+
+  (interactionConfig.notes || []).forEach((note, index) => {
+    const p = document.createElement("p");
+    p.className = `panel-copy${index === 0 ? " mt-2 mb-0" : " mb-0"}`;
+    p.textContent = note;
+    body.appendChild(p);
+  });
 
   return section;
 }

@@ -1,28 +1,24 @@
-// Reference-only template that shows the preferred section order for new applet modules.
+// Reference-only template for new applet modules.
 // This file is not imported by the app runtime.
 
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 // Namespace / registration id for this applet.
-// In a namespaced param model, this id becomes the root param key:
-// params[APPLET_ID]
-//
-// Example:
-// params.example.simSpeed
-// params.example.count
 export const APPLET_ID = "example";
 
-// 1. Applet-specific defaults.
-export const APPLET_DEFAULT_PARAMS = {
+// Default applet parameters.
+export const EXAMPLE_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   count: 100,
   scale: 1.0,
-  colorMode: "default",
+  colorMode: "none",
+  colormap: "turbo",
+  solidColor: "#4cd3b6",
 };
 
-// 2. Config used by the shell to render sections, charts, and controls.
-export const APPLET_CONFIG = defineAppletConfig({
+// Applet UI and metadata configuration.
+export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
   label: "Example Applet",
   defaultProjection: "perspective",
   world: {
@@ -38,23 +34,20 @@ export const APPLET_CONFIG = defineAppletConfig({
       hidden: true,
       paragraphs: [
         "Describe the applet in plain language.",
-        "Keep the introduction general. Put symbols, equations, and parameter mapping in the model popup instead.",
+        "Put equations and parameter mapping in the model popup.",
       ],
     },
     model: {
       buttonLabel: "Open Model Equations",
       subtitle: "Short summary of the governing model.",
-      references: [
-        { label: "Wikipedia: Example topic", url: "https://en.wikipedia.org/wiki/Example" },
-      ],
+      references: [{ label: "Wikipedia: Example", url: "https://en.wikipedia.org/wiki/Example" }],
       items: [
         {
           title: "State Update",
           equation: "$$x(t+\\Delta t)=x(t)+v(t)\\Delta t$$",
           explanation: "Explain what this equation does in plain language.",
           parameters: [
-            "<strong>Only list user controls whose symbols appear directly in this equation.</strong>",
-            "<strong>Use rendered HTML symbols</strong> like <em>&alpha;</em>, <em>&gamma;</em>, or <em>k<sub>&theta;</sub></em> instead of raw TeX fragments in bullets.",
+            "<strong>Only list controls that appear in this equation.</strong>",
           ],
         },
       ],
@@ -87,6 +80,19 @@ export const APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("example-sim-speed", "Simulation Speed", "bi-stopwatch", "example-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("example-count", "Count", "bi-people-fill", "example-count-value", "100", "10", "500", "10", "100"),
+        // Optional explicit mapping when slider id does not convert to the desired param key.
+        slider(
+          "example-frequency",
+          "Base Frequency",
+          "bi-speedometer2",
+          "example-frequency-value",
+          "1.80 Hz",
+          "0.2",
+          "6.0",
+          "0.05",
+          "1.8",
+          { paramKey: "frequencyHz" },
+        ),
       ],
       pauseButtonId: "toggle-example-pause",
       defaultButtonId: "default-example-sim",
@@ -95,8 +101,8 @@ export const APPLET_CONFIG = defineAppletConfig({
   },
 });
 
-// 3. Shell runtime hooks for chart metrics and stats-to-UI mapping.
-export const APPLET_RUNTIME = {
+// Shell runtime hooks.
+export const EXAMPLE_APPLET_RUNTIME = {
   createChartMetrics(createChartMetric) {
     return [
       createChartMetric("chart-example-count", "chart-example-count-live", () => "0", {
@@ -112,24 +118,75 @@ export const APPLET_RUNTIME = {
     if (!stats) {
       return;
     }
-
     const count = stats.count ?? 0;
-    ui.updateChartMetrics("example", [count], [String(count)]);
+    ui.updateChartMetrics(APPLET_ID, [count], [String(count)]);
+  },
+  // Optional hook called from app.js after a slider changes.
+  // Use this for applet-specific side effects that are not covered by generic shell behavior.
+  onSliderChange() {},
+  // Optional hook for extra interactions (e.g., click-to-place objects).
+  bindInteractionControls() {},
+};
+
+export const EXAMPLE_APPLET_VISUAL = {
+  controls: {
+    colorModeId: "example-color-mode",
+    solidColorId: "example-solid-color",
+    solidColorValueId: "example-solid-color-value",
+    singleColorWrapId: "example-single-color-wrap",
+  },
+  section: {
+    hidden: true,
+    colorModeLabel: "Color Mode",
+    colorModeOptions: [
+      { value: "none", label: "None (single color)" },
+      { value: "speed", label: "Speed" },
+    ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#4CD3B6",
+  },
+  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "none";
+    const colormap = params?.colormap || "turbo";
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
+    return {
+      visible: true,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+        minText: "cmin: 0.0",
+        maxText: "cmax: 1.0",
+      },
+    };
   },
 };
 
-// 4. Rendering constants, lookup tables, and helper-level scratch objects.
+// File-local constants and helpers.
 const EXAMPLE_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
 };
 
-// 5. Main simulation class.
-export class AppletSimulation {
-  constructor({ scene, params, onStats }) {
+// Simulation implementation.
+export class ExampleSimulation {
+  constructor({ scene, params, world, onStats }) {
     this.scene = scene;
-    this.params = params;
+    this.params = createAppletParams(params, APPLET_ID);
+    this.world = world;
     this.onStats = onStats;
-    this.appletParams = params[APPLET_ID];
   }
 
   init() {}
@@ -140,52 +197,23 @@ export class AppletSimulation {
 
   reset() {}
 
+  onWorldGeometryChanged() {}
+
+  onBoundaryModeChanged() {}
+
   step() {}
 }
 
-// 6. File-local helper functions.
+// File-local helper functions.
 function createExampleAgent() {
-  return null;
+  return new THREE.Vector3(0, 0, 0);
 }
 
-// 7. Namespaced param shape used by the runtime.
-// Applet-specific fields live under `params[APPLET_ID]`.
-// Example:
-//
-// params.prey.simSpeed
-// params.prey.count
-// params.prey.speed
-// params.firefly.simSpeed
-// params.firefly.count
-//
-// That lets every applet reuse the same property names locally:
-//
-// const prey = params.prey;
-// const simSpeed = prey.simSpeed;
-// const count = prey.count;
-//
-// For this template, the equivalent pattern is:
-//
-// const applet = params[APPLET_ID];
-// const simSpeed = applet.simSpeed;
-// const count = applet.count;
-//
-// That is preferable to classes for runtime params, because:
-// - plain objects serialize cleanly
-// - UI bindings can read/write nested fields directly
-// - app state snapshots remain simple
-//
-// If you want the same field names across applets, keep them inside each namespace:
-// - `params.boid.simSpeed`
-// - `params.prey.simSpeed`
-// - `params.firefly.simSpeed`
-//
-// Then `simSpeed` stays universal by convention, without forcing a shared root key.
-//
-// Important:
-// - the namespace is not really "defined" by `ant.js` alone
-// - it is assigned by the app shell when it builds the root `params` object
-// - applet registration should use the same id everywhere:
-//   - applet file: `APPLET_ID`
-//   - params root: `params[APPLET_ID]`
-//   - registry key in `APPLET_CONFIGS`
+/*
+Required exports for registry auto-discovery in appletConfigs.js:
+- exactly one `*Simulation` class
+- exactly one `*_APPLET_CONFIG` object
+- exactly one `*_DEFAULT_PARAMS` object
+- exactly one `*_APPLET_RUNTIME` object
+- exactly one `*_APPLET_VISUAL` object
+*/

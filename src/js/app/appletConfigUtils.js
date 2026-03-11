@@ -1,6 +1,6 @@
 // Shared applet config helpers used inside individual applet modules.
-export function slider(id, label, icon, valueId, valueText, min, max, step, value) {
-  return { id, label, icon, valueId, valueText, min, max, step, value };
+export function slider(id, label, icon, valueId, valueText, min, max, step, value, options = {}) {
+  return { id, label, icon, valueId, valueText, min, max, step, value, ...options };
 }
 
 export function createAppletParams(rootParams, appletId) {

@@ -222,6 +222,7 @@ export const BOID_APPLET_VISUAL = {
   },
 };
 
+// File-local constants and helpers.
 // Simulation implementation.
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {
@@ -638,6 +639,7 @@ export class BoidSimulation {
   }
 }
 
+// File-local helper functions.
 function buildColormapLUT(stopMap) {
   const lut = {};
   for (const [name, stops] of Object.entries(stopMap)) {

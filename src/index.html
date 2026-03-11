@@ -202,52 +202,6 @@
           </button>
         </div>
 
-        <div class="control-section is-hidden" data-control-section="ants-interaction" data-app-visible="ants">
-          <button
-            class="section-toggle"
-            type="button"
-            data-control-toggle
-            aria-expanded="true"
-            aria-label="Toggle ants interaction controls"
-          >
-            <span class="section-toggle-title">
-              <i class="bi bi-hand-index-thumb panel-head-icon" aria-hidden="true"></i>
-              <span>Interaction</span>
-            </span>
-            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
-          </button>
-          <div class="control-section-body">
-            <div class="section-slider-hub" data-slider-hub="ants-interaction" aria-label="Active ants interaction slider">
-              <div class="section-slider-head">
-                <span class="section-slider-title" data-section-slider-title>Food Added Per Click</span>
-                <span class="section-slider-value" data-section-slider-value>50 ug</span>
-              </div>
-              <input
-                class="form-range section-active-slider"
-                type="range"
-                data-section-slider
-                min="10"
-                max="100"
-                step="1"
-                value="50"
-              />
-            </div>
-
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" role="switch" id="ant-food-placement-enabled" />
-              <label class="form-check-label" for="ant-food-placement-enabled">Double Click To Add Food</label>
-            </div>
-
-            <label class="form-label mt-2" for="ant-food-add-mass">
-              <span class="label-name"><i class="bi bi-circle-fill" aria-hidden="true"></i>Food Added Per Click</span>
-              <span class="label-value" id="ant-food-add-mass-value">50 ug</span>
-            </label>
-            <input class="form-range" type="range" id="ant-food-add-mass" min="10" max="100" step="1" value="50" />
-
-            <p class="panel-copy mt-2 mb-0">Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass.</p>
-          </div>
-        </div>
-
         <div id="shared-colormap-panel" class="is-hidden">
           <label class="form-label mt-2" for="colormap">
             <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
@@ -270,7 +224,6 @@
             </div>
           </div>
         </div>
-
 
         <div class="control-section" data-control-section="world" data-app-visible="*">
           <button

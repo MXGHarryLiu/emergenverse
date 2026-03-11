@@ -103,6 +103,44 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
     },
   },
   right: {
+    interaction: {
+      sectionKey: "ants-interaction",
+      title: "Interaction",
+      icon: "bi-hand-index-thumb",
+      hidden: true,
+      sliderHub: {
+        title: "Food Added Per Click",
+        value: "50 ug",
+        min: "10",
+        max: "100",
+        step: "1",
+        valueNum: "50",
+      },
+      switches: [
+        {
+          id: "ant-food-placement-enabled",
+          label: "Double Click To Add Food",
+          checked: false,
+        },
+      ],
+      sliders: [
+        slider(
+          "ant-food-add-mass",
+          "Food Added Per Click",
+          "bi-circle-fill",
+          "ant-food-add-mass-value",
+          "50 ug",
+          "10",
+          "100",
+          "1",
+          "50",
+          { className: "mt-2" },
+        ),
+      ],
+      notes: [
+        "Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass.",
+      ],
+    },
     simulation: {
       sectionKey: "ants-simulation",
       title: "Simulation",
@@ -182,6 +220,14 @@ export const ANT_APPLET_RUNTIME = {
       String(trips),
       meanPheromone.toFixed(2),
     ]);
+  },
+  bindInteractionControls({ simulation, cameraController, canvas, getActiveApplet, bindRange }) {
+    simulation?.bindInteractionControls?.({
+      cameraController,
+      canvas,
+      getActiveApplet,
+      bindRange,
+    });
   },
 };
 

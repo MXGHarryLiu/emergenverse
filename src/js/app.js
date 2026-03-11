@@ -362,13 +362,6 @@ APPLET_ORDER.forEach((id) => {
   simulationManager.register(id, simulations[id]);
 });
 
-const boidSimulation = simulations.boid;
-const antSimulation = simulations.ants;
-const preySimulation = simulations.prey;
-const fireflySimulation = simulations.firefly;
-const galaxySimulation = simulations.galaxy;
-const duneSimulation = simulations.dune;
-
 const chartMaxPoints = 160;
 const chartState = Object.fromEntries(
   APPLET_ORDER.map((id) => [
@@ -490,51 +483,7 @@ function rebuildBoundsAndGrid() {
 }
 
 function setupControls() {
-  bindRange("boid-sim-speed", "boid-sim-speed-value", (value) => {
-    params.boid.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("boid-scale", "boid-scale-value", (value) => {
-    params.boid.scale = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("perception-radius", "perception-radius-value", (value) => {
-    params.boid.perceptionRadius = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("separation-distance", "separation-distance-value", (value) => {
-    params.boid.separationDistance = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("max-speed", "max-speed-value", (value) => {
-    params.boid.maxSpeed = value;
-    boidSimulation.syncInstances();
-    return `${value.toFixed(1)} m/s`;
-  });
-
-  bindRange("max-accel", "max-accel-value", (value) => {
-    params.boid.maxAccel = value;
-    return `${value.toFixed(1)} m/s²`;
-  });
-
-  bindRange("alignment-weight", "alignment-weight-value", (value) => {
-    params.boid.alignmentWeight = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("cohesion-weight", "cohesion-weight-value", (value) => {
-    params.boid.cohesionWeight = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("separation-weight", "separation-weight-value", (value) => {
-    params.boid.separationWeight = value;
-    return value.toFixed(2);
-  });
+  bindAppletSimulationControls();
 
   bindRange("world-size-x", "world-size-x-value", (value) => {
     params.worldSizeX = convertLengthFromDisplay(value);
@@ -571,327 +520,6 @@ function setupControls() {
     perspectiveCamera.updateProjectionMatrix();
     updateOrthographicCamera(false);
     return `${Math.round(value)}°`;
-  });
-
-  const boidCountInput = document.getElementById("boid-count");
-  const boidCountValue = document.getElementById("boid-count-value");
-  registerCompactRangeControl(boidCountInput, boidCountValue);
-  boidCountInput.addEventListener("input", () => {
-    boidCountValue.textContent = boidCountInput.value;
-    params.boid.count = Number(boidCountInput.value);
-    boidSimulation.setCount(params.boid.count);
-    resetTrendCharts("boid");
-    syncCompactSectionSlider("boid-count");
-  });
-
-  bindRange("ant-speed", "ant-speed-value", (value) => {
-    params.ants.speed = value;
-    return `${value.toFixed(3)} m/s`;
-  });
-
-  bindRange("ant-sim-speed", "ant-sim-speed-value", (value) => {
-    params.ants.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("ant-scale", "ant-scale-value", (value) => {
-    params.ants.scale = value;
-    antSimulation.syncInstances();
-    return `${value.toFixed(3)} m`;
-  });
-
-  bindRange("ant-sensor-distance", "ant-sensor-distance-value", (value) => {
-    params.ants.sensorDistance = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("ant-food-sense-distance", "ant-food-sense-distance-value", (value) => {
-    params.ants.foodSenseDistance = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("ant-sensor-angle", "ant-sensor-angle-value", (value) => {
-    params.ants.sensorAngle = value;
-    return `${Math.round(value)}°`;
-  });
-
-  bindRange("ant-turn-gain", "ant-turn-gain-value", (value) => {
-    params.ants.turnGain = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  bindRange("ant-goal-bias", "ant-goal-bias-value", (value) => {
-    params.ants.goalBias = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  bindRange("ant-departure-rate", "ant-departure-rate-value", (value) => {
-    params.ants.departureRate = value;
-    return `${value.toFixed(1)} Hz`;
-  });
-
-  bindRange("ant-deposit-rate", "ant-deposit-rate-value", (value) => {
-    params.ants.depositRate = value;
-    return value.toFixed(1);
-  });
-
-  bindRange("ant-diffusion-rate", "ant-diffusion-rate-value", (value) => {
-    params.ants.diffusionRate = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  bindRange("ant-evap-rate", "ant-evap-rate-value", (value) => {
-    params.ants.evapRate = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  const antCountInput = document.getElementById("ant-count");
-  const antCountValue = document.getElementById("ant-count-value");
-  if (antCountInput && antCountValue) {
-    registerCompactRangeControl(antCountInput, antCountValue);
-    antCountInput.addEventListener("input", () => {
-      antCountValue.textContent = antCountInput.value;
-      params.ants.count = Number(antCountInput.value);
-      antSimulation.setCount(params.ants.count);
-      resetTrendCharts("ants");
-      syncCompactSectionSlider("ant-count");
-    });
-  }
-
-  bindRange("prey-speed", "prey-speed-value", (value) => {
-    params.prey.speed = value;
-    return `${value.toFixed(1)} m/s`;
-  });
-
-  bindRange("prey-sim-speed", "prey-sim-speed-value", (value) => {
-    params.prey.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("predator-speed", "predator-speed-value", (value) => {
-    params.prey.predatorSpeed = value;
-    return `${value.toFixed(1)} m/s`;
-  });
-
-  bindRange("predator-sense-radius", "predator-sense-radius-value", (value) => {
-    params.prey.predatorSenseRadius = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("predation-radius", "predation-radius-value", (value) => {
-    params.prey.predationRadius = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("prey-birth-rate", "prey-birth-rate-value", (value) => {
-    params.prey.birthRate = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  bindRange("predation-rate-beta", "predation-rate-beta-value", (value) => {
-    params.prey.predationRateBeta = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("predator-energy-gain", "predator-energy-gain-value", (value) => {
-    params.prey.predatorEnergyGain = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("predator-energy-loss", "predator-energy-loss-value", (value) => {
-    params.prey.predatorEnergyLoss = value;
-    return `${value.toFixed(2)} 1/s`;
-  });
-
-  const preyCountInput = document.getElementById("prey-count");
-  const preyCountValue = document.getElementById("prey-count-value");
-  if (preyCountInput && preyCountValue) {
-    registerCompactRangeControl(preyCountInput, preyCountValue);
-    preyCountInput.addEventListener("input", () => {
-      preyCountValue.textContent = preyCountInput.value;
-      params.prey.count = Number(preyCountInput.value);
-      preySimulation.setPreyCount(params.prey.count);
-      resetTrendCharts("prey");
-      syncCompactSectionSlider("prey-count");
-    });
-  }
-
-  const predatorCountInput = document.getElementById("predator-count");
-  const predatorCountValue = document.getElementById("predator-count-value");
-  if (predatorCountInput && predatorCountValue) {
-    registerCompactRangeControl(predatorCountInput, predatorCountValue);
-    predatorCountInput.addEventListener("input", () => {
-      predatorCountValue.textContent = predatorCountInput.value;
-      params.prey.predatorCount = Number(predatorCountInput.value);
-      preySimulation.setPredatorCount(params.prey.predatorCount);
-      resetTrendCharts("prey");
-      syncCompactSectionSlider("predator-count");
-    });
-  }
-
-  bindRange("firefly-size", "firefly-size-value", (value) => {
-    params.firefly.size = value;
-    fireflySimulation.syncInstances?.();
-    return `${value.toFixed(2)} m`;
-  });
-
-  bindRange("firefly-sim-speed", "firefly-sim-speed-value", (value) => {
-    params.firefly.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("firefly-speed", "firefly-speed-value", (value) => {
-    params.firefly.speed = value;
-    return `${value.toFixed(1)} m/s`;
-  });
-
-  bindRange("firefly-coupling", "firefly-coupling-value", (value) => {
-    params.firefly.coupling = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("firefly-radius", "firefly-radius-value", (value) => {
-    params.firefly.radius = value;
-    return `${value.toFixed(1)} m`;
-  });
-
-  bindRange("firefly-frequency", "firefly-frequency-value", (value) => {
-    params.firefly.frequencyHz = value;
-    return `${value.toFixed(2)} Hz`;
-  });
-
-  bindRange("firefly-jitter", "firefly-jitter-value", (value) => {
-    params.firefly.freqJitterHz = value;
-    return `${value.toFixed(2)} Hz`;
-  });
-
-  bindRange("firefly-noise", "firefly-noise-value", (value) => {
-    params.firefly.phaseNoise = value;
-    return `${value.toFixed(2)} rad/s`;
-  });
-
-  const fireflyCountInput = document.getElementById("firefly-count");
-  const fireflyCountValue = document.getElementById("firefly-count-value");
-  if (fireflyCountInput && fireflyCountValue) {
-    registerCompactRangeControl(fireflyCountInput, fireflyCountValue);
-    fireflyCountInput.addEventListener("input", () => {
-      fireflyCountValue.textContent = fireflyCountInput.value;
-      params.firefly.count = Number(fireflyCountInput.value);
-      fireflySimulation.setCount(params.firefly.count);
-      resetTrendCharts("firefly");
-      syncCompactSectionSlider("firefly-count");
-    });
-  }
-
-  bindRange("galaxy-particle-size", "galaxy-particle-size-value", (value) => {
-    params.galaxy.particleSize = value;
-    galaxySimulation.syncInstances?.();
-    return `${Math.round(value)} ly`;
-  });
-
-  bindRange("galaxy-sim-speed", "galaxy-sim-speed-value", (value) => {
-    params.galaxy.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("galaxy-spin", "galaxy-spin-value", (value) => {
-    params.galaxy.spin = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("galaxy-central-mass", "galaxy-central-mass-value", (value) => {
-    params.galaxy.centralMass = value;
-    return `${value.toExponential(2)} M_sun`;
-  });
-
-  bindRange("galaxy-softening", "galaxy-softening-value", (value) => {
-    params.galaxy.softening = value;
-    return `${Math.round(value)} ly`;
-  });
-
-  bindRange("galaxy-damping", "galaxy-damping-value", (value) => {
-    params.galaxy.damping = value;
-    return `${value.toFixed(4)} 1/Myr`;
-  });
-
-  const galaxyCountInput = document.getElementById("galaxy-count");
-  const galaxyCountValue = document.getElementById("galaxy-count-value");
-  if (galaxyCountInput && galaxyCountValue) {
-    registerCompactRangeControl(galaxyCountInput, galaxyCountValue);
-    galaxyCountInput.addEventListener("input", () => {
-      galaxyCountValue.textContent = galaxyCountInput.value;
-      params.galaxy.count = Number(galaxyCountInput.value);
-      galaxySimulation.setCount(params.galaxy.count);
-      resetTrendCharts("galaxy");
-      refreshAppletLegend("galaxy");
-      syncCompactSectionSlider("galaxy-count");
-    });
-  }
-
-  bindRange("dune-sim-speed", "dune-sim-speed-value", (value) => {
-    params.dune.simSpeed = value;
-    return `${value.toFixed(1)}x`;
-  });
-
-  bindRange("dune-resolution", "dune-resolution-value", (value) => {
-    params.dune.resolution = Math.round(value);
-    duneSimulation.setResolution(params.dune.resolution);
-    resetTrendCharts("dune");
-    refreshAppletLegend("dune");
-    return String(params.dune.resolution);
-  });
-
-  bindRange("dune-column-size", "dune-column-size-value", (value) => {
-    params.dune.columnSizeScale = value;
-    duneSimulation.syncInstances?.();
-    return `${value.toFixed(2)}x`;
-  });
-
-  bindRange("dune-height-scale", "dune-height-scale-value", (value) => {
-    params.dune.heightScale = value;
-    duneSimulation.syncInstances?.();
-    return `${value.toFixed(2)}x`;
-  });
-
-  bindRange("dune-wind-direction", "dune-wind-direction-value", (value) => {
-    params.dune.windDirectionDeg = value;
-    return `${Math.round(value)}°`;
-  });
-
-  bindRange("dune-wind-strength", "dune-wind-strength-value", (value) => {
-    params.dune.windStrength = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("dune-transport-rate", "dune-transport-rate-value", (value) => {
-    params.dune.transportRate = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("dune-repose-slope", "dune-repose-slope-value", (value) => {
-    params.dune.reposeSlope = value;
-    return `${value.toFixed(2)} m`;
-  });
-
-  bindRange("dune-avalanche-rate", "dune-avalanche-rate-value", (value) => {
-    params.dune.avalancheRate = value;
-    return value.toFixed(2);
-  });
-
-  bindRange("dune-base-height", "dune-base-height-value", (value) => {
-    params.dune.baseHeight = value;
-    duneSimulation.reset();
-    resetTrendCharts("dune");
-    refreshAppletLegend("dune");
-    return `${value.toFixed(2)} m`;
-  });
-
-  bindRange("dune-noise-amplitude", "dune-noise-amplitude-value", (value) => {
-    params.dune.noiseAmplitude = value;
-    duneSimulation.reset();
-    resetTrendCharts("dune");
-    refreshAppletLegend("dune");
-    return `${value.toFixed(2)} m`;
   });
 
   const toggleCurrentSimulationPause = () => {
@@ -997,21 +625,21 @@ function setupControls() {
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
   dom.boundaryMode.value = params.boundaryMode;
-  antSimulation.bindInteractionControls({
-    cameraController,
-    canvas: renderer?.domElement,
-    getActiveApplet: () => activeApplet,
-    bindRange,
+  APPLET_ORDER.forEach((appletId) => {
+    APPLET_DEFINITIONS[appletId].runtime?.bindInteractionControls?.({
+      appletId,
+      simulation: simulations[appletId],
+      params: params[appletId],
+      cameraController,
+      canvas: renderer?.domElement,
+      getActiveApplet: () => activeApplet,
+      bindRange,
+    });
   });
 
   visualControls = createVisualControls({
     params,
-    boidSimulation,
-    antSimulation,
-    preySimulation,
-    fireflySimulation,
-    galaxySimulation,
-    duneSimulation,
+    simulations,
     getActiveApplet: () => activeApplet,
   });
   visualControls.bind();
@@ -1021,6 +649,171 @@ function setupControls() {
   updateProjectionToggleUI();
 
   switchToPerspective();
+}
+
+function bindAppletSimulationControls() {
+  APPLET_ORDER.forEach((appletId) => {
+    const sliders = APPLET_CONFIGS[appletId]?.right?.simulation?.sliders;
+    if (!Array.isArray(sliders) || sliders.length === 0) {
+      return;
+    }
+
+    sliders.forEach((slider) => {
+      bindRange(slider.id, slider.valueId, (value) => {
+        const displayValue = handleAppletSliderInput(appletId, slider, value);
+        return formatSliderDisplayValue(slider, displayValue);
+      });
+    });
+  });
+}
+
+function handleAppletSliderInput(appletId, slider, rawValue) {
+  const appletParams = params[appletId];
+  const simulation = simulations[appletId];
+  if (!appletParams) {
+    return rawValue;
+  }
+
+  const paramKey = inferSliderParamKey(appletId, slider);
+  if (!paramKey) {
+    return rawValue;
+  }
+
+  let value = Number(rawValue);
+  if (!Number.isFinite(value)) {
+    value = Number(slider?.value ?? 0);
+  }
+  if (!Number.isFinite(value)) {
+    value = 0;
+  }
+
+  if (paramKey === "resolution" || paramKey === "count" || paramKey === "predatorCount") {
+    value = Math.round(value);
+  }
+
+  appletParams[paramKey] = value;
+
+  let shouldResetChart = false;
+
+  if (paramKey === "count") {
+    if (typeof simulation?.setCount === "function") {
+      simulation.setCount(value);
+      shouldResetChart = true;
+    } else if (typeof simulation?.setPreyCount === "function") {
+      simulation.setPreyCount(value);
+      shouldResetChart = true;
+    }
+  } else if (paramKey === "predatorCount") {
+    if (typeof simulation?.setPredatorCount === "function") {
+      simulation.setPredatorCount(value);
+      shouldResetChart = true;
+    }
+  } else if (paramKey === "resolution") {
+    if (typeof simulation?.setResolution === "function") {
+      simulation.setResolution(value);
+      shouldResetChart = true;
+    }
+  } else if (paramKey === "baseHeight" || paramKey === "noiseAmplitude") {
+    if (typeof simulation?.reset === "function") {
+      simulation.reset();
+      shouldResetChart = true;
+    }
+  } else if (typeof simulation?.syncInstances === "function") {
+    simulation.syncInstances();
+  }
+
+  APPLET_DEFINITIONS[appletId].runtime?.onSliderChange?.({
+    appletId,
+    slider,
+    paramKey,
+    value,
+    params: appletParams,
+    simulation,
+    resetTrendCharts: () => resetTrendCharts(appletId),
+    refreshLegend: () => refreshAppletLegend(appletId),
+  });
+
+  if (shouldResetChart) {
+    resetTrendCharts(appletId);
+  }
+  refreshAppletLegend(appletId);
+  return appletParams[paramKey];
+}
+
+function inferSliderParamKey(appletId, sliderConfigOrId) {
+  const sliderId = typeof sliderConfigOrId === "string"
+    ? sliderConfigOrId
+    : sliderConfigOrId?.id;
+  const paramKeyOverride =
+    typeof sliderConfigOrId === "object"
+      ? sliderConfigOrId?.paramKey
+      : undefined;
+
+  if (typeof paramKeyOverride === "string" && paramKeyOverride.length > 0) {
+    return paramKeyOverride;
+  }
+
+  if (!sliderId || typeof sliderId !== "string") {
+    return null;
+  }
+
+  const prefix = `${appletId}-`;
+  const stripped = sliderId.startsWith(prefix) ? sliderId.slice(prefix.length) : sliderId;
+  return stripped.replace(/-([a-z0-9])/g, (_, char) => char.toUpperCase());
+}
+
+function formatSliderDisplayValue(slider, value) {
+  const template = slider?.valueText;
+  if (typeof template !== "string" || template.length === 0) {
+    return String(value);
+  }
+
+  const trimmed = template.trimStart();
+  const numericMatch = trimmed.match(/^[+-]?(?:\d+\.?\d*|\d*\.?\d+)(?:e[+-]?\d+)?/i);
+  if (!numericMatch) {
+    return String(value);
+  }
+
+  const numericTemplate = numericMatch[0];
+  const suffix = trimmed.slice(numericTemplate.length);
+  const numeric = formatNumberLikeTemplate(value, numericTemplate, slider?.step);
+  return `${numeric}${suffix}`;
+}
+
+function formatNumberLikeTemplate(value, numericTemplate, stepValue) {
+  if (!Number.isFinite(value)) {
+    return String(value);
+  }
+
+  const stepPrecision = getNumericPrecision(stepValue);
+  if (/[eE]/.test(numericTemplate)) {
+    const [mantissa = "0"] = numericTemplate.split(/[eE]/);
+    const dotIndex = mantissa.indexOf(".");
+    const decimals = dotIndex >= 0 ? mantissa.length - dotIndex - 1 : Math.max(0, stepPrecision);
+    return value.toExponential(decimals);
+  }
+
+  const dotIndex = numericTemplate.indexOf(".");
+  const templatePrecision = dotIndex >= 0 ? numericTemplate.length - dotIndex - 1 : 0;
+  const precision = Math.max(templatePrecision, stepPrecision);
+  if (precision <= 0) {
+    return String(Math.round(value));
+  }
+  return value.toFixed(precision);
+}
+
+function getNumericPrecision(value) {
+  if (typeof value !== "string") {
+    return 0;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || /e/i.test(trimmed)) {
+    return 0;
+  }
+
+  const dotIndex = trimmed.indexOf(".");
+  return dotIndex >= 0 ? Math.max(0, trimmed.length - dotIndex - 1) : 0;
 }
 
 function applySimulationDefaultsForApplet(appletId) {

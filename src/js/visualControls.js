@@ -25,23 +25,10 @@ const CONTINUOUS_COLORMAP_GRADIENTS = {
 
 export function createVisualControls({
   params,
-  boidSimulation,
-  antSimulation,
-  preySimulation,
-  fireflySimulation,
-  galaxySimulation,
-  duneSimulation,
+  simulations = {},
   getActiveApplet,
 }) {
   const dom = getVisualControlsDom();
-  const simulations = {
-    boid: boidSimulation,
-    ants: antSimulation,
-    prey: preySimulation,
-    firefly: fireflySimulation,
-    galaxy: galaxySimulation,
-    dune: duneSimulation,
-  };
 
   function formatHexColor(value) {
     if (typeof value !== "string") {

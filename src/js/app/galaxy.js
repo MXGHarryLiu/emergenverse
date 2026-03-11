@@ -37,14 +37,14 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   defaultProjection: "perspective",
   defaultBoundaryMode: "lost",
   camera: {
-    distance: 130000,
-    height: 70000,
+    distance: 222000,
+    height: 96000,
     fov: 34,
     locked: false,
   },
   units: GALAXY_UNITS,
   world: {
-    defaults: { x: 120000, y: 120000, z: 120000 },
+    defaults: { x: 100000, y: 100000, z: 100000 },
     range: { minX: 20000, maxX: 300000, minY: 20000, maxY: 300000, minZ: 20000, maxZ: 300000, step: 1000 },
     gridSize: 5000,
     lengthUnit: {

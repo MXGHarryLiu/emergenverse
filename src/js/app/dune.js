@@ -7,6 +7,7 @@ export const DUNE_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   colorMode: "mass",
   colormap: "cividis",
+  solidColor: "#D8B36A",
   resolution: 40,
   columnSizeScale: 0.94,
   heightScale: 1.8,
@@ -24,14 +25,14 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
   label: "Dune Dynamics",
   defaultProjection: "perspective",
   camera: {
-    distance: 95,
-    height: 26,
-    fov: 46,
+    distance: 222,
+    height: 96,
+    fov: 50,
     locked: false,
   },
   world: {
-    defaults: { x: 120, y: 120, z: 24 },
-    range: { minX: 60, maxX: 220, minY: 60, maxY: 220, minZ: 12, maxZ: 40, step: 2 },
+    defaults: { x: 120, y: 120, z: 120 },
+    range: { minX: 60, maxX: 220, minY: 60, maxY: 220, minZ: 60, maxZ: 220, step: 2 },
     gridSize: 10,
   },
   left: {
@@ -120,7 +121,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
         slider("dune-resolution", "Resolution", "bi-grid-3x3-gap-fill", "dune-resolution-value", "40", "16", "96", "2", "40"),
         slider("dune-column-size", "Object Visual Size", "bi-rulers", "dune-column-size-value", "0.94x", "0.2", "1.0", "0.02", "0.94"),
         slider("dune-height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "dune-height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8"),
-        slider("dune-wind-direction", "Wind Direction", "bi-compass", "dune-wind-direction-value", "20°", "-180", "180", "1", "20"),
+        slider("dune-wind-direction", "Wind Direction", "bi-compass", "dune-wind-direction-value", "20°", "-180", "180", "1", "20", { paramKey: "windDirectionDeg" }),
         slider("dune-wind-strength", "Wind Strength", "bi-wind", "dune-wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9"),
         slider("dune-transport-rate", "Transport Rate", "bi-arrow-left-right", "dune-transport-rate-value", "0.28", "0.0", "1.5", "0.02", "0.28"),
         slider("dune-repose-slope", "Repose Slope", "bi-triangle-half", "dune-repose-slope-value", "1.40 m", "0.2", "4.0", "0.05", "1.4"),
@@ -183,16 +184,33 @@ export const DUNE_APPLET_RUNTIME = {
 export const DUNE_APPLET_VISUAL = {
   controls: {
     colorModeId: "dune-color-mode",
+    solidColorId: "dune-solid-color",
+    solidColorValueId: "dune-solid-color-value",
+    singleColorWrapId: "dune-single-color-wrap",
   },
   section: {
     hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
+      { value: "none", label: "None (single color)" },
       { value: "mass", label: "Column Mass" },
     ],
+    solidColorLabel: "Color",
+    solidColorDefault: "#D8B36A",
   },
   getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    const colorMode = params?.colorMode || "mass";
     const colormap = params?.colormap || "cividis";
+    if (colorMode === "none") {
+      return {
+        visible: false,
+        value: colormap,
+        options: continuousColormapOptions,
+        setValue() {},
+        legend: null,
+      };
+    }
+
     const range = simulation?.getColumnMassRange?.() ?? {
       min: Math.max(0, params?.baseHeight ?? 0),
       max: Math.max(0, params?.baseHeight ?? 0),
@@ -227,8 +245,10 @@ const DUNE_COLORMAP_STOPS = {
 };
 const DUNE_COLORMAPS = buildColormapLUT(DUNE_COLORMAP_STOPS);
 const duneColor = new THREE.Color();
+const duneSolidColor = new THREE.Color();
 const duneLerpA = new THREE.Color();
 const duneLerpB = new THREE.Color();
+const duneWhite = new THREE.Color(1, 1, 1);
 
 // Simulation implementation.
 export class DuneSimulation {
@@ -241,11 +261,14 @@ export class DuneSimulation {
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshPhongMaterial({
       color: 0xd8b36a,
-      vertexColors: true,
+      vertexColors: false,
       fog: false,
       specular: 0x3a2b18,
+      emissive: 0x22180d,
+      emissiveIntensity: 0.26,
       shininess: 16,
       flatShading: false,
+      side: THREE.DoubleSide,
       toneMapped: false,
     });
 
@@ -404,6 +427,9 @@ export class DuneSimulation {
       this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(this.capacity * 3), 3);
       this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      for (let i = 0; i < this.capacity; i += 1) {
+        this.mesh.instanceColor.setXYZ(i, 1, 1, 1);
+      }
       this.scene.add(this.mesh);
     }
   }
@@ -445,11 +471,19 @@ export class DuneSimulation {
         this.tempObject.updateMatrix();
         this.mesh.setMatrixAt(index, this.tempObject.matrix);
 
+        if ((this.params.colorMode ?? "mass") === "none") {
+          duneSolidColor.set(this.params.solidColor || "#D8B36A");
+          this.mesh.setColorAt(index, duneSolidColor);
+          continue;
+        }
+
         const massProxy = this.heights[index] * cellArea;
         const t = hasMeaningfulRange
           ? THREE.MathUtils.clamp((massProxy - minMass) / span, 0, 1)
           : 0.5;
-        sampleColormap(this.params.colormap || "cividis", t, duneColor);
+        const liftedT = 0.08 + t * 0.84;
+        sampleColormap(this.params.colormap || "cividis", liftedT, duneColor);
+        ensureVisibleColor(duneColor, 0.25);
         this.mesh.setColorAt(index, duneColor);
       }
     }
@@ -558,4 +592,18 @@ function sampleColormap(name, normalized, outColor) {
   duneLerpB.copy(colors[index + 1]);
   outColor.copy(duneLerpA).lerp(duneLerpB, fraction);
   return outColor;
+}
+
+function ensureVisibleColor(color, minLuminance) {
+  const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+  if (luminance >= minLuminance) {
+    return color;
+  }
+
+  const deficiency = THREE.MathUtils.clamp(
+    (minLuminance - luminance) / Math.max(minLuminance, 0.0001),
+    0,
+    1,
+  );
+  return color.lerp(duneWhite, deficiency * 0.55);
 }
