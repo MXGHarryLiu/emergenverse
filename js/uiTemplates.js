@@ -240,12 +240,16 @@ function buildSimulationSection(simConfig, appletId, templates) {
   const actions = document.createElement("div");
   actions.className = "d-flex gap-2 mt-3 simulation-action-row";
   actions.innerHTML = `
-    <button class="btn btn-sm btn-theme flex-fill" id="${simConfig.pauseButtonId}">
-      <i class="bi bi-pause-fill me-1" aria-hidden="true"></i>
-      <span>Pause</span>
+    <button
+      class="btn btn-sm btn-theme btn-icon-only"
+      id="${simConfig.pauseButtonId}"
+      title="Pause simulation"
+      aria-label="Pause simulation"
+    >
+      <i class="bi bi-pause-fill" aria-hidden="true"></i>
     </button>
-    <button class="btn btn-sm btn-outline-theme flex-fill" id="${simConfig.defaultButtonId}">Default</button>
-    <button class="btn btn-sm btn-outline-theme flex-fill" id="${simConfig.resetButtonId}">Reset</button>
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.defaultButtonId}">Default</button>
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.resetButtonId}">Reset</button>
   `;
   body.appendChild(actions);
 

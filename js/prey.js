@@ -1,5 +1,27 @@
 import * as THREE from "three";
 
+export const PREY_DEFAULT_PARAMS = {
+  preyCount: 260,
+  predatorCount: 24,
+  preySpeed: 4.5,
+  predatorSpeed: 6.2,
+  predatorSenseRadius: 16,
+  predationRadius: 1.6,
+  preyBirthRate: 0.08,
+  predationRateBeta: 1.0,
+  preyAvoidRadius: 14,
+  preyAvoidWeight: 2.4,
+  predatorEnergyLoss: 0.45,
+  predatorEnergyGain: 1.6,
+  predatorSpawnEnergy: 2.8,
+  preyMaxCount: 1200,
+  preyScale: 0.62,
+  predatorScale: 1.0,
+  preyColorMode: "energy",
+  preyColormap: "turbo",
+  preySolidColor: "#ff8d5f",
+};
+
 const PREY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],

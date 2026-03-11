@@ -1290,17 +1290,24 @@ body[data-theme="light"] .btn-outline-theme {
   box-shadow: none !important;
 }
 
-.simulation-action-row > .btn.flex-fill,
-#toggle-pause,
-#reset-sim,
-#toggle-ant-pause,
-#reset-ant-sim,
-#toggle-prey-pause,
-#reset-prey-sim,
-#toggle-firefly-pause,
-#reset-firefly-sim {
+.simulation-action-row > .action-fill {
   flex: 1 1 0 !important;
   min-width: 0;
+}
+
+.simulation-action-row > .btn-icon-only {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.simulation-action-row > .btn-icon-only i {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 body[data-theme="light"] .btn-outline-theme:hover,

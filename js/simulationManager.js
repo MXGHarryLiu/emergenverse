@@ -46,16 +46,14 @@ export class SimulationManager {
   }
 
   onWorldGeometryChanged() {
-    for (const simulation of this.simulations.values()) {
-      simulation.onWorldGeometryChanged?.();
-    }
+    const active = this.activeId ? this.simulations.get(this.activeId) : null;
+    active?.onWorldGeometryChanged?.();
     this.enforceVisibility();
   }
 
   onBoundaryModeChanged() {
-    for (const simulation of this.simulations.values()) {
-      simulation.onBoundaryModeChanged?.();
-    }
+    const active = this.activeId ? this.simulations.get(this.activeId) : null;
+    active?.onBoundaryModeChanged?.();
     this.enforceVisibility();
   }
 }

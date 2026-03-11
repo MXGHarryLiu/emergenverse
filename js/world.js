@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export function createWorldManager({ params, getBoids, onWorldGeometryChanged } = {}) {
+export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x030713);
   scene.fog = new THREE.FogExp2(0x050a17, 0.0022);
@@ -78,11 +78,6 @@ export function createWorldManager({ params, getBoids, onWorldGeometryChanged } 
     });
 
     scene.add(floorGrid);
-
-    const boids = typeof getBoids === "function" ? getBoids() : [];
-    for (let i = 0; i < boids.length; i += 1) {
-      applyBoundaryConditions(boids[i]);
-    }
 
     if (typeof onWorldGeometryChanged === "function") {
       onWorldGeometryChanged();

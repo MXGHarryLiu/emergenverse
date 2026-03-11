@@ -1,5 +1,29 @@
 import * as THREE from "three";
 
+export const ANT_DEFAULT_PARAMS = {
+  antColorMode: "state",
+  antColormap: "turbo",
+  antSolidColor: "#62d6f9",
+  antCount: 120,
+  antScale: 0.003,
+  antSpeed: 0.12,
+  antSensorDistance: 0.08,
+  antSensorAngle: 35,
+  antTurnGain: 3.0,
+  antGoalBias: 1.0,
+  antDepartureRate: 6,
+  antDepositRate: 5.0,
+  antDiffusionRate: 3.0,
+  antEvapRate: 0.8,
+  antNoiseStrength: 0.2,
+  antFoodSenseDistance: 0.18,
+  antPickupRadius: 0.04,
+  antFoodPlacementEnabled: false,
+  antFoodAddMassUg: 50,
+  antPickupMassUg: 1,
+  antFoodSourceMassUg: 1000,
+};
+
 const ANT_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],

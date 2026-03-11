@@ -1,6 +1,39 @@
 import * as THREE from "three";
 
 const TWO_PI = Math.PI * 2;
+const FIREFLY_COLORMAP_STOPS = {
+  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
+  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
+  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
+  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
+  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
+  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
+  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
+  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
+};
+const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_COLORMAP_STOPS);
+const FIREFLY_DISCRETE_STATE_COLORMAPS = {
+  paired: [0xa6cee3, 0x1f78b4],
+  set1: [0xe41a1c, 0x377eb8],
+  set2: [0x66c2a5, 0xfc8d62],
+  dark2: [0x1b9e77, 0xd95f02],
+  tableau10: [0x4e79a7, 0xf28e2b],
+};
+const fireflyLerpA = new THREE.Color();
+const fireflyLerpB = new THREE.Color();
+
+export const FIREFLY_DEFAULT_PARAMS = {
+  fireflyCount: 180,
+  fireflySize: 0.8,
+  fireflySpeed: 1.2,
+  fireflyCoupling: 2.2,
+  fireflyRadius: 18.0,
+  fireflyFrequencyHz: 1.8,
+  fireflyFreqJitterHz: 0.2,
+  fireflyPhaseNoise: 0.4,
+  fireflyColorMode: "blink",
+  fireflyColormap: "paired",
+};
 
 export class FireflySimulation {
   constructor({ scene, params, onStats }) {
@@ -68,6 +101,37 @@ export class FireflySimulation {
 
   onBoundaryModeChanged() {
     this.onWorldGeometryChanged();
+  }
+
+  getFrequencyRange() {
+    if (!this.fireflies.length) {
+      const center = Math.max(0.05, this.params.fireflyFrequencyHz ?? 1.8);
+      const jitter = Math.max(0, this.params.fireflyFreqJitterHz ?? 0.2);
+      return {
+        min: Math.max(0, center - jitter),
+        max: center + jitter,
+      };
+    }
+
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 0; i < this.fireflies.length; i += 1) {
+      const omegaHz = this.fireflies[i].omegaHz;
+      if (omegaHz < min) {
+        min = omegaHz;
+      }
+      if (omegaHz > max) {
+        max = omegaHz;
+      }
+    }
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return { min: 0, max: 1 };
+    }
+    if (max - min < 1e-6) {
+      return { min: min - 0.1, max: max + 0.1 };
+    }
+    return { min, max };
   }
 
   step(dt) {
@@ -193,6 +257,8 @@ export class FireflySimulation {
     }
 
     const scale = Math.max(0.08, this.params.fireflySize ?? 0.8);
+    const frequencyRange = this.getFrequencyRange();
+    const discreteStateColors = getFireflyStateColors(this.params.fireflyColormap);
 
     for (let i = 0; i < this.fireflies.length; i += 1) {
       const firefly = this.fireflies[i];
@@ -202,13 +268,21 @@ export class FireflySimulation {
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
-      // Bright pulse near phase wrap (blink) with low baseline glow.
       const phaseNorm = firefly.phase / TWO_PI;
       const pulse =
         Math.exp(-((phaseNorm - 1) * (phaseNorm - 1)) / 0.0025) +
         Math.exp(-(phaseNorm * phaseNorm) / 0.0025);
-      const brightness = THREE.MathUtils.clamp(0.16 + pulse * 1.25, 0, 1);
-      this.tempColor.setRGB(1, 0.95, 0.45).multiplyScalar(brightness);
+      const brightness = THREE.MathUtils.clamp(0.18 + pulse * 1.1, 0.18, 1);
+      const isBlinking = pulse > 0.5;
+
+      if (this.params.fireflyColorMode === "frequency") {
+        const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
+        const t = THREE.MathUtils.clamp((firefly.omegaHz - frequencyRange.min) / span, 0, 1);
+        sampleColormap(this.params.fireflyColormap, t, this.tempColor);
+      } else {
+        this.tempColor.setHex(isBlinking ? discreteStateColors.blink : discreteStateColors.idle);
+      }
+      this.tempColor.multiplyScalar(brightness);
       this.mesh.setColorAt(i, this.tempColor);
     }
 
@@ -318,4 +392,47 @@ function wrapAxis(value, halfExtent) {
     return ((((value + halfExtent) % span) + span) % span) - halfExtent;
   }
   return value;
+}
+
+function buildColormapLUT(stopsByName) {
+  const maps = {};
+  Object.keys(stopsByName).forEach((name) => {
+    maps[name] = stopsByName[name].map((hex) => new THREE.Color(hex));
+  });
+  return maps;
+}
+
+function sampleColormap(name, normalized, outColor) {
+  const colors = FIREFLY_COLORMAPS[name] || FIREFLY_COLORMAPS.turbo;
+  if (!colors || colors.length === 0) {
+    outColor.set(0xffffff);
+    return outColor;
+  }
+  if (colors.length === 1) {
+    outColor.copy(colors[0]);
+    return outColor;
+  }
+
+  const t = THREE.MathUtils.clamp(normalized, 0, 1);
+  const scaled = t * (colors.length - 1);
+  const index = Math.min(colors.length - 2, Math.floor(scaled));
+  const fraction = scaled - index;
+  fireflyLerpA.copy(colors[index]);
+  fireflyLerpB.copy(colors[index + 1]);
+  outColor.copy(fireflyLerpA).lerp(fireflyLerpB, fraction);
+  return outColor;
+}
+
+function getFireflyStateColors(name) {
+  const palette = FIREFLY_DISCRETE_STATE_COLORMAPS[name];
+  if (palette && palette.length >= 2) {
+    return {
+      idle: palette[0],
+      blink: palette[1],
+    };
+  }
+  return {
+    idle: 0xa6cee3,
+    blink: 0x1f78b4,
+  };
 }

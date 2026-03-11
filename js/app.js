@@ -2,10 +2,10 @@ import * as THREE from "three";
 import { createCameraController } from "./camera.js";
 import { createThemeManager } from "./theme.js";
 import { createWorldManager } from "./world.js";
-import { BoidSimulation } from "./boid.js";
-import { AntSimulation } from "./ant.js";
-import { PreySimulation } from "./prey.js";
-import { FireflySimulation } from "./firefly.js";
+import { BoidSimulation, BOID_DEFAULT_PARAMS } from "./boid.js";
+import { AntSimulation, ANT_DEFAULT_PARAMS } from "./ant.js";
+import { PreySimulation, PREY_DEFAULT_PARAMS } from "./prey.js";
+import { FireflySimulation, FIREFLY_DEFAULT_PARAMS } from "./firefly.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
@@ -18,27 +18,11 @@ import {
 } from "./chartUtils.js";
 
 const params = {
-  boidCount: 220,
-  boidScale: 0.5,
-  perceptionRadius: 18,
-  separationDistance: 8,
-  maxSpeed: 8,
-  minSpeed: 2.5,
-  maxAccel: 6,
-  alignmentWeight: 1.0,
-  cohesionWeight: 0.9,
-  separationWeight: 1.35,
   worldSizeX: 100,
   worldSizeY: 100,
   worldSizeZ: 100,
   worldGridSize: 5,
   boundaryMode: "cyclic",
-  colorMode: "speed",
-  colormap: "turbo",
-  solidColor: "#4cd3b6",
-  antColorMode: "state",
-  antColormap: "turbo",
-  antSolidColor: "#62d6f9",
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
@@ -47,51 +31,10 @@ const params = {
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
   paused: false,
-  antCount: 120,
-  antScale: 0.003,
-  antSpeed: 0.12,
-  antSensorDistance: 0.08,
-  antSensorAngle: 35,
-  antTurnGain: 3.0,
-  antGoalBias: 1.0,
-  antDepartureRate: 6,
-  antDepositRate: 5.0,
-  antDiffusionRate: 3.0,
-  antEvapRate: 0.8,
-  antNoiseStrength: 0.2,
-  antFoodSenseDistance: 0.18,
-  antPickupRadius: 0.04,
-  antFoodPlacementEnabled: false,
-  antFoodAddMassUg: 50,
-  antPickupMassUg: 1,
-  antFoodSourceMassUg: 1000,
-  preyCount: 260,
-  predatorCount: 24,
-  preySpeed: 4.5,
-  predatorSpeed: 6.2,
-  predatorSenseRadius: 16,
-  predationRadius: 1.6,
-  preyBirthRate: 0.08,
-  predationRateBeta: 1.0,
-  preyAvoidRadius: 14,
-  preyAvoidWeight: 2.4,
-  predatorEnergyLoss: 0.45,
-  predatorEnergyGain: 1.6,
-  predatorSpawnEnergy: 2.8,
-  preyMaxCount: 1200,
-  preyScale: 0.62,
-  predatorScale: 1.0,
-  preyColorMode: "energy",
-  preyColormap: "turbo",
-  preySolidColor: "#ff8d5f",
-  fireflyCount: 180,
-  fireflySize: 0.8,
-  fireflySpeed: 1.2,
-  fireflyCoupling: 2.2,
-  fireflyRadius: 18.0,
-  fireflyFrequencyHz: 1.8,
-  fireflyFreqJitterHz: 0.2,
-  fireflyPhaseNoise: 0.4,
+  ...BOID_DEFAULT_PARAMS,
+  ...ANT_DEFAULT_PARAMS,
+  ...PREY_DEFAULT_PARAMS,
+  ...FIREFLY_DEFAULT_PARAMS,
 };
 
 renderAppletSectionsFromConfig();
@@ -356,7 +299,6 @@ const antStats = {
 
 const world = createWorldManager({
   params,
-  getBoids: () => boidSimulation.boids,
   onWorldGeometryChanged: () => {
     updateOrthographicCamera(false);
     simulationManager.onWorldGeometryChanged();
@@ -2213,18 +2155,26 @@ function updateProjectionToggleUI() {
 }
 
 function updateSimulationStateUI() {
+  const pauseButtons = [
+    dom.togglePause,
+    dom.toggleAntPause,
+    dom.togglePreyPause,
+    dom.toggleFireflyPause,
+  ].filter(Boolean);
+
+  const setPauseButtons = (isPaused) => {
+    const iconClass = isPaused ? "bi-play-fill" : "bi-pause-fill";
+    const text = isPaused ? "Resume simulation" : "Pause simulation";
+    const html = `<i class="bi ${iconClass}" aria-hidden="true"></i>`;
+    pauseButtons.forEach((button) => {
+      button.innerHTML = html;
+      button.setAttribute("title", text);
+      button.setAttribute("aria-label", text);
+    });
+  };
+
   if (params.paused) {
-    dom.togglePause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
-    if (dom.toggleAntPause) {
-      dom.toggleAntPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
-    }
-    if (dom.togglePreyPause) {
-      dom.togglePreyPause.innerHTML = '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
-    }
-    if (dom.toggleFireflyPause) {
-      dom.toggleFireflyPause.innerHTML =
-        '<i class=\"bi bi-play-fill me-1\" aria-hidden=\"true\"></i><span>Resume</span>';
-    }
+    setPauseButtons(true);
     dom.runState.innerHTML = '<i class=\"bi bi-pause-fill state-icon\" aria-hidden=\"true\"></i>';
     dom.runState.setAttribute("title", "Paused. Click to resume simulation");
     dom.runState.setAttribute("aria-label", "Paused. Click to resume simulation");
@@ -2233,17 +2183,7 @@ function updateSimulationStateUI() {
     return;
   }
 
-  dom.togglePause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
-  if (dom.toggleAntPause) {
-    dom.toggleAntPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
-  }
-  if (dom.togglePreyPause) {
-    dom.togglePreyPause.innerHTML = '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
-  }
-  if (dom.toggleFireflyPause) {
-    dom.toggleFireflyPause.innerHTML =
-      '<i class=\"bi bi-pause-fill me-1\" aria-hidden=\"true\"></i><span>Pause</span>';
-  }
+  setPauseButtons(false);
   dom.runState.innerHTML = '<i class=\"bi bi-play-fill state-icon\" aria-hidden=\"true\"></i>';
   dom.runState.setAttribute("title", "Running. Click to pause simulation");
   dom.runState.setAttribute("aria-label", "Running. Click to pause simulation");

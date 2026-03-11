@@ -1,5 +1,21 @@
 import * as THREE from "three";
 
+export const BOID_DEFAULT_PARAMS = {
+  boidCount: 220,
+  boidScale: 0.5,
+  perceptionRadius: 18,
+  separationDistance: 8,
+  maxSpeed: 8,
+  minSpeed: 2.5,
+  maxAccel: 6,
+  alignmentWeight: 1.0,
+  cohesionWeight: 0.9,
+  separationWeight: 1.35,
+  colorMode: "speed",
+  colormap: "turbo",
+  solidColor: "#4cd3b6",
+};
+
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {
     this.scene = scene;
@@ -78,7 +94,14 @@ export class BoidSimulation {
   }
 
   onWorldGeometryChanged() {
+    for (let i = 0; i < this.boids.length; i += 1) {
+      this.world.applyBoundaryConditions(this.boids[i]);
+    }
+    if (this.params.boundaryMode === "lost") {
+      this.removeLostBoids();
+    }
     this.syncInstances();
+    this.emitCurrentStats();
   }
 
   onBoundaryModeChanged() {
