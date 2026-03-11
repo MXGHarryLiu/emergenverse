@@ -113,6 +113,15 @@
             >
               Galaxy
             </button>
+            <button
+              class="applet-tab"
+              type="button"
+              data-applet-item="dune"
+              aria-selected="false"
+              title="Dune applet"
+            >
+              Dune
+            </button>
           </div>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -226,8 +235,8 @@
             <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
           </button>
         </div>
-        <div id="scene-host" data-app-visible="boid ants prey firefly galaxy" aria-label="3D simulation viewport"></div>
-        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey firefly galaxy">Grid size: -- m | -- | --</div>
+        <div id="scene-host" data-app-visible="boid ants prey firefly galaxy dune" aria-label="3D simulation viewport"></div>
+        <div class="overlay-corner" id="frame-size" data-app-visible="boid ants prey firefly galaxy dune">Grid size: -- m | -- | --</div>
       </section>
       <div
         class="panel-resizer panel-resizer-right"
@@ -275,24 +284,11 @@
               <option value="heading">Heading (z component)</option>
             </select>
 
-            <div id="colormap-control-wrap">
-              <label class="form-label mt-2" for="colormap">
-                <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
-              </label>
-              <select class="form-select form-select-sm theme-select" id="colormap">
-                <option value="turbo" selected>Turbo</option>
-                <option value="viridis">Viridis</option>
-                <option value="plasma">Plasma</option>
-                <option value="magma">Magma</option>
-                <option value="inferno">Inferno</option>
-                <option value="cividis">Cividis</option>
-                <option value="coolwarm">Coolwarm</option>
-                <option value="greys">Greys</option>
-              </select>
-            </div>
+            <div data-shared-colormap-host="boid"></div>
             <div id="single-color-wrap" class="is-hidden">
               <label class="form-label mt-2" for="solid-color">
                 <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
+                <span class="label-value" id="solid-color-value">#4CD3B6</span>
               </label>
               <input type="color" class="form-control form-control-color theme-color-input" id="solid-color" value="#4cd3b6" />
             </div>
@@ -370,31 +366,11 @@
               <option value="heading">Heading</option>
             </select>
 
-            <div id="ant-colormap-control-wrap" class="is-hidden">
-              <label class="form-label mt-2" for="ant-colormap">
-                <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
-              </label>
-              <select class="form-select form-select-sm theme-select" id="ant-colormap">
-                <option value="turbo" selected>Turbo</option>
-                <option value="viridis">Viridis</option>
-                <option value="plasma">Plasma</option>
-                <option value="magma">Magma</option>
-                <option value="inferno">Inferno</option>
-                <option value="cividis">Cividis</option>
-                <option value="coolwarm">Coolwarm</option>
-                <option value="greys">Greys</option>
-              </select>
-              <div class="colormap-legend mt-2" id="ant-colormap-legend" aria-label="Ant colormap legend">
-                <div class="colormap-legend-bar" id="ant-colormap-legend-bar"></div>
-                <div class="colormap-legend-meta">
-                  <span id="ant-colormap-cmin">cmin: -180°</span>
-                  <span id="ant-colormap-cmax">cmax: 180°</span>
-                </div>
-              </div>
-            </div>
+            <div data-shared-colormap-host="ants"></div>
             <div id="ant-single-color-wrap" class="is-hidden">
               <label class="form-label mt-2" for="ant-solid-color">
                 <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
+                <span class="label-value" id="ant-solid-color-value">#62D6F9</span>
               </label>
               <input type="color" class="form-control form-control-color theme-color-input" id="ant-solid-color" value="#62d6f9" />
             </div>
@@ -425,24 +401,11 @@
               <option value="energy" selected>Predator Energy</option>
             </select>
 
-            <div id="prey-colormap-control-wrap">
-              <label class="form-label mt-2" for="prey-colormap">
-                <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
-              </label>
-              <select class="form-select form-select-sm theme-select" id="prey-colormap">
-                <option value="turbo" selected>Turbo</option>
-                <option value="viridis">Viridis</option>
-                <option value="plasma">Plasma</option>
-                <option value="magma">Magma</option>
-                <option value="inferno">Inferno</option>
-                <option value="cividis">Cividis</option>
-                <option value="coolwarm">Coolwarm</option>
-                <option value="greys">Greys</option>
-              </select>
-            </div>
+            <div data-shared-colormap-host="prey"></div>
             <div id="prey-single-color-wrap" class="is-hidden">
               <label class="form-label mt-2" for="prey-solid-color">
                 <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Predator Color</span>
+                <span class="label-value" id="prey-solid-color-value">#FF8D5F</span>
               </label>
               <input
                 type="color"
@@ -450,18 +413,6 @@
                 id="prey-solid-color"
                 value="#ff8d5f"
               />
-            </div>
-          </div>
-        </div>
-
-        <div class="control-section is-hidden" data-app-visible="boid prey">
-          <div class="control-section-body pt-0">
-            <div class="colormap-legend" id="colormap-legend" aria-label="Shared colormap legend">
-              <div class="colormap-legend-bar" id="colormap-legend-bar"></div>
-              <div class="colormap-legend-meta">
-                <span id="colormap-cmin">cmin: 0.0 m/s</span>
-                <span id="colormap-cmax">cmax: 8.0 m/s</span>
-              </div>
             </div>
           </div>
         </div>
@@ -485,33 +436,107 @@
               <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
             </label>
             <select class="form-select form-select-sm theme-select" id="firefly-color-mode">
+              <option value="none">None (single color)</option>
               <option value="blink" selected>Blink State</option>
               <option value="frequency">Frequency (Hz)</option>
             </select>
 
-            <label class="form-label mt-2" for="firefly-colormap">
-              <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+            <div data-shared-colormap-host="firefly"></div>
+            <div id="firefly-single-color-wrap" class="is-hidden">
+              <label class="form-label mt-2" for="firefly-solid-color">
+                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
+                <span class="label-value" id="firefly-solid-color-value">#FFD86B</span>
+              </label>
+              <input type="color" class="form-control form-control-color theme-color-input" id="firefly-solid-color" value="#ffd86b" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section is-hidden" data-control-section="galaxy-visual" data-app-visible="galaxy">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle galaxy visual controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
+              <span>Visual</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <label class="form-label" for="galaxy-color-mode">
+              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
             </label>
-            <select class="form-select form-select-sm theme-select" id="firefly-colormap">
-              <option value="blue-yellow" selected>Blue-Yellow</option>
-              <option value="paired">Paired</option>
-              <option value="set1">Set1</option>
-              <option value="set2">Set2</option>
-              <option value="dark2">Dark2</option>
-              <option value="tableau10">Tableau10</option>
+            <select class="form-select form-select-sm theme-select" id="galaxy-color-mode">
+              <option value="none">None (single color)</option>
+              <option value="speed" selected>Orbital Speed</option>
             </select>
-            <div class="colormap-legend mt-2" id="firefly-colormap-legend" aria-label="Firefly colormap legend">
-              <div class="colormap-legend-bar" id="firefly-colormap-legend-bar"></div>
-              <div class="colormap-legend-meta">
-                <span id="firefly-colormap-cmin">idle</span>
-                <span id="firefly-colormap-cmax">blink</span>
-              </div>
+
+            <div data-shared-colormap-host="galaxy"></div>
+            <div id="galaxy-single-color-wrap" class="is-hidden">
+              <label class="form-label mt-2" for="galaxy-solid-color">
+                <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>Color</span>
+                <span class="label-value" id="galaxy-solid-color-value">#C9DDFF</span>
+              </label>
+              <input type="color" class="form-control form-control-color theme-color-input" id="galaxy-solid-color" value="#c9ddff" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section is-hidden" data-control-section="dune-visual" data-app-visible="dune">
+          <button
+            class="section-toggle"
+            type="button"
+            data-control-toggle
+            aria-expanded="true"
+            aria-label="Toggle dune visual controls"
+          >
+            <span class="section-toggle-title">
+              <i class="bi bi-palette panel-head-icon" aria-hidden="true"></i>
+              <span>Visual</span>
+            </span>
+            <i class="bi bi-chevron-up section-toggle-icon" aria-hidden="true"></i>
+          </button>
+          <div class="control-section-body">
+            <label class="form-label" for="dune-color-mode">
+              <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>Color Mode</span>
+            </label>
+            <select class="form-select form-select-sm theme-select" id="dune-color-mode">
+              <option value="mass" selected>Column Mass</option>
+            </select>
+
+            <div data-shared-colormap-host="dune"></div>
+          </div>
+        </div>
+
+        <div id="shared-colormap-panel" class="is-hidden">
+          <label class="form-label mt-2" for="colormap">
+            <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="colormap">
+            <option value="turbo" selected>Turbo</option>
+            <option value="viridis">Viridis</option>
+            <option value="plasma">Plasma</option>
+            <option value="magma">Magma</option>
+            <option value="inferno">Inferno</option>
+            <option value="cividis">Cividis</option>
+            <option value="coolwarm">Coolwarm</option>
+            <option value="greys">Greys</option>
+          </select>
+          <div class="colormap-legend mt-2" id="colormap-legend" aria-label="Shared colormap legend">
+            <div class="colormap-legend-bar" id="colormap-legend-bar"></div>
+            <div class="colormap-legend-meta">
+              <span id="colormap-cmin">cmin: 0.0</span>
+              <span id="colormap-cmax">cmax: 1.0</span>
             </div>
           </div>
         </div>
 
 
-        <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly galaxy">
+        <div class="control-section" data-control-section="world" data-app-visible="boid ants prey firefly galaxy dune">
           <button
             class="section-toggle"
             type="button"
@@ -600,11 +625,12 @@
           <p class="controls-modal-subtitle">6-DOF camera control (when camera lock is off)</p>
           <ul class="controls-list">
             <li><strong>Translate (keyboard/mouse)</strong>: `A/S/D/Q/W/E` for camera-relative XYZ movement, or hold right mouse and drag.</li>
+            <li><strong>Translate (touch)</strong>: Two-finger drag moves the camera relative to the current view. In perspective it strafes and moves forward/back like `A/D` and `W/S`; in top orthographic it pans across the plane.</li>
             <li><strong>Yaw (keyboard/mouse)</strong>: `ArrowLeft` / `ArrowRight`, or left-drag horizontally (perspective mode).</li>
             <li><strong>Pitch (keyboard/mouse)</strong>: `ArrowUp` / `ArrowDown`, or left-drag vertically (perspective mode).</li>
             <li><strong>Roll (keyboard)</strong>: `[` / `]`.</li>
             <li><strong>Boost (keyboard)</strong>: Hold `Shift` while translating.</li>
-            <li><strong>Zoom / View Scale (mouse/keyboard)</strong>: Scroll wheel or `<` / `>` (same keys as `,` / `.`) changes FOV in perspective and zoom level in top orthographic.</li>
+            <li><strong>Zoom / View Scale (mouse/keyboard/touch)</strong>: Scroll wheel, pinch with two fingers, or `<` / `>` (same keys as `,` / `.`) changes FOV in perspective and zoom level in top orthographic.</li>
             <li><strong>Simulation controls</strong>: Use the Simulation, Visual, Camera, and World panels to adjust model and rendering parameters.</li>
           </ul>
         </div>
@@ -797,7 +823,7 @@
     </template>
 
     <template id="tpl-camera-section">
-      <div class="control-section" data-control-section="camera" data-app-visible="boid ants prey firefly galaxy">
+      <div class="control-section" data-control-section="camera" data-app-visible="boid ants prey firefly galaxy dune">
         <button
           class="section-toggle"
           type="button"

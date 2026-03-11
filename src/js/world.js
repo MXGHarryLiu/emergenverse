@@ -47,6 +47,7 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
       color: 0x4d7dd8,
       transparent: true,
       opacity: 0.4,
+      fog: false,
     });
 
     boundsLines = new THREE.LineSegments(boundsGeometry, boundsMaterial);
@@ -74,25 +75,25 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     }
   }
 
-  function applyBoundaryConditions(boid) {
+  function applyBoundaryConditions(entity) {
     const halfX = params.worldSizeX * 0.5;
     const halfY = params.worldSizeY * 0.5;
     const halfZ = params.worldSizeZ * 0.5;
 
     if (params.boundaryMode === "cyclic") {
-      boid.position.x = wrapAxis(boid.position.x, halfX);
-      boid.position.y = wrapAxis(boid.position.y, halfY);
-      boid.position.z = wrapAxis(boid.position.z, halfZ);
-      boid.lost = false;
+      entity.position.x = wrapAxis(entity.position.x, halfX);
+      entity.position.y = wrapAxis(entity.position.y, halfY);
+      entity.position.z = wrapAxis(entity.position.z, halfZ);
+      entity.lost = false;
       return true;
     }
 
     const outOfBounds =
-      Math.abs(boid.position.x) > halfX ||
-      Math.abs(boid.position.y) > halfY ||
-      Math.abs(boid.position.z) > halfZ;
+      Math.abs(entity.position.x) > halfX ||
+      Math.abs(entity.position.y) > halfY ||
+      Math.abs(entity.position.z) > halfZ;
 
-    boid.lost = outOfBounds;
+    entity.lost = outOfBounds;
     return !outOfBounds;
   }
 
@@ -130,7 +131,8 @@ function buildFloorGrid({ width, height, z, step }) {
   const material = new THREE.LineBasicMaterial({
     color: 0x1a3558,
     transparent: true,
-    opacity: 0.2,
+    opacity: 0.34,
+    fog: false,
   });
 
   return new THREE.LineSegments(geometry, material);

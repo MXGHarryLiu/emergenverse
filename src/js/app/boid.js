@@ -94,7 +94,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("boid-sim-speed", "Simulation Speed", "bi-stopwatch", "boid-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("boid-count", "Count", "bi-people-fill", "boid-count-value", "220", "30", "650", "10", "220"),
-        slider("boid-scale", "Object Size", "bi-rulers", "boid-scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5"),
+        slider("boid-scale", "Object Visual Size", "bi-rulers", "boid-scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5"),
         slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18"),
         slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8"),
         slider("max-speed", "Max Speed", "bi-speedometer2", "max-speed-value", "8.0 m/s", "1", "25", "0.25", "8"),

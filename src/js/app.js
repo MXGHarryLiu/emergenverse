@@ -160,6 +160,8 @@ const panelWidthState = {
   right: 320,
 };
 
+let visualControls = null;
+
 function getAppletWorldConfig(appletId) {
   const fallback = {
     defaults: { x: 100, y: 100, z: 100 },
@@ -240,14 +242,11 @@ function formatWorldDisplayValue(displayValue, appletId = activeApplet, options 
 }
 
 function getViewportAppletLabel(appletId = activeApplet) {
-  const labels = {
-    boid: "Boid",
-    ants: "Ant",
-    prey: "Prey",
-    firefly: "Firefly",
-    galaxy: "Galaxy",
-  };
-  return labels[appletId] ?? "Boid";
+  return APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? "Applet";
+}
+
+function refreshAppletLegend(appletId = activeApplet) {
+  visualControls?.refreshLegend?.(appletId);
 }
 
 const compactRangeRegistry = new Map();
@@ -320,7 +319,7 @@ const appletStatsApis = Object.fromEntries(
       setText: setElementText,
       updateChartMetrics: (appletId, values, liveTexts) =>
         updateChartMetrics(appletId, values, liveTexts),
-      refreshLegend: id === "prey" ? updatePreyColormapLegend : null,
+      refreshLegend: () => refreshAppletLegend(id),
     },
   ]),
 );
@@ -335,6 +334,7 @@ const simulations = Object.fromEntries(
       onStats: (stats) => {
         lastAppletStats[id] = stats;
         APPLET_DEFINITIONS[id].runtime?.applyStats?.(stats, appletStatsApis[id]);
+        appletStatsApis[id].refreshLegend?.();
       },
     }),
   ]),
@@ -349,6 +349,7 @@ const antSimulation = simulations.ants;
 const preySimulation = simulations.prey;
 const fireflySimulation = simulations.firefly;
 const galaxySimulation = simulations.galaxy;
+const duneSimulation = simulations.dune;
 
 const colormapStops = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -630,6 +631,7 @@ function setupControls() {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
+    refreshAppletLegend(activeApplet);
     return formatWorldDistance(params.worldSizeX);
   });
 
@@ -639,6 +641,7 @@ function setupControls() {
       persistActiveAppletWorldState();
     }
     rebuildBoundsAndGrid();
+    refreshAppletLegend(activeApplet);
     return formatWorldDistance(params.worldSizeY);
   });
 
@@ -914,9 +917,70 @@ function setupControls() {
       params.galaxy.count = Number(galaxyCountInput.value);
       galaxySimulation.setCount(params.galaxy.count);
       resetTrendCharts("galaxy");
+      refreshAppletLegend("galaxy");
       syncCompactSectionSlider("galaxy-count");
     });
   }
+
+  bindRange("dune-sim-speed", "dune-sim-speed-value", (value) => {
+    params.dune.simSpeed = value;
+    return `${value.toFixed(1)}x`;
+  });
+
+  bindRange("dune-resolution", "dune-resolution-value", (value) => {
+    params.dune.resolution = Math.round(value);
+    duneSimulation.setResolution(params.dune.resolution);
+    resetTrendCharts("dune");
+    refreshAppletLegend("dune");
+    return String(params.dune.resolution);
+  });
+
+  bindRange("dune-height-scale", "dune-height-scale-value", (value) => {
+    params.dune.heightScale = value;
+    duneSimulation.syncInstances?.();
+    return `${value.toFixed(2)}x`;
+  });
+
+  bindRange("dune-wind-direction", "dune-wind-direction-value", (value) => {
+    params.dune.windDirectionDeg = value;
+    return `${Math.round(value)}°`;
+  });
+
+  bindRange("dune-wind-strength", "dune-wind-strength-value", (value) => {
+    params.dune.windStrength = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("dune-transport-rate", "dune-transport-rate-value", (value) => {
+    params.dune.transportRate = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("dune-repose-slope", "dune-repose-slope-value", (value) => {
+    params.dune.reposeSlope = value;
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("dune-avalanche-rate", "dune-avalanche-rate-value", (value) => {
+    params.dune.avalancheRate = value;
+    return value.toFixed(2);
+  });
+
+  bindRange("dune-base-height", "dune-base-height-value", (value) => {
+    params.dune.baseHeight = value;
+    duneSimulation.reset();
+    resetTrendCharts("dune");
+    refreshAppletLegend("dune");
+    return `${value.toFixed(2)} m`;
+  });
+
+  bindRange("dune-noise-amplitude", "dune-noise-amplitude-value", (value) => {
+    params.dune.noiseAmplitude = value;
+    duneSimulation.reset();
+    resetTrendCharts("dune");
+    refreshAppletLegend("dune");
+    return `${value.toFixed(2)} m`;
+  });
 
   const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
@@ -945,6 +1009,7 @@ function setupControls() {
       }
       applets[appletId]?.simulation.reset?.();
       resetTrendCharts(appletId);
+      refreshAppletLegend(appletId);
     });
 
     getElement(APPLET_META[appletId]?.defaultButtonId)?.addEventListener("click", () => {
@@ -1027,12 +1092,15 @@ function setupControls() {
     bindRange,
   });
 
-  const visualControls = createVisualControls({
+  visualControls = createVisualControls({
     params,
     boidSimulation,
     antSimulation,
     preySimulation,
     fireflySimulation,
+    galaxySimulation,
+    duneSimulation,
+    getActiveApplet: () => activeApplet,
     updateBoidColormapLegend: updateColormapLegend,
     updatePreyColormapLegend,
   });
@@ -1182,6 +1250,7 @@ function applyAppletWorldState(appletId) {
 
   rebuildBoundsAndGrid();
   simulationManager.onBoundaryModeChanged();
+  refreshAppletLegend(appletId);
 }
 
 function applyDefaultProjectionForApplet(appletId) {
@@ -1272,6 +1341,7 @@ function applyAppletMode(appletId, options = {}) {
   });
 
   applyAppletVisibility(normalizedId);
+  visualControls?.syncFromParams?.();
   resetCompactSectionDefaults();
   const restoredCamera = cameraController.restoreCameraSnapshot(appletCameraState[normalizedId]);
   if (!restoredCamera) {
@@ -1285,6 +1355,7 @@ function applyAppletMode(appletId, options = {}) {
   }
   params.paused = appletPausedPreferences[normalizedId];
   applets[normalizedId]?.applyStats(lastAppletStats[normalizedId]);
+  refreshAppletLegend(normalizedId);
 
   updateSimulationStateUI();
   updateViewportLabel();
@@ -1676,6 +1747,7 @@ function setupCompactSectionSliders() {
     }
 
     compactSectionState[sectionKey] = {
+      sectionKey,
       hub,
       slider,
       title,
@@ -1728,6 +1800,16 @@ function setupRangeFocusEscape() {
   }, true);
 }
 
+function getFirstCompactRangeInputId(sectionKey) {
+  if (!sectionKey) {
+    return null;
+  }
+
+  const section = document.querySelector(`[data-control-section="${sectionKey}"]`);
+  const firstInput = section?.querySelector("input.compact-source-slider[id]");
+  return firstInput?.id || null;
+}
+
 function registerCompactRangeControl(inputRef, outputRef) {
   const input = typeof inputRef === "string" ? document.getElementById(inputRef) : inputRef;
   const output = typeof outputRef === "string" ? document.getElementById(outputRef) : outputRef;
@@ -1763,15 +1845,13 @@ function registerCompactRangeControl(inputRef, outputRef) {
     labelTitleNode,
   });
 
-  if (!sectionState.firstInputId) {
-    sectionState.firstInputId = input.id;
-  }
-
   input.classList.add("compact-source-slider");
   output.classList.add("compact-value-trigger");
   output.setAttribute("role", "button");
   output.setAttribute("tabindex", "0");
   output.setAttribute("aria-label", `Edit ${labelText}`);
+
+  sectionState.firstInputId = getFirstCompactRangeInputId(sectionKey) || sectionState.firstInputId || input.id;
 
   const activate = (event) => {
     if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
@@ -1830,10 +1910,12 @@ function activateCompactRangeControl(inputId) {
 
 function resetCompactSectionDefaults() {
   Object.values(compactSectionState).forEach((sectionState) => {
-    if (!sectionState?.firstInputId) {
+    const firstInputId = getFirstCompactRangeInputId(sectionState?.sectionKey) || sectionState?.firstInputId;
+    if (!firstInputId) {
       return;
     }
-    activateCompactRangeControl(sectionState.firstInputId);
+    sectionState.firstInputId = firstInputId;
+    activateCompactRangeControl(firstInputId);
   });
 }
 

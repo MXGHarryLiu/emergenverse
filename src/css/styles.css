@@ -893,8 +893,24 @@ body {
   width: 100%;
   min-width: 0;
   height: 2rem;
+  padding: 0.16rem;
+  border-radius: 0.55rem;
   border-color: var(--line);
-  background-color: rgba(8, 18, 38, 0.72);
+  background-color: var(--chip-bg);
+}
+
+.theme-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.theme-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 0.38rem;
+}
+
+.theme-color-input::-moz-color-swatch {
+  border: none;
+  border-radius: 0.38rem;
 }
 
 .form-check-label {
@@ -1175,7 +1191,7 @@ body {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: contain;
-  background: rgba(8, 16, 32, 0.24);
+  background: transparent;
 }
 
 .share-link-input {

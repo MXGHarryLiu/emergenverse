@@ -29,8 +29,14 @@ import {
   GALAXY_DEFAULT_PARAMS,
   GALAXY_APPLET_RUNTIME,
 } from "./galaxy.js";
+import {
+  DuneSimulation,
+  DUNE_APPLET_CONFIG,
+  DUNE_DEFAULT_PARAMS,
+  DUNE_APPLET_RUNTIME,
+} from "./dune.js";
 
-export const APPLET_ORDER = ["boid", "ants", "prey", "firefly", "galaxy"];
+export const APPLET_ORDER = ["boid", "ants", "prey", "firefly", "galaxy", "dune"];
 
 export const APPLET_DEFINITIONS = {
   boid: {
@@ -68,6 +74,13 @@ export const APPLET_DEFINITIONS = {
     createSimulation: ({ scene, params, world, onStats }) =>
       new GalaxySimulation({ scene, params, world, onStats }),
   },
+  dune: {
+    config: DUNE_APPLET_CONFIG,
+    defaultParams: DUNE_DEFAULT_PARAMS,
+    runtime: DUNE_APPLET_RUNTIME,
+    createSimulation: ({ scene, params, world, onStats }) =>
+      new DuneSimulation({ scene, params, world, onStats }),
+  },
 };
 
 export const APPLET_CONFIGS = Object.fromEntries(
@@ -84,6 +97,7 @@ export const APPLET_META = Object.fromEntries(
       {
         id,
         label: config?.label ?? id,
+        shortLabel: config?.shortLabel ?? config?.label?.split(/\s+/)[0] ?? id,
         fpsValueId: stats.stats?.[0]?.valueId ?? null,
         pauseButtonId: simulation.pauseButtonId ?? null,
         defaultButtonId: simulation.defaultButtonId ?? null,

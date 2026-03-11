@@ -20,8 +20,11 @@ const GALAXY_GRAVITY_INTERNAL = GALAXY_SI_GRAVITATIONAL_CONSTANT * GALAXY_GRAVIT
 // Default applet parameters.
 export const GALAXY_DEFAULT_PARAMS = {
   simSpeed: 1.0,
+  colorMode: "speed",
+  colormap: "magma",
+  solidColor: "#c9ddff",
   count: 500,
-  particleSize: 120,
+  particleSize: 900,
   spin: 1.35,
   gravity: GALAXY_SI_GRAVITATIONAL_CONSTANT,
   centralMass: 2.2e12,
@@ -35,9 +38,9 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   defaultProjection: "perspective",
   defaultBoundaryMode: "lost",
   camera: {
-    distance: 90000,
-    height: 28000,
-    fov: 40,
+    distance: 130000,
+    height: 50000,
+    fov: 34,
     locked: false,
   },
   units: GALAXY_UNITS,
@@ -123,7 +126,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("galaxy-sim-speed", "Simulation Speed", "bi-stopwatch", "galaxy-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("galaxy-count", "Count", "bi-people-fill", "galaxy-count-value", "500", "50", "2000", "10", "500"),
-        slider("galaxy-particle-size", "Object Size", "bi-rulers", "galaxy-particle-size-value", `120 ${GALAXY_UNITS.length.label}`, "20", "600", "5", "120"),
+        slider("galaxy-particle-size", "Object Visual Size", "bi-rulers", "galaxy-particle-size-value", `900 ${GALAXY_UNITS.length.label}`, "80", "4000", "20", "900"),
         slider("galaxy-spin", "Initial Spin", "bi-arrow-clockwise", "galaxy-spin-value", "1.35", "0.2", "2.5", "0.05", "1.35"),
         slider("galaxy-gravity", "Gravity (G)", "bi-asterisk", "galaxy-gravity-value", `${GALAXY_SI_GRAVITATIONAL_CONSTANT.toExponential(3)} m^3 kg^-1 s^-2`, "1.0e-12", "5.0e-10", "1.0e-12", String(GALAXY_SI_GRAVITATIONAL_CONSTANT)),
         slider("galaxy-central-mass", "Central Mass (M_c)", "bi-bullseye", "galaxy-central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12"),
@@ -217,12 +220,10 @@ export class GalaxySimulation {
     this.onStats = onStats;
 
     this.geometry = new THREE.SphereGeometry(0.42, 10, 8);
-    this.material = new THREE.MeshPhongMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      specular: 0x2b3242,
-      shininess: 26,
-      flatShading: false,
-      side: THREE.DoubleSide,
+      vertexColors: true,
+      fog: false,
       toneMapped: false,
     });
 
@@ -231,6 +232,7 @@ export class GalaxySimulation {
     this.capacity = 0;
     this.tempObject = new THREE.Object3D();
     this.tempColor = new THREE.Color();
+    this.solidColorValue = new THREE.Color(this.params.solidColor || "#c9ddff");
     this.tmpDelta = new THREE.Vector3();
     this.tmpCenterDelta = new THREE.Vector3();
     this.speedBounds = { min: 0, max: 1 };
@@ -246,9 +248,7 @@ export class GalaxySimulation {
     }
   }
 
-  onTheme(theme) {
-    this.material.specular.set(theme === "light" ? 0x3d4c63 : 0x2b3242);
-  }
+  onTheme() {}
 
   reset() {
     this.particles.length = 0;
@@ -384,10 +384,15 @@ export class GalaxySimulation {
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
-      const speed = p.velocity.length();
-      const span = Math.max(this.speedBounds.max - this.speedBounds.min, 1e-6);
-      const t = THREE.MathUtils.clamp((speed - this.speedBounds.min) / span, 0, 1);
-      this.applyColormap(t, this.tempColor);
+      if (this.params.colorMode === "none") {
+        this.solidColorValue.set(this.params.solidColor || "#c9ddff");
+        this.tempColor.copy(this.solidColorValue);
+      } else {
+        const speed = p.velocity.length();
+        const span = Math.max(this.speedBounds.max - this.speedBounds.min, 1e-6);
+        const t = THREE.MathUtils.clamp((speed - this.speedBounds.min) / span, 0, 1);
+        this.applyColormap(t, this.tempColor);
+      }
       this.mesh.setColorAt(i, this.tempColor);
     }
 
@@ -468,8 +473,15 @@ export class GalaxySimulation {
     return { min, max };
   }
 
+  getSpeedRange() {
+    return {
+      min: this.speedBounds.min,
+      max: this.speedBounds.max,
+    };
+  }
+
   applyColormap(value, outColor) {
-    const colors = GALAXY_COLORMAPS.magma || GALAXY_COLORMAPS.turbo;
+    const colors = GALAXY_COLORMAPS[this.params.colormap || "magma"] || GALAXY_COLORMAPS.magma || GALAXY_COLORMAPS.turbo;
     if (!colors || colors.length === 0) {
       outColor.setRGB(1, 1, 1);
       return outColor;

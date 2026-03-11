@@ -61,8 +61,17 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     lastX: 0,
     lastY: 0,
   };
+  const touchState = {
+    pointers: new Map(),
+    gestureActive: false,
+    lastMidX: 0,
+    lastMidY: 0,
+    lastDistance: 0,
+  };
 
   const mouseLookSensitivity = 0.0032;
+  const touchTranslateSensitivity = 0.22;
+  const touchFovSensitivity = 0.045;
 
   function getWorldSpan() {
     return Math.max(
@@ -108,11 +117,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     }
   }
 
-  function switchToPerspective() {
-    let preservePose = false;
-    if (arguments.length > 0) {
-      preservePose = Boolean(arguments[0]);
-    }
+  function switchToPerspective(preservePose = false) {
     activeCamera = perspectiveCamera;
     controls.object = activeCamera;
     if (!preservePose) {
@@ -122,11 +127,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     controls.update();
   }
 
-  function switchToOrthographicTop() {
-    let snapToTop = true;
-    if (arguments.length > 0) {
-      snapToTop = Boolean(arguments[0]);
-    }
+  function switchToOrthographicTop(snapToTop = true) {
     activeCamera = orthographicCamera;
     controls.object = activeCamera;
     updateOrthographicCamera(snapToTop);
@@ -199,14 +200,16 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
   function applyCameraInteractivity() {
     const unlocked = !params.cameraLocked;
-    const perspectiveMode = params.projectionMode === "perspective";
-
+    controls.enabled = true;
     controls.enableRotate = false;
     controls.enablePan = unlocked;
     controls.enableZoom = false;
   }
 
   function onPointerDown(event) {
+    if (event.pointerType === "touch") {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }
@@ -276,6 +279,146 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     sceneHost.releasePointerCapture?.(dragState.pointerId);
     dragState.leftActive = false;
     dragState.pointerId = null;
+  }
+
+  function getFirstTwoTouchPointers() {
+    const pointers = Array.from(touchState.pointers.values());
+    if (pointers.length < 2) {
+      return null;
+    }
+    return [pointers[0], pointers[1]];
+  }
+
+  function beginTouchGesture() {
+    const points = getFirstTwoTouchPointers();
+    if (!points || params.cameraLocked) {
+      return;
+    }
+
+    const [first, second] = points;
+    touchState.gestureActive = true;
+    touchState.lastMidX = (first.x + second.x) * 0.5;
+    touchState.lastMidY = (first.y + second.y) * 0.5;
+    touchState.lastDistance = Math.hypot(second.x - first.x, second.y - first.y);
+    controls.enabled = false;
+    endPointerDrag();
+  }
+
+  function endTouchGesture() {
+    if (!touchState.gestureActive) {
+      return;
+    }
+    touchState.gestureActive = false;
+    applyCameraInteractivity();
+  }
+
+  function applyTouchTranslation(dx, dy) {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) {
+      return;
+    }
+
+    const width = Math.max(1, sceneHost.clientWidth);
+    const height = Math.max(1, sceneHost.clientHeight);
+    const screenScale = Math.max(getWorldSpan() * touchTranslateSensitivity, params.keyboardMoveSpeed);
+    const horizontalAmount = -(dx / width) * screenScale;
+    const verticalAmount = (dy / height) * screenScale;
+
+    if (params.projectionMode === "perspective") {
+      forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
+      rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+      moveDelta.copy(rightMove).multiplyScalar(horizontalAmount);
+      moveDelta.addScaledVector(forwardMove, verticalAmount);
+      perspectiveCamera.position.add(moveDelta);
+      controls.target.add(moveDelta);
+      controls.update();
+      return;
+    }
+
+    rightMove.set(1, 0, 0).applyQuaternion(orthographicCamera.quaternion).normalize();
+    upMove.set(0, 1, 0).applyQuaternion(orthographicCamera.quaternion).normalize();
+    moveDelta.copy(rightMove).multiplyScalar(horizontalAmount);
+    moveDelta.addScaledVector(upMove, verticalAmount);
+    orthographicCamera.position.add(moveDelta);
+    controls.target.add(moveDelta);
+    orthographicCamera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function onTouchPointerDown(event) {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    touchState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    sceneHost.setPointerCapture?.(event.pointerId);
+    if (touchState.pointers.size >= 2) {
+      beginTouchGesture();
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function onTouchPointerMove(event) {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    if (touchState.pointers.has(event.pointerId)) {
+      touchState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    if (!touchState.gestureActive) {
+      if (touchState.pointers.size >= 2) {
+        beginTouchGesture();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const points = getFirstTwoTouchPointers();
+    if (!points) {
+      endTouchGesture();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    const [first, second] = points;
+    const midX = (first.x + second.x) * 0.5;
+    const midY = (first.y + second.y) * 0.5;
+    const distance = Math.hypot(second.x - first.x, second.y - first.y);
+    const dx = midX - touchState.lastMidX;
+    const dy = midY - touchState.lastMidY;
+    const distanceDelta = distance - touchState.lastDistance;
+
+    touchState.lastMidX = midX;
+    touchState.lastMidY = midY;
+    touchState.lastDistance = distance;
+
+    applyTouchTranslation(dx, dy);
+    applyFovDelta(-distanceDelta * touchFovSensitivity);
+
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function onTouchPointerEnd(event) {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    touchState.pointers.delete(event.pointerId);
+    sceneHost.releasePointerCapture?.(event.pointerId);
+
+    if (touchState.pointers.size < 2) {
+      endTouchGesture();
+    } else {
+      beginTouchGesture();
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   function updateKeyboardTranslation(dt) {
@@ -554,13 +697,22 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     keyState[event.code] = false;
   }
 
+  sceneHost.addEventListener("pointerdown", onTouchPointerDown, { capture: true });
+  sceneHost.addEventListener("pointermove", onTouchPointerMove, { capture: true });
+  sceneHost.addEventListener("pointerup", onTouchPointerEnd, { capture: true });
+  sceneHost.addEventListener("pointercancel", onTouchPointerEnd, { capture: true });
+  sceneHost.addEventListener("pointerleave", onTouchPointerEnd, { capture: true });
   sceneHost.addEventListener("pointerdown", onPointerDown);
   sceneHost.addEventListener("pointermove", onPointerMove);
   sceneHost.addEventListener("pointerup", endPointerDrag);
   sceneHost.addEventListener("pointercancel", endPointerDrag);
   sceneHost.addEventListener("pointerleave", endPointerDrag);
   sceneHost.addEventListener("wheel", onWheel, { passive: false });
-  window.addEventListener("blur", () => endPointerDrag());
+  window.addEventListener("blur", () => {
+    endPointerDrag();
+    touchState.pointers.clear();
+    endTouchGesture();
+  });
 
   return {
     perspectiveCamera,
@@ -580,6 +732,5 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     restoreCameraSnapshot,
     onKeyDown,
     onKeyUp,
-    isTextEntryTarget,
   };
 }

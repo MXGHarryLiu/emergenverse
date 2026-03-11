@@ -47,6 +47,13 @@ This project is intentionally static-first:
 - Reference implementation inspiration: [REBOUND N-body simulations](https://github.com/hannorein/rebound)
 - Seminal paper (Barnes and Hut, 1986): [A Hierarchical O(N log N) Force-Calculation Algorithm](https://doi.org/10.1038/324446a0)
 
+### Dune Dynamics
+
+- Concept: Wind-shaped sand dunes emerging from downwind sediment transport and slope-triggered avalanches on a tiled height field.
+- Scientific explanation: The model represents the sand bed as square columns. It starts from a flat sand bed by default, then wind removes a small amount of material from one column and deposits it downwind, while overly steep local height differences relax through avalanche redistribution toward the angle of repose.
+- Reference implementation inspiration: Continuum and cellular dune models used in geomorphology teaching demos and exploratory sand-bed simulations.
+- Foundational reference (Bagnold, 1941): [The Physics of Blown Sand and Desert Dunes](https://archive.org/details/in.ernet.dli.2015.50215)
+
 ## Deploy to Static Hosting
 
 Deploy to any static host (for example GitHub Pages, Netlify, Cloudflare Pages, or Vercel static output).

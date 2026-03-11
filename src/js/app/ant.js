@@ -120,7 +120,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       sliders: [
         slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
         slider("ant-count", "Count", "bi-people-fill", "ant-count-value", "120", "20", "400", "5", "120"),
-        slider("ant-scale", "Object Size", "bi-rulers", "ant-scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
+        slider("ant-scale", "Object Visual Size", "bi-rulers", "ant-scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
         slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
         slider("ant-sensor-distance", "Sensor Distance", "bi-broadcast", "ant-sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
         slider("ant-food-sense-distance", "Food Sensing Distance", "bi-bullseye", "ant-food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
@@ -186,6 +186,22 @@ export const ANT_APPLET_RUNTIME = {
 };
 
 // File-local constants and helpers.
+export const ANT_DISCRETE_COLORMAP_OPTIONS = [
+  { value: "paired", label: "Paired" },
+  { value: "set1", label: "Set1" },
+  { value: "set2", label: "Set2" },
+  { value: "dark2", label: "Dark2" },
+  { value: "tableau10", label: "Tableau10" },
+];
+
+export const ANT_DISCRETE_LEGEND_GRADIENTS = {
+  paired: "linear-gradient(90deg, #a6cee3 0%, #a6cee3 50%, #1f78b4 50%, #1f78b4 100%)",
+  set1: "linear-gradient(90deg, #e41a1c 0%, #e41a1c 50%, #377eb8 50%, #377eb8 100%)",
+  set2: "linear-gradient(90deg, #66c2a5 0%, #66c2a5 50%, #fc8d62 50%, #fc8d62 100%)",
+  dark2: "linear-gradient(90deg, #1b9e77 0%, #1b9e77 50%, #d95f02 50%, #d95f02 100%)",
+  tableau10: "linear-gradient(90deg, #4e79a7 0%, #4e79a7 50%, #f28e2b 50%, #f28e2b 100%)",
+};
+
 const ANT_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
   viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],

@@ -27,9 +27,12 @@ export function defineAppletConfig(config) {
     name: config.world?.unitLabel ?? "m",
     toSI: 1,
   };
+  const label = config.label ?? "Applet";
+  const shortLabel = config.shortLabel ?? label.split(/\s+/)[0] ?? label;
 
   return {
-    label: config.label ?? "Applet",
+    label,
+    shortLabel,
     defaultProjection: config.defaultProjection ?? "perspective",
     defaultBoundaryMode: config.defaultBoundaryMode ?? "cyclic",
     camera: {

@@ -329,10 +329,10 @@ function setupScreenshotPopup({
     }
   };
 
-  const updatePreview = async (transparentBackground) => {
+  const withScreenshotSceneState = async (transparentBackground, task) => {
     const canvas = renderer?.domElement;
     if (!canvas) {
-      return;
+      return null;
     }
 
     const previousBackground = scene.background;
@@ -349,8 +349,7 @@ function setupScreenshotPopup({
       }
 
       renderer.render(scene, cameraController.getActiveCamera());
-      dom.screenshotPreviewImage.src = canvas.toDataURL("image/png");
-      setMeta(`Resolution: ${canvas.width.toLocaleString()} × ${canvas.height.toLocaleString()} px`);
+      return await task(canvas);
     } finally {
       if (transparentBackground) {
         scene.background = previousBackground;
@@ -360,6 +359,13 @@ function setupScreenshotPopup({
         renderer.render(scene, cameraController.getActiveCamera());
       }
     }
+  };
+
+  const updatePreview = async (transparentBackground) => {
+    await withScreenshotSceneState(transparentBackground, async (canvas) => {
+      dom.screenshotPreviewImage.src = canvas.toDataURL("image/png");
+      setMeta(`Resolution: ${canvas.width.toLocaleString()} × ${canvas.height.toLocaleString()} px`);
+    });
   };
 
   const openPopup = () => {
@@ -463,26 +469,8 @@ function setupScreenshotPopup({
     }
 
     try {
-      const canvas = renderer?.domElement;
-      if (!canvas) {
-        return;
-      }
-
-      const previousBackground = scene.background;
-      const previousFog = scene.fog;
-      const previousClearAlpha = renderer.getClearAlpha();
-      const previousShowBounds = typeof getShowBounds === "function" ? getShowBounds() : true;
-      if (transparentBackground) {
-        scene.background = null;
-        scene.fog = null;
-        renderer.setClearAlpha(0);
-        setShowBounds?.(false);
-      }
-
-      renderer.render(scene, cameraController.getActiveCamera());
-
       const filename = getFilename();
-      try {
+      await withScreenshotSceneState(transparentBackground, async (canvas) => {
         let blob = await canvasToBlob(canvas);
         if (!blob) {
           const dataUrl = canvas.toDataURL("image/png");
@@ -503,15 +491,7 @@ function setupScreenshotPopup({
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
         setStatus("Screenshot saved.");
         closePopup();
-      } finally {
-        if (transparentBackground) {
-          scene.background = previousBackground;
-          scene.fog = previousFog;
-          renderer.setClearAlpha(previousClearAlpha);
-          setShowBounds?.(previousShowBounds);
-          renderer.render(scene, cameraController.getActiveCamera());
-        }
-      }
+      });
     } finally {
       if (shouldTemporarilyPause) {
         setPaused(false);
