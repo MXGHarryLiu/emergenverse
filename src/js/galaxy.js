@@ -1,5 +1,6 @@
+// Galaxy gravity applet config and simulation implementation.
 import * as THREE from "three";
-import { slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 const GALAXY_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
@@ -27,7 +28,8 @@ export const GALAXY_DEFAULT_PARAMS = {
   galaxyDamping: 0.01,
 };
 
-export const GALAXY_APPLET_CONFIG = {
+export const GALAXY_APPLET_CONFIG = defineAppletConfig({
+  label: "Galaxy Gravity",
   defaultProjection: "perspective",
   world: {
     defaults: { x: 100, y: 100, z: 100 },
@@ -93,7 +95,7 @@ export const GALAXY_APPLET_CONFIG = {
       resetButtonId: "reset-galaxy-sim",
     },
   },
-};
+});
 
 export class GalaxySimulation {
   constructor({ scene, params, world, onStats }) {

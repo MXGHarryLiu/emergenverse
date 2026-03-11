@@ -1,3 +1,4 @@
+// Overlay and modal behavior for help, about, share, and screenshot actions.
 export function setupUiOverlays({
   dom,
   renderer,

@@ -1,5 +1,6 @@
+// Firefly synchronization applet config and simulation implementation.
 import * as THREE from "three";
-import { slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 const TWO_PI = Math.PI * 2;
 const FIREFLY_COLORMAP_STOPS = {
@@ -38,7 +39,8 @@ export const FIREFLY_DEFAULT_PARAMS = {
   fireflyColormap: "blue-yellow",
 };
 
-export const FIREFLY_APPLET_CONFIG = {
+export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
+  label: "Firefly Sync",
   defaultProjection: "perspective",
   world: {
     defaults: { x: 100, y: 100, z: 100 },
@@ -103,7 +105,7 @@ export const FIREFLY_APPLET_CONFIG = {
       resetButtonId: "reset-firefly-sim",
     },
   },
-};
+});
 
 export class FireflySimulation {
   constructor({ scene, params, onStats }) {

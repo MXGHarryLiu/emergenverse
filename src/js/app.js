@@ -1,6 +1,7 @@
+// Main application bootstrap that wires simulations, UI state, charts, and routing.
 import * as THREE from "three";
 import { createCameraController } from "./camera.js";
-import { createThemeManager } from "./theme.js";
+import { applyWorldTheme, createThemeManager } from "./theme.js";
 import { createWorldManager } from "./world.js";
 import { BoidSimulation, BOID_DEFAULT_PARAMS } from "./boid.js";
 import { AntSimulation, ANT_DEFAULT_PARAMS } from "./ant.js";
@@ -10,7 +11,7 @@ import { GalaxySimulation, GALAXY_DEFAULT_PARAMS } from "./galaxy.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
-import { APPLET_CONFIGS, APPLET_ORDER } from "./appletConfigs.js";
+import { APPLET_CONFIGS, APPLET_META, APPLET_ORDER } from "./appletConfigs.js";
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import {
   drawTrendChart as renderTrendChart,
@@ -63,67 +64,10 @@ const dom = {
   sceneHost: document.getElementById("scene-host"),
   frameSize: document.getElementById("frame-size"),
   narrowScreenBlocker: document.getElementById("narrow-screen-blocker"),
-  chartCount: document.getElementById("chart-count"),
-  chartSpeed: document.getElementById("chart-speed"),
-  chartNeighbors: document.getElementById("chart-neighbors"),
-  chartAntTrips: document.getElementById("chart-ant-trips"),
-  chartAntPheromone: document.getElementById("chart-ant-pheromone"),
-  chartAntCount: document.getElementById("chart-ant-count"),
-  chartPreyCount: document.getElementById("chart-prey-count"),
-  chartPredatorCount: document.getElementById("chart-predator-count"),
-  chartPreyEaten: document.getElementById("chart-prey-eaten"),
-  chartFireflyCount: document.getElementById("chart-firefly-count"),
-  chartFireflyOrder: document.getElementById("chart-firefly-order"),
-  chartFireflyBlink: document.getElementById("chart-firefly-blink"),
-  chartGalaxyCount: document.getElementById("chart-galaxy-count"),
-  chartGalaxyRadius: document.getElementById("chart-galaxy-radius"),
-  chartGalaxySpeed: document.getElementById("chart-galaxy-speed"),
-  fpsLive: document.getElementById("fps-live"),
-  chartCountLive: document.getElementById("chart-count-live"),
-  chartSpeedLive: document.getElementById("chart-speed-live"),
-  chartNeighborsLive: document.getElementById("chart-neighbors-live"),
-  antsFpsLive: document.getElementById("ants-fps-live"),
-  preyFpsLive: document.getElementById("prey-fps-live"),
-  fireflyFpsLive: document.getElementById("firefly-fps-live"),
-  galaxyFpsLive: document.getElementById("galaxy-fps-live"),
-  antsCountLive: document.getElementById("ants-count-live"),
-  antsCarryingLive: document.getElementById("ants-carrying-live"),
-  antsTripsLive: document.getElementById("ants-trips-live"),
-  antsPheromoneLive: document.getElementById("ants-pheromone-live"),
-  preyCountLive: document.getElementById("prey-count-live"),
-  preyPredatorLive: document.getElementById("prey-predator-live"),
-  preyEatenLive: document.getElementById("prey-eaten-live"),
-  chartAntTripsLive: document.getElementById("chart-ant-trips-live"),
-  chartAntPheromoneLive: document.getElementById("chart-ant-pheromone-live"),
-  chartAntCountLive: document.getElementById("chart-ant-count-live"),
-  chartPreyCountLive: document.getElementById("chart-prey-count-live"),
-  chartPredatorCountLive: document.getElementById("chart-predator-count-live"),
-  chartPreyEatenLive: document.getElementById("chart-prey-eaten-live"),
-  chartFireflyCountLive: document.getElementById("chart-firefly-count-live"),
-  chartFireflyOrderLive: document.getElementById("chart-firefly-order-live"),
-  chartFireflyBlinkLive: document.getElementById("chart-firefly-blink-live"),
-  chartGalaxyCountLive: document.getElementById("chart-galaxy-count-live"),
-  chartGalaxyRadiusLive: document.getElementById("chart-galaxy-radius-live"),
-  chartGalaxySpeedLive: document.getElementById("chart-galaxy-speed-live"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
   runState: document.getElementById("run-state"),
-  togglePause: document.getElementById("toggle-pause"),
-  defaultSim: document.getElementById("default-sim"),
-  resetSim: document.getElementById("reset-sim"),
-  toggleAntPause: document.getElementById("toggle-ant-pause"),
-  defaultAntSim: document.getElementById("default-ant-sim"),
-  resetAntSim: document.getElementById("reset-ant-sim"),
-  togglePreyPause: document.getElementById("toggle-prey-pause"),
-  defaultPreySim: document.getElementById("default-prey-sim"),
-  resetPreySim: document.getElementById("reset-prey-sim"),
-  toggleFireflyPause: document.getElementById("toggle-firefly-pause"),
-  defaultFireflySim: document.getElementById("default-firefly-sim"),
-  resetFireflySim: document.getElementById("reset-firefly-sim"),
-  toggleGalaxyPause: document.getElementById("toggle-galaxy-pause"),
-  defaultGalaxySim: document.getElementById("default-galaxy-sim"),
-  resetGalaxySim: document.getElementById("reset-galaxy-sim"),
   resetCamera: document.getElementById("reset-camera"),
   homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
@@ -163,6 +107,25 @@ const dom = {
   cameraYaw: document.getElementById("camera-yaw"),
 };
 
+const elementCache = new Map();
+
+function getElement(id) {
+  if (!id) {
+    return null;
+  }
+  if (!elementCache.has(id)) {
+    elementCache.set(id, document.getElementById(id));
+  }
+  return elementCache.get(id);
+}
+
+function setElementText(id, text) {
+  const element = getElement(id);
+  if (element) {
+    element.textContent = text;
+  }
+}
+
 const uiState = {
   leftPanelVisible: true,
   rightPanelVisible: true,
@@ -183,11 +146,9 @@ const appletWorldState = Object.fromEntries(
 let worldStatePersistenceEnabled = false;
 
 let activeApplet = "boid";
-let boidPausedPreference = params.paused;
-let antsPausedPreference = params.paused;
-let preyPausedPreference = params.paused;
-let fireflyPausedPreference = params.paused;
-let galaxyPausedPreference = params.paused;
+const appletPausedPreferences = Object.fromEntries(
+  APPLET_ORDER.map((id) => [id, params.paused]),
+);
 const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
 let themeManager = null;
@@ -235,36 +196,34 @@ const scene = world.scene;
 
 const simulationManager = new SimulationManager();
 
-let lastBoidStats = {
-  count: 0,
-  speedSum: 0,
-  neighborSum: 0,
-};
-
-let lastAntStats = {
-  count: 0,
-  carrying: 0,
-  trips: 0,
-  meanPheromone: 0,
-  maxPheromone: 0,
-};
-
-let lastPreyStats = {
-  preyCount: 0,
-  predatorCount: 0,
-  eatenTotal: 0,
-};
-
-let lastFireflyStats = {
-  count: 0,
-  order: 0,
-  blinkRate: 0,
-};
-
-let lastGalaxyStats = {
-  count: 0,
-  meanRadius: 0,
-  meanSpeed: 0,
+const lastAppletStats = {
+  boid: {
+    count: 0,
+    speedSum: 0,
+    neighborSum: 0,
+  },
+  ants: {
+    count: 0,
+    carrying: 0,
+    trips: 0,
+    meanPheromone: 0,
+    maxPheromone: 0,
+  },
+  prey: {
+    preyCount: 0,
+    predatorCount: 0,
+    eatenTotal: 0,
+  },
+  firefly: {
+    count: 0,
+    order: 0,
+    blinkRate: 0,
+  },
+  galaxy: {
+    count: 0,
+    meanRadius: 0,
+    meanSpeed: 0,
+  },
 };
 
 const boidSimulation = new BoidSimulation({
@@ -272,7 +231,7 @@ const boidSimulation = new BoidSimulation({
   params,
   world,
   onStats: (stats) => {
-    lastBoidStats = stats;
+    lastAppletStats.boid = stats;
     updateBoidStats(stats);
   },
 });
@@ -281,7 +240,7 @@ const antSimulation = new AntSimulation({
   scene,
   params,
   onStats: (stats) => {
-    lastAntStats = stats;
+    lastAppletStats.ants = stats;
     updateAntStats(stats);
   },
 });
@@ -290,7 +249,7 @@ const preySimulation = new PreySimulation({
   scene,
   params,
   onStats: (stats) => {
-    lastPreyStats = stats;
+    lastAppletStats.prey = stats;
     updatePreyStats(stats);
   },
 });
@@ -299,7 +258,7 @@ const fireflySimulation = new FireflySimulation({
   scene,
   params,
   onStats: (stats) => {
-    lastFireflyStats = stats;
+    lastAppletStats.firefly = stats;
     updateFireflyStats(stats);
   },
 });
@@ -309,7 +268,7 @@ const galaxySimulation = new GalaxySimulation({
   params,
   world,
   onStats: (stats) => {
-    lastGalaxyStats = stats;
+    lastAppletStats.galaxy = stats;
     updateGalaxyStats(stats);
   },
 });
@@ -333,27 +292,147 @@ const colormapStops = {
 
 const colormapGradients = buildColormapGradients(colormapStops);
 
-const speedHistory = [];
-const countHistory = [];
-const neighborHistory = [];
-const antTripsHistory = [];
-const antPheromoneHistory = [];
-const antCountHistory = [];
-const preyCountHistory = [];
-const predatorCountHistory = [];
-const preyEatenHistory = [];
-const fireflyCountHistory = [];
-const fireflyOrderHistory = [];
-const fireflyBlinkHistory = [];
-const galaxyCountHistory = [];
-const galaxyRadiusHistory = [];
-const galaxySpeedHistory = [];
 const chartMaxPoints = 160;
-let boidChartFrameCounter = 0;
-let antChartFrameCounter = 0;
-let preyChartFrameCounter = 0;
-let fireflyChartFrameCounter = 0;
-let galaxyChartFrameCounter = 0;
+const chartState = {
+  boid: {
+    frameCounter: 0,
+    metrics: [
+      createChartMetric("chart-count", "chart-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-speed", "chart-speed-live", () => "0.00 m/s", {
+        stroke: "#4cd3b6",
+        fill: "rgba(76, 211, 182, 0.14)",
+        axisLabel: "m/s",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-neighbors", "chart-neighbors-live", () => "0.00", {
+        stroke: "#5aa4ff",
+        fill: "rgba(90, 164, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => (value >= 10 ? value.toFixed(0) : value.toFixed(1)),
+        forceZeroMin: true,
+      }),
+    ],
+  },
+  ants: {
+    frameCounter: 0,
+    metrics: [
+      createChartMetric("chart-ant-count", "chart-ant-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-ant-trips", "chart-ant-trips-live", () => "0", {
+        stroke: "#f1b55b",
+        fill: "rgba(241, 181, 91, 0.18)",
+        axisLabel: "trips",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-ant-pheromone", "chart-ant-pheromone-live", () => "0.00", {
+        stroke: "#79d2ff",
+        fill: "rgba(121, 210, 255, 0.18)",
+        axisLabel: "a.u.",
+        tickFormatter: (value) => value.toFixed(2),
+        forceZeroMin: true,
+      }),
+    ],
+  },
+  prey: {
+    frameCounter: 0,
+    metrics: [
+      createChartMetric("chart-prey-count", "chart-prey-count-live", () => "0", {
+        stroke: "#6be39f",
+        fill: "rgba(107, 227, 159, 0.16)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-predator-count", "chart-predator-count-live", () => "0", {
+        stroke: "#ff9b70",
+        fill: "rgba(255, 155, 112, 0.18)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
+        stroke: "#f0cf72",
+        fill: "rgba(240, 207, 114, 0.18)",
+        axisLabel: "events",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+    ],
+  },
+  firefly: {
+    frameCounter: 0,
+    metrics: [
+      createChartMetric("chart-firefly-count", "chart-firefly-count-live", () => "0", {
+        stroke: "#7ec4ff",
+        fill: "rgba(126, 196, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
+        stroke: "#ffe38d",
+        fill: "rgba(255, 227, 141, 0.18)",
+        axisLabel: "R",
+        tickFormatter: (value) => value.toFixed(2),
+        minValue: 0,
+        maxValue: 1,
+      }),
+      createChartMetric("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
+        stroke: "#ffd26e",
+        fill: "rgba(255, 210, 110, 0.16)",
+        axisLabel: "/s",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+    ],
+  },
+  galaxy: {
+    frameCounter: 0,
+    metrics: [
+      createChartMetric("chart-galaxy-count", "chart-galaxy-count-live", () => "0", {
+        stroke: "#8eb7ff",
+        fill: "rgba(142, 183, 255, 0.14)",
+        axisLabel: "count",
+        tickFormatter: (value) => String(Math.max(0, Math.round(value))),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-galaxy-radius", "chart-galaxy-radius-live", () => "0.00 m", {
+        stroke: "#9de2ff",
+        fill: "rgba(157, 226, 255, 0.16)",
+        axisLabel: "m",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+      createChartMetric("chart-galaxy-speed", "chart-galaxy-speed-live", () => "0.00 m/s", {
+        stroke: "#ffbe8d",
+        fill: "rgba(255, 190, 141, 0.16)",
+        axisLabel: "m/s",
+        tickFormatter: (value) => value.toFixed(1),
+        forceZeroMin: true,
+      }),
+    ],
+  },
+};
+const applets = {
+  boid: createAppletRuntime({ id: "boid", simulation: boidSimulation, speedParam: "boidSimSpeed", applyStats: updateBoidStats }),
+  ants: createAppletRuntime({ id: "ants", simulation: antSimulation, speedParam: "antSimSpeed", applyStats: updateAntStats }),
+  prey: createAppletRuntime({ id: "prey", simulation: preySimulation, speedParam: "preySimSpeed", applyStats: updatePreyStats }),
+  firefly: createAppletRuntime({ id: "firefly", simulation: fireflySimulation, speedParam: "fireflySimSpeed", applyStats: updateFireflyStats }),
+  galaxy: createAppletRuntime({ id: "galaxy", simulation: galaxySimulation, speedParam: "galaxySimSpeed", applyStats: updateGalaxyStats }),
+};
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
 const narrowScreenThresholdPx = 980;
@@ -435,21 +514,10 @@ function updateFpsMetric(dt) {
   }
 
   fpsUiAccumulator = 0;
-  if (dom.fpsLive) {
-    dom.fpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
-  }
-  if (dom.antsFpsLive) {
-    dom.antsFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
-  }
-  if (dom.preyFpsLive) {
-    dom.preyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
-  }
-  if (dom.fireflyFpsLive) {
-    dom.fireflyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
-  }
-  if (dom.galaxyFpsLive) {
-    dom.galaxyFpsLive.textContent = `${fpsSmoothed.toFixed(1)}`;
-  }
+  const fpsText = fpsSmoothed.toFixed(1);
+  APPLET_ORDER.forEach((appletId) => {
+    setElementText(APPLET_META[appletId]?.fpsValueId, fpsText);
+  });
 }
 
 function updateAntStats(stats) {
@@ -462,35 +530,12 @@ function updateAntStats(stats) {
   const trips = stats.trips ?? 0;
   const meanPheromone = stats.meanPheromone ?? 0;
 
-  if (dom.antsCountLive) {
-    dom.antsCountLive.textContent = String(antCount);
-  }
-  if (dom.antsCarryingLive) {
-    dom.antsCarryingLive.textContent = String(carryingCount);
-  }
-  if (dom.antsTripsLive) {
-    dom.antsTripsLive.textContent = String(trips);
-  }
-  if (dom.antsPheromoneLive) {
-    dom.antsPheromoneLive.textContent = meanPheromone.toFixed(2);
-  }
-  if (dom.chartAntTripsLive) {
-    dom.chartAntTripsLive.textContent = String(trips);
-  }
-  if (dom.chartAntPheromoneLive) {
-    dom.chartAntPheromoneLive.textContent = meanPheromone.toFixed(2);
-  }
-  if (dom.chartAntCountLive) {
-    dom.chartAntCountLive.textContent = String(antCount);
-  }
-
-  antChartFrameCounter += 1;
-  if (antChartFrameCounter % 3 === 0) {
-    pushTrendValue(antCountHistory, antCount);
-    pushTrendValue(antTripsHistory, trips);
-    pushTrendValue(antPheromoneHistory, meanPheromone);
-    drawTrendCharts();
-  }
+  setElementText("ants-carrying-live", String(carryingCount));
+  updateChartMetrics("ants", [antCount, trips, meanPheromone], [
+    String(antCount),
+    String(trips),
+    meanPheromone.toFixed(2),
+  ]);
 }
 
 function updatePreyStats(stats) {
@@ -502,34 +547,12 @@ function updatePreyStats(stats) {
   const predatorCount = stats.predatorCount ?? 0;
   const eatenTotal = stats.eatenTotal ?? 0;
 
-  if (dom.preyCountLive) {
-    dom.preyCountLive.textContent = String(preyCount);
-  }
-  if (dom.preyPredatorLive) {
-    dom.preyPredatorLive.textContent = String(predatorCount);
-  }
-  if (dom.preyEatenLive) {
-    dom.preyEatenLive.textContent = String(eatenTotal);
-  }
-  if (dom.chartPreyCountLive) {
-    dom.chartPreyCountLive.textContent = String(preyCount);
-  }
-  if (dom.chartPredatorCountLive) {
-    dom.chartPredatorCountLive.textContent = String(predatorCount);
-  }
-  if (dom.chartPreyEatenLive) {
-    dom.chartPreyEatenLive.textContent = String(eatenTotal);
-  }
-
   updatePreyColormapLegend();
-
-  preyChartFrameCounter += 1;
-  if (preyChartFrameCounter % 3 === 0) {
-    pushTrendValue(preyCountHistory, preyCount);
-    pushTrendValue(predatorCountHistory, predatorCount);
-    pushTrendValue(preyEatenHistory, eatenTotal);
-    drawTrendCharts();
-  }
+  updateChartMetrics("prey", [preyCount, predatorCount, eatenTotal], [
+    String(preyCount),
+    String(predatorCount),
+    String(eatenTotal),
+  ]);
 }
 
 function updateFireflyStats(stats) {
@@ -541,23 +564,11 @@ function updateFireflyStats(stats) {
   const order = stats.order ?? 0;
   const blinkRate = stats.blinkRate ?? 0;
 
-  if (dom.chartFireflyCountLive) {
-    dom.chartFireflyCountLive.textContent = String(count);
-  }
-  if (dom.chartFireflyOrderLive) {
-    dom.chartFireflyOrderLive.textContent = order.toFixed(3);
-  }
-  if (dom.chartFireflyBlinkLive) {
-    dom.chartFireflyBlinkLive.textContent = `${blinkRate.toFixed(1)} /s`;
-  }
-
-  fireflyChartFrameCounter += 1;
-  if (fireflyChartFrameCounter % 3 === 0) {
-    pushTrendValue(fireflyCountHistory, count);
-    pushTrendValue(fireflyOrderHistory, order);
-    pushTrendValue(fireflyBlinkHistory, blinkRate);
-    drawTrendCharts();
-  }
+  updateChartMetrics("firefly", [count, order, blinkRate], [
+    String(count),
+    order.toFixed(3),
+    `${blinkRate.toFixed(1)} /s`,
+  ]);
 }
 
 function updateGalaxyStats(stats) {
@@ -569,23 +580,11 @@ function updateGalaxyStats(stats) {
   const meanRadius = stats.meanRadius ?? 0;
   const meanSpeed = stats.meanSpeed ?? 0;
 
-  if (dom.chartGalaxyCountLive) {
-    dom.chartGalaxyCountLive.textContent = String(count);
-  }
-  if (dom.chartGalaxyRadiusLive) {
-    dom.chartGalaxyRadiusLive.textContent = `${meanRadius.toFixed(2)} m`;
-  }
-  if (dom.chartGalaxySpeedLive) {
-    dom.chartGalaxySpeedLive.textContent = `${meanSpeed.toFixed(2)} m/s`;
-  }
-
-  galaxyChartFrameCounter += 1;
-  if (galaxyChartFrameCounter % 3 === 0) {
-    pushTrendValue(galaxyCountHistory, count);
-    pushTrendValue(galaxyRadiusHistory, meanRadius);
-    pushTrendValue(galaxySpeedHistory, meanSpeed);
-    drawTrendCharts();
-  }
+  updateChartMetrics("galaxy", [count, meanRadius, meanSpeed], [
+    String(count),
+    `${meanRadius.toFixed(2)} m`,
+    `${meanSpeed.toFixed(2)} m/s`,
+  ]);
 }
 
 
@@ -783,7 +782,7 @@ function setupControls() {
     boidCountValue.textContent = boidCountInput.value;
     params.boidCount = Number(boidCountInput.value);
     boidSimulation.setCount(params.boidCount);
-    resetBoidTrendCharts();
+    resetTrendCharts("boid");
     syncCompactSectionSlider("boid-count");
   });
   activateCompactRangeControl("boid-count");
@@ -857,7 +856,7 @@ function setupControls() {
       antCountValue.textContent = antCountInput.value;
       params.antCount = Number(antCountInput.value);
       antSimulation.setCount(params.antCount);
-      resetAntTrendCharts();
+      resetTrendCharts("ants");
       syncCompactSectionSlider("ant-count");
     });
     activateCompactRangeControl("ant-count");
@@ -916,7 +915,7 @@ function setupControls() {
       preyCountValue.textContent = preyCountInput.value;
       params.preyCount = Number(preyCountInput.value);
       preySimulation.setPreyCount(params.preyCount);
-      resetPreyTrendCharts();
+      resetTrendCharts("prey");
       syncCompactSectionSlider("prey-count");
     });
     activateCompactRangeControl("prey-count");
@@ -930,7 +929,7 @@ function setupControls() {
       predatorCountValue.textContent = predatorCountInput.value;
       params.predatorCount = Number(predatorCountInput.value);
       preySimulation.setPredatorCount(params.predatorCount);
-      resetPreyTrendCharts();
+      resetTrendCharts("prey");
       syncCompactSectionSlider("predator-count");
     });
   }
@@ -984,7 +983,7 @@ function setupControls() {
       fireflyCountValue.textContent = fireflyCountInput.value;
       params.fireflyCount = Number(fireflyCountInput.value);
       fireflySimulation.setCount(params.fireflyCount);
-      resetFireflyTrendCharts();
+      resetTrendCharts("firefly");
       syncCompactSectionSlider("firefly-count");
     });
     activateCompactRangeControl("firefly-count");
@@ -1034,7 +1033,7 @@ function setupControls() {
       galaxyCountValue.textContent = galaxyCountInput.value;
       params.galaxyCount = Number(galaxyCountInput.value);
       galaxySimulation.setCount(params.galaxyCount);
-      resetGalaxyTrendCharts();
+      resetTrendCharts("galaxy");
       syncCompactSectionSlider("galaxy-count");
     });
     activateCompactRangeControl("galaxy-count");
@@ -1045,11 +1044,9 @@ function setupControls() {
     updateSimulationStateUI();
   };
 
-  dom.togglePause.addEventListener("click", toggleCurrentSimulationPause);
-  dom.toggleAntPause?.addEventListener("click", toggleCurrentSimulationPause);
-  dom.togglePreyPause?.addEventListener("click", toggleCurrentSimulationPause);
-  dom.toggleFireflyPause?.addEventListener("click", toggleCurrentSimulationPause);
-  dom.toggleGalaxyPause?.addEventListener("click", toggleCurrentSimulationPause);
+  APPLET_ORDER.forEach((appletId) => {
+    getElement(APPLET_META[appletId]?.pauseButtonId)?.addEventListener("click", toggleCurrentSimulationPause);
+  });
   dom.runState?.addEventListener("click", toggleCurrentSimulationPause);
 
   dom.appletTabs?.forEach((tab) => {
@@ -1062,74 +1059,21 @@ function setupControls() {
     });
   });
 
-  dom.resetSim.addEventListener("click", () => {
-    if (activeApplet !== "boid") {
-      return;
-    }
-    boidSimulation.reset();
-    resetBoidTrendCharts();
-  });
-  dom.defaultSim?.addEventListener("click", () => {
-    if (activeApplet !== "boid") {
-      return;
-    }
-    applySimulationDefaultsForApplet("boid");
-  });
+  APPLET_ORDER.forEach((appletId) => {
+    getElement(APPLET_META[appletId]?.resetButtonId)?.addEventListener("click", () => {
+      if (activeApplet !== appletId) {
+        return;
+      }
+      applets[appletId]?.simulation.reset?.();
+      resetTrendCharts(appletId);
+    });
 
-  dom.resetAntSim?.addEventListener("click", () => {
-    if (activeApplet !== "ants") {
-      return;
-    }
-    antSimulation.reset();
-    resetAntTrendCharts();
-  });
-  dom.defaultAntSim?.addEventListener("click", () => {
-    if (activeApplet !== "ants") {
-      return;
-    }
-    applySimulationDefaultsForApplet("ants");
-  });
-
-  dom.resetPreySim?.addEventListener("click", () => {
-    if (activeApplet !== "prey") {
-      return;
-    }
-    preySimulation.reset();
-    resetPreyTrendCharts();
-  });
-  dom.defaultPreySim?.addEventListener("click", () => {
-    if (activeApplet !== "prey") {
-      return;
-    }
-    applySimulationDefaultsForApplet("prey");
-  });
-
-  dom.resetFireflySim?.addEventListener("click", () => {
-    if (activeApplet !== "firefly") {
-      return;
-    }
-    fireflySimulation.reset();
-    resetFireflyTrendCharts();
-  });
-  dom.defaultFireflySim?.addEventListener("click", () => {
-    if (activeApplet !== "firefly") {
-      return;
-    }
-    applySimulationDefaultsForApplet("firefly");
-  });
-
-  dom.resetGalaxySim?.addEventListener("click", () => {
-    if (activeApplet !== "galaxy") {
-      return;
-    }
-    galaxySimulation.reset();
-    resetGalaxyTrendCharts();
-  });
-  dom.defaultGalaxySim?.addEventListener("click", () => {
-    if (activeApplet !== "galaxy") {
-      return;
-    }
-    applySimulationDefaultsForApplet("galaxy");
+    getElement(APPLET_META[appletId]?.defaultButtonId)?.addEventListener("click", () => {
+      if (activeApplet !== appletId) {
+        return;
+      }
+      applySimulationDefaultsForApplet(appletId);
+    });
   });
 
   dom.showBounds.addEventListener("change", () => {
@@ -1432,68 +1376,11 @@ function applyAppletMode(appletId, options = {}) {
 
   setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
   updateProjectionToggleUI();
-
-  if (normalizedId === "boid") {
-    if (previousApplet === "ants") {
-      antsPausedPreference = params.paused;
-    } else if (previousApplet === "prey") {
-      preyPausedPreference = params.paused;
-    } else if (previousApplet === "firefly") {
-      fireflyPausedPreference = params.paused;
-    } else if (previousApplet === "galaxy") {
-      galaxyPausedPreference = params.paused;
-    }
-    params.paused = boidPausedPreference;
-    updateBoidStats(lastBoidStats);
-  } else if (normalizedId === "ants") {
-    if (previousApplet === "boid") {
-      boidPausedPreference = params.paused;
-    } else if (previousApplet === "prey") {
-      preyPausedPreference = params.paused;
-    } else if (previousApplet === "firefly") {
-      fireflyPausedPreference = params.paused;
-    } else if (previousApplet === "galaxy") {
-      galaxyPausedPreference = params.paused;
-    }
-    params.paused = antsPausedPreference;
-    updateAntStats(lastAntStats);
-  } else if (normalizedId === "prey") {
-    if (previousApplet === "boid") {
-      boidPausedPreference = params.paused;
-    } else if (previousApplet === "ants") {
-      antsPausedPreference = params.paused;
-    } else if (previousApplet === "firefly") {
-      fireflyPausedPreference = params.paused;
-    } else if (previousApplet === "galaxy") {
-      galaxyPausedPreference = params.paused;
-    }
-    params.paused = preyPausedPreference;
-    updatePreyStats(lastPreyStats);
-  } else if (normalizedId === "firefly") {
-    if (previousApplet === "boid") {
-      boidPausedPreference = params.paused;
-    } else if (previousApplet === "ants") {
-      antsPausedPreference = params.paused;
-    } else if (previousApplet === "prey") {
-      preyPausedPreference = params.paused;
-    } else if (previousApplet === "galaxy") {
-      galaxyPausedPreference = params.paused;
-    }
-    params.paused = fireflyPausedPreference;
-    updateFireflyStats(lastFireflyStats);
-  } else {
-    if (previousApplet === "boid") {
-      boidPausedPreference = params.paused;
-    } else if (previousApplet === "ants") {
-      antsPausedPreference = params.paused;
-    } else if (previousApplet === "prey") {
-      preyPausedPreference = params.paused;
-    } else if (previousApplet === "firefly") {
-      fireflyPausedPreference = params.paused;
-    }
-    params.paused = galaxyPausedPreference;
-    updateGalaxyStats(lastGalaxyStats);
+  if (previousApplet && APPLET_IDS.has(previousApplet)) {
+    appletPausedPreferences[previousApplet] = params.paused;
   }
+  params.paused = appletPausedPreferences[normalizedId];
+  applets[normalizedId]?.applyStats(lastAppletStats[normalizedId]);
 
   updateSimulationStateUI();
   updateViewportLabel();
@@ -1522,13 +1409,7 @@ function updateProjectionToggleUI() {
 }
 
 function updateSimulationStateUI() {
-  const pauseButtons = [
-    dom.togglePause,
-    dom.toggleAntPause,
-    dom.togglePreyPause,
-    dom.toggleFireflyPause,
-    dom.toggleGalaxyPause,
-  ].filter(Boolean);
+  const pauseButtons = APPLET_ORDER.map((appletId) => getElement(APPLET_META[appletId]?.pauseButtonId)).filter(Boolean);
 
   const setPauseButtons = (isPaused) => {
     const iconClass = isPaused ? "bi-play-fill" : "bi-pause-fill";
@@ -1572,7 +1453,7 @@ function setupThemeToggle() {
 }
 
 function applySceneTheme(theme) {
-  world.applyTheme(theme);
+  applyWorldTheme(world.scene, theme);
   simulationManager.applyTheme(theme);
 }
 
@@ -1744,11 +1625,7 @@ function updateNarrowScreenBlocker() {
 
 function setupTrendCharts() {
   resizeTrendCharts();
-  resetBoidTrendCharts();
-  resetAntTrendCharts();
-  resetPreyTrendCharts();
-  resetFireflyTrendCharts();
-  resetGalaxyTrendCharts();
+  APPLET_ORDER.forEach((appletId) => resetTrendCharts(appletId));
 }
 
 function setupChartCollapses() {
@@ -1770,62 +1647,25 @@ function setupChartCollapses() {
   });
 }
 
-function resetBoidTrendCharts() {
-  countHistory.length = 0;
-  speedHistory.length = 0;
-  neighborHistory.length = 0;
-  boidChartFrameCounter = 0;
-  drawTrendCharts();
-}
-
-function resetAntTrendCharts() {
-  antCountHistory.length = 0;
-  antTripsHistory.length = 0;
-  antPheromoneHistory.length = 0;
-  antChartFrameCounter = 0;
-  drawTrendCharts();
-}
-
-function resetPreyTrendCharts() {
-  preyCountHistory.length = 0;
-  predatorCountHistory.length = 0;
-  preyEatenHistory.length = 0;
-  preyChartFrameCounter = 0;
-  drawTrendCharts();
-}
-
-function resetFireflyTrendCharts() {
-  fireflyCountHistory.length = 0;
-  fireflyOrderHistory.length = 0;
-  fireflyBlinkHistory.length = 0;
-  fireflyChartFrameCounter = 0;
-  drawTrendCharts();
-}
-
-function resetGalaxyTrendCharts() {
-  galaxyCountHistory.length = 0;
-  galaxyRadiusHistory.length = 0;
-  galaxySpeedHistory.length = 0;
-  galaxyChartFrameCounter = 0;
+function resetTrendCharts(appletId) {
+  const state = chartState[appletId];
+  if (!state) {
+    return;
+  }
+  state.frameCounter = 0;
+  state.metrics.forEach((metric) => {
+    metric.history.length = 0;
+    setElementText(metric.liveId, metric.initialText());
+  });
   drawTrendCharts();
 }
 
 function resizeTrendCharts() {
-  resizeCanvasBackingStore(dom.chartCount);
-  resizeCanvasBackingStore(dom.chartSpeed);
-  resizeCanvasBackingStore(dom.chartNeighbors);
-  resizeCanvasBackingStore(dom.chartAntTrips);
-  resizeCanvasBackingStore(dom.chartAntPheromone);
-  resizeCanvasBackingStore(dom.chartAntCount);
-  resizeCanvasBackingStore(dom.chartPreyCount);
-  resizeCanvasBackingStore(dom.chartPredatorCount);
-  resizeCanvasBackingStore(dom.chartPreyEaten);
-  resizeCanvasBackingStore(dom.chartFireflyCount);
-  resizeCanvasBackingStore(dom.chartFireflyOrder);
-  resizeCanvasBackingStore(dom.chartFireflyBlink);
-  resizeCanvasBackingStore(dom.chartGalaxyCount);
-  resizeCanvasBackingStore(dom.chartGalaxyRadius);
-  resizeCanvasBackingStore(dom.chartGalaxySpeed);
+  APPLET_ORDER.forEach((appletId) => {
+    chartState[appletId]?.metrics.forEach((metric) => {
+      resizeCanvasBackingStore(getElement(metric.canvasId));
+    });
+  });
   drawTrendCharts();
 }
 
@@ -1834,111 +1674,10 @@ function resizeCanvasBackingStore(canvas) {
 }
 
 function drawTrendCharts() {
-  drawTrendChart(dom.chartCount, countHistory, {
-    stroke: "#7ec4ff",
-    fill: "rgba(126, 196, 255, 0.14)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartSpeed, speedHistory, {
-    stroke: "#4cd3b6",
-    fill: "rgba(76, 211, 182, 0.14)",
-    axisLabel: "m/s",
-    tickFormatter: (value) => value.toFixed(1),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartNeighbors, neighborHistory, {
-    stroke: "#5aa4ff",
-    fill: "rgba(90, 164, 255, 0.14)",
-    axisLabel: "count",
-    tickFormatter: (value) => (value >= 10 ? value.toFixed(0) : value.toFixed(1)),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartAntTrips, antTripsHistory, {
-    stroke: "#f1b55b",
-    fill: "rgba(241, 181, 91, 0.18)",
-    axisLabel: "trips",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartAntCount, antCountHistory, {
-    stroke: "#7ec4ff",
-    fill: "rgba(126, 196, 255, 0.14)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartAntPheromone, antPheromoneHistory, {
-    stroke: "#79d2ff",
-    fill: "rgba(121, 210, 255, 0.18)",
-    axisLabel: "a.u.",
-    tickFormatter: (value) => value.toFixed(2),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartPreyCount, preyCountHistory, {
-    stroke: "#6be39f",
-    fill: "rgba(107, 227, 159, 0.16)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartPredatorCount, predatorCountHistory, {
-    stroke: "#ff9b70",
-    fill: "rgba(255, 155, 112, 0.18)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartPreyEaten, preyEatenHistory, {
-    stroke: "#f0cf72",
-    fill: "rgba(240, 207, 114, 0.18)",
-    axisLabel: "events",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartFireflyCount, fireflyCountHistory, {
-    stroke: "#7ec4ff",
-    fill: "rgba(126, 196, 255, 0.14)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartFireflyOrder, fireflyOrderHistory, {
-    stroke: "#ffe38d",
-    fill: "rgba(255, 227, 141, 0.18)",
-    axisLabel: "R",
-    tickFormatter: (value) => value.toFixed(2),
-    minValue: 0,
-    maxValue: 1,
-  });
-  drawTrendChart(dom.chartFireflyBlink, fireflyBlinkHistory, {
-    stroke: "#ffd26e",
-    fill: "rgba(255, 210, 110, 0.16)",
-    axisLabel: "/s",
-    tickFormatter: (value) => value.toFixed(1),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartGalaxyCount, galaxyCountHistory, {
-    stroke: "#8eb7ff",
-    fill: "rgba(142, 183, 255, 0.14)",
-    axisLabel: "count",
-    tickFormatter: (value) => String(Math.max(0, Math.round(value))),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartGalaxyRadius, galaxyRadiusHistory, {
-    stroke: "#9de2ff",
-    fill: "rgba(157, 226, 255, 0.16)",
-    axisLabel: "m",
-    tickFormatter: (value) => value.toFixed(1),
-    forceZeroMin: true,
-  });
-  drawTrendChart(dom.chartGalaxySpeed, galaxySpeedHistory, {
-    stroke: "#ffbe8d",
-    fill: "rgba(255, 190, 141, 0.16)",
-    axisLabel: "m/s",
-    tickFormatter: (value) => value.toFixed(1),
-    forceZeroMin: true,
+  APPLET_ORDER.forEach((appletId) => {
+    chartState[appletId]?.metrics.forEach((metric) => {
+      drawTrendChart(getElement(metric.canvasId), metric.history, metric.options);
+    });
   });
 }
 
@@ -1948,6 +1687,46 @@ function drawTrendChart(canvas, values, options) {
 
 function pushTrendValue(series, value) {
   appendTrendValue(series, value, chartMaxPoints);
+}
+
+function createChartMetric(canvasId, liveId, initialText, options) {
+  return {
+    canvasId,
+    liveId,
+    initialText,
+    options,
+    history: [],
+  };
+}
+
+function updateChartMetrics(appletId, values, liveTexts) {
+  const state = chartState[appletId];
+  if (!state) {
+    return;
+  }
+
+  state.metrics.forEach((metric, index) => {
+    setElementText(metric.liveId, liveTexts[index]);
+  });
+
+  state.frameCounter += 1;
+  if (state.frameCounter % 3 !== 0) {
+    return;
+  }
+
+  state.metrics.forEach((metric, index) => {
+    pushTrendValue(metric.history, values[index]);
+  });
+  drawTrendCharts();
+}
+
+function createAppletRuntime({ id, simulation, speedParam, applyStats }) {
+  return {
+    id,
+    simulation,
+    speedParam,
+    applyStats,
+  };
 }
 
 function bindRange(inputId, valueId, applyValue) {
@@ -2172,16 +1951,7 @@ function updateViewportLabel() {
   }
 
   const gridSizeM = Math.max(0.01, Number(params.worldGridSize) || 1);
-  const appLabel =
-    activeApplet === "ants"
-      ? "Ant Trails"
-      : activeApplet === "prey"
-        ? "Prey Chain"
-        : activeApplet === "firefly"
-          ? "Firefly Sync"
-          : activeApplet === "galaxy"
-            ? "Galaxy Gravity"
-            : "Boids";
+  const appLabel = APPLET_META[activeApplet]?.label ?? "Boids";
   const projectionLabel =
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
   const gridText = gridSizeM >= 1 ? gridSizeM.toFixed(1) : gridSizeM.toFixed(2);
@@ -2193,19 +1963,8 @@ function updateCameraTelemetry() {
 }
 
 function getActiveSimulationSpeed() {
-  if (activeApplet === "ants") {
-    return THREE.MathUtils.clamp(Number(params.antSimSpeed) || 1, 0.1, 10);
-  }
-  if (activeApplet === "prey") {
-    return THREE.MathUtils.clamp(Number(params.preySimSpeed) || 1, 0.1, 10);
-  }
-  if (activeApplet === "firefly") {
-    return THREE.MathUtils.clamp(Number(params.fireflySimSpeed) || 1, 0.1, 10);
-  }
-  if (activeApplet === "galaxy") {
-    return THREE.MathUtils.clamp(Number(params.galaxySimSpeed) || 1, 0.1, 10);
-  }
-  return THREE.MathUtils.clamp(Number(params.boidSimSpeed) || 1, 0.1, 10);
+  const speedParam = applets[activeApplet]?.speedParam ?? "boidSimSpeed";
+  return THREE.MathUtils.clamp(Number(params[speedParam]) || 1, 0.1, 10);
 }
 
 function updateBoidStats(stats) {
@@ -2219,23 +1978,11 @@ function updateBoidStats(stats) {
   const avgSpeed = boidCount > 0 ? speedSum / boidCount : 0;
   const avgNeighbors = boidCount > 0 ? neighborSum / boidCount : 0;
 
-  if (dom.chartCountLive) {
-    dom.chartCountLive.textContent = String(boidCount);
-  }
-  if (dom.chartSpeedLive) {
-    dom.chartSpeedLive.textContent = `${avgSpeed.toFixed(2)} m/s`;
-  }
-  if (dom.chartNeighborsLive) {
-    dom.chartNeighborsLive.textContent = avgNeighbors.toFixed(2);
-  }
-
-  boidChartFrameCounter += 1;
-  if (boidChartFrameCounter % 3 === 0) {
-    pushTrendValue(countHistory, boidCount);
-    pushTrendValue(speedHistory, avgSpeed);
-    pushTrendValue(neighborHistory, avgNeighbors);
-    drawTrendCharts();
-  }
+  updateChartMetrics("boid", [boidCount, avgSpeed, avgNeighbors], [
+    String(boidCount),
+    `${avgSpeed.toFixed(2)} m/s`,
+    avgNeighbors.toFixed(2),
+  ]);
 }
 
 function scheduleMathRendering() {

@@ -1,3 +1,4 @@
+// Visual styling controls for boid, ant, prey, and firefly rendering modes.
 export function createVisualControls({
   params,
   boidSimulation,

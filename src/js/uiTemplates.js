@@ -1,3 +1,4 @@
+// Config-driven sidebar template renderer for applet information and controls.
 import { APPLET_CONFIGS, APPLET_ORDER } from "./appletConfigs.js";
 
 export function renderAppletSectionsFromConfig() {

@@ -1,3 +1,4 @@
+// Lightweight registry for initializing, activating, and forwarding events to simulations.
 export class SimulationManager {
   constructor() {
     this.simulations = new Map();

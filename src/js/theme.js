@@ -1,5 +1,20 @@
+import * as THREE from "three";
+
+// Theme state manager and scene-theme helpers for auto/light/dark mode.
 const DEFAULT_THEME_MODES = ["auto", "dark", "light"];
 const DEFAULT_STORAGE_KEY = "emergenverse-theme-mode";
+const WORLD_THEME_PRESETS = {
+  dark: {
+    background: 0x030713,
+    fogColor: 0x050a17,
+    fogDensity: 0.0022,
+  },
+  light: {
+    background: 0xdfe8f8,
+    fogColor: 0xd8e2f5,
+    fogDensity: 0.0017,
+  },
+};
 
 export function createThemeManager({
   toggleButton,
@@ -54,6 +69,27 @@ export function createThemeManager({
     apply,
     cycleMode,
   };
+}
+
+export function applyWorldTheme(scene, theme = "dark") {
+  if (!scene) {
+    return;
+  }
+
+  const preset = WORLD_THEME_PRESETS[theme] || WORLD_THEME_PRESETS.dark;
+  if (!scene.background) {
+    scene.background = new THREE.Color(preset.background);
+  } else {
+    scene.background.set(preset.background);
+  }
+
+  if (!scene.fog) {
+    scene.fog = new THREE.FogExp2(preset.fogColor, preset.fogDensity);
+    return;
+  }
+
+  scene.fog.color.set(preset.fogColor);
+  scene.fog.density = preset.fogDensity;
 }
 
 function getEffectiveTheme(mode, prefersDark) {

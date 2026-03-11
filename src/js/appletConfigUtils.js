@@ -1,3 +1,18 @@
+// Shared applet config helpers used inside individual applet modules.
 export function slider(id, label, icon, valueId, valueText, min, max, step, value) {
   return { id, label, icon, valueId, valueText, min, max, step, value };
+}
+
+export function defineAppletConfig(config) {
+  return {
+    label: config.label ?? "Applet",
+    defaultProjection: config.defaultProjection ?? "perspective",
+    world: config.world ?? {
+      defaults: { x: 100, y: 100, z: 100 },
+      range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
+      gridSize: 5,
+    },
+    left: config.left ?? {},
+    right: config.right ?? {},
+  };
 }

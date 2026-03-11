@@ -1,3 +1,4 @@
+// Canvas chart helpers for resizing backing stores and drawing trend lines.
 export function resizeCanvasBackingStore(canvas) {
   if (!canvas) {
     return;

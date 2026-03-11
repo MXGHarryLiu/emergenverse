@@ -1,5 +1,6 @@
+// Ant trail applet config and simulation implementation.
 import * as THREE from "three";
-import { slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 export const ANT_DEFAULT_PARAMS = {
   antSimSpeed: 1.0,
@@ -26,7 +27,8 @@ export const ANT_DEFAULT_PARAMS = {
   antFoodSourceMassUg: 1000,
 };
 
-export const ANT_APPLET_CONFIG = {
+export const ANT_APPLET_CONFIG = defineAppletConfig({
+  label: "Ant Trails",
   defaultProjection: "orthographic",
   world: {
     defaults: { x: 2, y: 2, z: 2 },
@@ -105,7 +107,7 @@ export const ANT_APPLET_CONFIG = {
       resetButtonId: "reset-ant-sim",
     },
   },
-};
+});
 
 const ANT_COLORMAP_STOPS = {
   turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],

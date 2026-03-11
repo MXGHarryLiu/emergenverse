@@ -1,5 +1,6 @@
+// Boids applet config and simulation implementation.
 import * as THREE from "three";
-import { slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 
 export const BOID_DEFAULT_PARAMS = {
   boidSimSpeed: 1.0,
@@ -18,7 +19,8 @@ export const BOID_DEFAULT_PARAMS = {
   solidColor: "#4cd3b6",
 };
 
-export const BOID_APPLET_CONFIG = {
+export const BOID_APPLET_CONFIG = defineAppletConfig({
+  label: "Boids",
   defaultProjection: "perspective",
   world: {
     defaults: { x: 100, y: 100, z: 100 },
@@ -88,7 +90,7 @@ export const BOID_APPLET_CONFIG = {
       resetButtonId: "reset-sim",
     },
   },
-};
+});
 
 export class BoidSimulation {
   constructor({ scene, params, world, onStats }) {

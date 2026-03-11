@@ -1,3 +1,4 @@
+// Camera controller for perspective/orthographic views, orbit controls, and telemetry.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 

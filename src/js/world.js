@@ -1,9 +1,10 @@
+// Shared scene/world manager for bounds, grid geometry, lights, and scene objects.
 import * as THREE from "three";
+import { applyWorldTheme } from "./theme.js";
 
 export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x030713);
-  scene.fog = new THREE.FogExp2(0x050a17, 0.0022);
+  applyWorldTheme(scene, "dark");
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 1.75);
   scene.add(ambientLight);
@@ -112,25 +113,11 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     return !outOfBounds;
   }
 
-  function applyTheme(theme) {
-    if (theme === "light") {
-      scene.background.set(0xdfe8f8);
-      scene.fog.color.set(0xd8e2f5);
-      scene.fog.density = 0.0017;
-      return;
-    }
-
-    scene.background.set(0x030713);
-    scene.fog.color.set(0x050a17);
-    scene.fog.density = 0.0022;
-  }
-
   return {
     scene,
     rebuildBoundsAndGrid,
     setBoundsVisibility,
     applyBoundaryConditions,
-    applyTheme,
   };
 }
 
