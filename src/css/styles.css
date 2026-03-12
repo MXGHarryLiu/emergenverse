@@ -1393,6 +1393,10 @@ body {
   line-height: 1.35;
 }
 
+[data-control-section="ant:interaction"] .panel-copy {
+  font-size: 0.72rem;
+}
+
 /* Modals + Share + Screenshot Preview */
 .controls-modal-backdrop {
   position: fixed;
@@ -1451,10 +1455,32 @@ body {
 .modal-switch-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.modal-switch-row.form-check {
+  padding-left: 0;
+}
+
+.modal-switch-row .form-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin-bottom: 0;
+}
+
+.modal-switch-row .form-check-label i {
+  margin-right: 0.02rem;
+}
+
+.modal-switch-row .form-check-input {
+  float: none;
+  margin-left: auto;
 }
 
 .screenshot-preview-card {
+  position: relative;
   margin-bottom: 0.85rem;
   border: 1px solid var(--line-soft);
   border-radius: 0.8rem;
@@ -1494,6 +1520,23 @@ body {
   user-select: none;
   -webkit-user-drag: none;
   touch-action: none;
+}
+
+.screenshot-zoom-badge {
+  position: absolute;
+  left: 0.55rem;
+  bottom: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(7, 14, 28, 0.72);
+  color: #dceaff;
+  font: 600 0.7rem/1 "Space Grotesk", "Segoe UI", sans-serif;
+  letter-spacing: 0.03em;
+  padding: 0.22rem 0.5rem;
+  pointer-events: none;
 }
 
 .share-link-input {
@@ -1603,6 +1646,7 @@ body {
 .controls-list {
   margin: 0.45rem 0 0;
   padding-left: 0;
+  list-style-position: inside;
   color: var(--text-main);
   line-height: 1.45;
 }

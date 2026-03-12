@@ -177,7 +177,9 @@ const dom = {
   screenshotInfoClose: document.getElementById("screenshot-info-close"),
   screenshotInfoBackdrop: document.getElementById("screenshot-info-backdrop"),
   screenshotTransparentBg: document.getElementById("screenshot-transparent-bg"),
+  screenshotIncludeOverlay: document.getElementById("screenshot-include-overlay"),
   screenshotPreviewImage: document.getElementById("screenshot-preview-image"),
+  screenshotPreviewZoom: document.getElementById("screenshot-preview-zoom"),
   screenshotMeta: document.getElementById("screenshot-meta"),
   screenshotCapture: document.getElementById("screenshot-capture"),
   screenshotStatus: document.getElementById("screenshot-status"),
@@ -469,12 +471,6 @@ setupUiOverlays({
     params.paused = Boolean(value);
   },
   onPauseStateChange: () => updateSimulationStateUI(),
-  getShowBounds: () => params.showBounds,
-  setShowBounds: (value) => {
-    params.showBounds = Boolean(value);
-    dom.showBounds.checked = params.showBounds;
-    world.setBoundsVisibility(params.showBounds);
-  },
   getExportData: () => ({
     app: "emergenverse",
     exportedAt: new Date().toISOString(),

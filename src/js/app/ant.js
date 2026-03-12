@@ -42,8 +42,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "ants-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -60,16 +59,16 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       ],
       items: [
         {
-          title: "Agent Motion",
-          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
+          title: "Position (\\(x\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=v_a[\\cos\\theta,\\sin\\theta]\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t\\end{aligned}$$",
           explanation: "Each ant moves forward according to its current heading and walking speed.",
           parameters: [
             "<strong>Speed</strong> (\\(v_a\\)) sets the walking rate.",
           ],
         },
         {
-          title: "Heading Update",
-          equation: "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
+          title: "Heading (\\(\\theta\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\theta}{dt}&=k_{\\theta}(S_R-S_L)+k_g\\,\\Delta\\theta_{\\mathrm{goal}}+\\xi\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i\\,\\Delta t\\end{aligned}$$",
           explanation: "Heading changes with trail sensing, goal attraction, and a stochastic exploration term.",
           parameters: [
             "<strong>Turn Gain</strong> (\\(k_{\\theta}\\)) scales steering responsiveness.",
@@ -77,8 +76,8 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           ],
         },
         {
-          title: "Trail Field",
-          equation: "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
+          title: "Trail Field (\\(P\\))",
+          equation: "$$\\begin{aligned}\\frac{dP_j}{dt}&=-\\lambda P_j + D\\,\\nabla^2P_j + Q_j\\\\P_j(t+\\Delta t)&=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j\\,\\Delta t+Q_j\\,\\Delta t\\end{aligned}$$",
           explanation: "The trail field evaporates, diffuses across the floor, and receives new deposits from ants.",
           parameters: [
             "<strong>Deposit Rate</strong> (\\(Q_j\\)) controls how much trail is added.",
@@ -89,8 +88,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "ants-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [
@@ -106,8 +104,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     interaction: {
-      sectionKey: "ants-interaction",
-      title: "Interaction",
+      sectionKey: "interaction",
       icon: "bi-hand-index-thumb",
       hidden: true,
       sliderHub: {
@@ -145,8 +142,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     simulation: {
-      sectionKey: "ants-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -169,9 +165,9 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         slider("turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
         slider("goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
         slider("departure-rate", "Departure Rate", "bi-box-arrow-up-right", "departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
-        slider("deposit-rate", "Deposit Rate", "bi-droplet-fill", "deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
-        slider("diffusion-rate", "Diffusion Rate", "bi-water", "diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
-        slider("evap-rate", "Evaporation Rate", "bi-wind", "evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
+        slider("deposit-rate", "Deposit Rate (\\(Q_j\\))", "bi-droplet-fill", "deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
+        slider("diffusion-rate", "Diffusion Rate (\\(D\\))", "bi-water", "diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
+        slider("evap-rate", "Evaporation Rate (\\(\\lambda\\))", "bi-wind", "evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
       ],
       pauseButtonId: "toggle-ant-pause",
       defaultButtonId: "default-ant-sim",
@@ -1195,3 +1191,4 @@ function getAntStateColors(name) {
     carrying: 0xfaad42,
   };
 }
+

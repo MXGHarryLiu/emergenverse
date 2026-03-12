@@ -38,8 +38,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "dune-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -57,7 +56,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       items: [
         {
           title: "Wind Transport",
-          equation: "$$q_{ij}=W\\,\\tau\\,h_{ij},\\qquad h_{ij}^{t+\\Delta t}=h_{ij}^{t}-q_{ij}\\,\\Delta t,\\qquad h_{i+u,j+v}^{t+\\Delta t}=h_{i+u,j+v}^{t}+q_{ij}\\,\\Delta t$$",
+          equation: "$$\\begin{aligned}\\frac{\\partial h}{\\partial t}&=-\\nabla\\cdot\\mathbf{q},\\quad q_{ij}=W\\,\\tau\\,h_{ij}\\\\h_{ij}^{t+\\Delta t}&=h_{ij}^{t}-q_{ij}\\,\\Delta t\\\\h_{i+u,j+v}^{t+\\Delta t}&=h_{i+u,j+v}^{t}+q_{ij}\\,\\Delta t\\end{aligned}$$",
           explanation: "Sediment is removed from one column and deposited one cell downwind. In this reduced model, wind strength multiplies the transport term rather than acting as a separate force law.",
           parameters: [
             "<strong>Wind Strength</strong> (\\(W\\)) scales the aerodynamic forcing that drives downwind transport.",
@@ -94,8 +93,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "dune-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [
@@ -111,8 +109,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     simulation: {
-      sectionKey: "dune-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -615,3 +612,4 @@ function ensureVisibleColor(color, minLuminance) {
   );
   return color.lerp(duneWhite, deficiency * 0.55);
 }
+

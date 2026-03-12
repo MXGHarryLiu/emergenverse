@@ -33,8 +33,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "information-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       paragraphs: [
         "This applet shows flocking as a local coordination process. Each boid responds to nearby neighbors, and large-scale group motion emerges from those simple local interactions.",
@@ -48,13 +47,13 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       ],
       items: [
         {
-          title: "Position Update",
-          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+          title: "Position (\\(x\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=\\mathbf{v}\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t\\end{aligned}$$",
           explanation: "Each boid advances according to its current velocity during the next simulation step.",
         },
         {
-          title: "Velocity Update",
-          equation: "$$\\mathbf{v}_i(t+\\Delta t)=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)$$",
+          title: "Velocity (\\(v\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{clip}(\\mathbf{v}+\\mathbf{a}\\,\\Delta t)-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_i(t+\\Delta t)&=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)\\end{aligned}$$",
           explanation: "Velocity changes by the steering acceleration and is then clamped so the boid stays within its allowed motion limits.",
         },
         {
@@ -68,8 +67,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "information-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       stats: [{ label: "FPS", valueId: "fps-live", initial: "--" }],
       charts: [
@@ -82,7 +80,6 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
   right: {
     simulation: {
       sectionKey: "simulation",
-      title: "Simulation",
       icon: "bi-sliders2",
       sliderHub: {
         title: "Count",
@@ -703,3 +700,4 @@ function randomDirection() {
 
   return direction.normalize();
 }
+

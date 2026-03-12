@@ -30,8 +30,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "example-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -55,8 +54,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "example-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [{ label: "FPS", valueId: "example-fps-live", initial: "--" }],
@@ -73,8 +71,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     simulation: {
-      sectionKey: "example-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -221,3 +218,4 @@ Required exports for registry auto-discovery in appletConfigs.js:
 - exactly one `*_APPLET_RUNTIME` object
 - exactly one `*_APPLET_VISUAL` object
 */
+

@@ -17,9 +17,6 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
   fillLight.position.set(-80, 95, -55);
   scene.add(fillLight);
 
-  const starField = buildStarField(900, 680);
-  scene.add(starField);
-
   let boundsLines = null;
   let floorGrid = null;
 
@@ -151,40 +148,3 @@ function wrapAxis(value, halfExtent) {
   return value;
 }
 
-function buildStarField(count, spread) {
-  const geometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const starColor = new THREE.Color();
-
-  for (let i = 0; i < count; i += 1) {
-    const i3 = i * 3;
-    positions[i3] = THREE.MathUtils.randFloatSpread(spread * 2.2);
-    positions[i3 + 1] = THREE.MathUtils.randFloatSpread(spread * 2.2);
-    positions[i3 + 2] = THREE.MathUtils.randFloat(-spread * 0.8, spread * 1.8);
-
-    starColor.setHSL(
-      THREE.MathUtils.randFloat(0.52, 0.64),
-      THREE.MathUtils.randFloat(0.28, 0.54),
-      THREE.MathUtils.randFloat(0.62, 0.96),
-    );
-
-    colors[i3] = starColor.r;
-    colors[i3 + 1] = starColor.g;
-    colors[i3 + 2] = starColor.b;
-  }
-
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-  const material = new THREE.PointsMaterial({
-    size: 1.75,
-    sizeAttenuation: true,
-    transparent: true,
-    opacity: 0.72,
-    depthWrite: false,
-    vertexColors: true,
-  });
-
-  return new THREE.Points(geometry, material);
-}

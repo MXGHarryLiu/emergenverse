@@ -1,6 +1,14 @@
 // Config-driven sidebar template renderer for applet information and controls.
 import { APPLET_CONFIGS, APPLET_ORDER, APPLET_VISUALS } from "./app/appletConfigs.js";
 
+const SUPPORTED_SECTION_TITLES = Object.freeze({
+  introduction: "Introduction",
+  stats: "Stats",
+  simulation: "Simulation",
+  interaction: "Interaction",
+  visual: "Visual",
+});
+
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
   const rightPanel = document.getElementById("right-panel");
@@ -71,8 +79,10 @@ function removeGeneratedAppletSections(panel) {
 }
 
 function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
+  const sectionKey = normalizeSectionKey(sectionConfig?.sectionKey);
+  const sectionTitle = getSectionTitle(sectionKey);
   const section = templates.section.content.firstElementChild.cloneNode(true);
-  section.setAttribute("data-control-section", sectionConfig.sectionKey);
+  section.setAttribute("data-control-section", getScopedSectionKey(appletId, sectionKey));
   section.setAttribute("data-app-visible", appletId);
   section.setAttribute("data-generated-applet-section", "true");
   section.classList.toggle("is-hidden", Boolean(sectionConfig.hidden));
@@ -83,13 +93,13 @@ function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   const toggle = section.querySelector("[data-control-toggle]");
   toggle.setAttribute(
     "aria-label",
-    options.toggleAriaLabel || `Toggle ${appletId} ${sectionConfig.title.toLowerCase()} section`,
+    options.toggleAriaLabel || `Toggle ${appletId} ${sectionTitle.toLowerCase()} section`,
   );
 
   const titleIcon = section.querySelector("[data-section-title-icon]");
   titleIcon.className = `${sectionConfig.icon} panel-head-icon`;
   const titleText = section.querySelector("[data-section-title-text]");
-  titleText.textContent = sectionConfig.title;
+  titleText.textContent = sectionTitle;
 
   return section;
 }
@@ -168,6 +178,7 @@ function buildStatsSection(statsConfig, appletId, templates) {
 }
 
 function buildSimulationSection(simConfig, appletId, templates) {
+  const simulationSectionKey = normalizeSectionKey(simConfig?.sectionKey);
   const section = buildSectionShell(simConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} simulation controls`,
   });
@@ -176,7 +187,7 @@ function buildSimulationSection(simConfig, appletId, templates) {
   if (simConfig.sliderHub) {
     const hub = document.createElement("div");
     hub.className = "section-slider-hub";
-    hub.setAttribute("data-slider-hub", simConfig.sectionKey);
+    hub.setAttribute("data-slider-hub", getScopedSectionKey(appletId, simulationSectionKey));
     hub.setAttribute("aria-label", `Active ${appletId} slider`);
     hub.innerHTML = `
       <div class="section-slider-head">
@@ -406,6 +417,7 @@ function renderInlineMathIfAvailable(node) {
 }
 
 function buildInteractionSection(interactionConfig, appletId, templates) {
+  const interactionSectionKey = normalizeSectionKey(interactionConfig?.sectionKey);
   const section = buildSectionShell(interactionConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} interaction controls`,
   });
@@ -414,7 +426,7 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
   if (interactionConfig.sliderHub) {
     const hub = document.createElement("div");
     hub.className = "section-slider-hub";
-    hub.setAttribute("data-slider-hub", interactionConfig.sectionKey);
+    hub.setAttribute("data-slider-hub", getScopedSectionKey(appletId, interactionSectionKey));
     hub.setAttribute("aria-label", `Active ${appletId} interaction slider`);
     hub.innerHTML = `
       <div class="section-slider-head">
@@ -498,7 +510,7 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
 
 function buildVisualSection(appletId, visualAdapter, templates) {
   const sectionConfig = {
-    sectionKey: `${appletId}-visual`,
+    sectionKey: "visual",
     title: "Visual",
     icon: "bi-palette",
     hidden: Boolean(visualAdapter?.section?.hidden),
@@ -566,6 +578,29 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   }
 
   return section;
+}
+
+function getScopedSectionKey(appletId, sectionKey) {
+  const normalizedAppletId = String(appletId || "applet").trim() || "applet";
+  const normalizedSectionKey = normalizeSectionKey(sectionKey);
+  return `${normalizedAppletId}:${normalizedSectionKey}`;
+}
+
+function normalizeSectionKey(sectionKey) {
+  return String(sectionKey || "")
+    .trim()
+    .toLowerCase();
+}
+
+function getSectionTitle(sectionKey) {
+  const normalizedKey = normalizeSectionKey(sectionKey);
+  const title = SUPPORTED_SECTION_TITLES[normalizedKey];
+  if (!title) {
+    throw new Error(
+      `Unsupported sectionKey "${sectionKey}". Supported keys: ${Object.keys(SUPPORTED_SECTION_TITLES).join(", ")}`,
+    );
+  }
+  return title;
 }
 
 function renderSharedRightSections(rightPanel, templates) {

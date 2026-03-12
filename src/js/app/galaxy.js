@@ -56,8 +56,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "galaxy-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -74,13 +73,13 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       ],
       items: [
         {
-          title: "Position Update",
-          equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+          title: "Position (\\(x\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=\\mathbf{v}\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t\\end{aligned}$$",
           explanation: "Each particle advances according to its current orbital velocity.",
         },
         {
-          title: "Velocity Update",
-          equation: "$$\\mathbf{v}_i(t+\\Delta t)=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t$$",
+          title: "Velocity (\\(v\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\mathbf{a}\\\\\\mathbf{v}_i(t+\\Delta t)&=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\end{aligned}$$",
           explanation: "Velocity changes in response to the current gravitational acceleration before damping is applied.",
         },
         {
@@ -94,8 +93,8 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
           ],
         },
         {
-          title: "Damped Orbit Update",
-          equation: "$$\\mathbf{v}_i\\leftarrow (1-\\lambda\\,\\Delta t)\\,\\mathbf{v}_i$$",
+          title: "Damped Orbit",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}_i}{dt}&=-\\lambda\\,\\mathbf{v}_i\\\\\\mathbf{v}_i(t+\\Delta t)&=(1-\\lambda\\,\\Delta t)\\,\\mathbf{v}_i(t)\\end{aligned}$$",
           explanation: "A damping term removes some kinetic energy each step so the system can settle into cleaner large-scale structure.",
           parameters: [
             "<strong>Damping</strong> (\\(\\lambda\\)) controls how quickly orbital energy is dissipated.",
@@ -104,8 +103,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "galaxy-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [{ label: "FPS", valueId: "galaxy-fps-live", initial: "--" }],
@@ -118,8 +116,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     simulation: {
-      sectionKey: "galaxy-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -595,3 +592,4 @@ function randomDirection3D() {
   }
   return vector.normalize();
 }
+

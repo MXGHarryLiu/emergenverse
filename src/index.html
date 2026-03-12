@@ -531,14 +531,6 @@
               style="border: 0; border-radius: 6px;"
             ></iframe>
           </div>
-          <ul class="controls-list about-links mt-3">
-            <li>
-              <strong>Repository</strong>:
-              <a href="https://github.com/MXGHarryLiu/emergenverse" target="_blank" rel="noopener noreferrer">
-                github.com/MXGHarryLiu/emergenverse
-              </a>
-            </li>
-          </ul>
         </div>
       </section>
     </div>
@@ -606,16 +598,26 @@
               id="screenshot-preview-image"
               alt="Screenshot preview"
             />
+            <div class="screenshot-zoom-badge" id="screenshot-preview-zoom" aria-live="polite">
+              <i class="bi bi-zoom-in" aria-hidden="true"></i>
+              <span>100%</span>
+            </div>
           </div>
           <div class="form-check form-switch modal-switch-row">
-            <input class="form-check-input" id="screenshot-transparent-bg" type="checkbox" role="switch" />
             <label class="form-check-label" for="screenshot-transparent-bg">
               <i class="bi bi-transparency" aria-hidden="true"></i>
               Transparent Background
             </label>
+            <input class="form-check-input" id="screenshot-transparent-bg" type="checkbox" role="switch" />
+          </div>
+          <div class="form-check form-switch modal-switch-row mt-2">
+            <label class="form-check-label" for="screenshot-include-overlay">
+              <i class="bi bi-layers" aria-hidden="true"></i>
+              Include Overlay
+            </label>
+            <input class="form-check-input" id="screenshot-include-overlay" type="checkbox" role="switch" />
           </div>
           <p class="control-note mt-2 mb-0" id="screenshot-meta">Resolution: -- × -- px</p>
-          <p class="control-note mt-2 mb-0" id="screenshot-status">Transparent mode exports without the scene background or boundary box.</p>
           <div class="modal-actions mt-3">
             <button class="btn btn-theme" id="screenshot-capture" type="button">Save PNG</button>
           </div>

@@ -31,8 +31,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "firefly-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -49,8 +48,8 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       ],
       items: [
         {
-          title: "Phase Evolution",
-          equation: "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
+          title: "Phase (\\(\\theta\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\theta}{dt}&=\\omega + \\frac{K}{N}\\sum_{j\\in\\mathcal{N}}\\sin(\\theta_j-\\theta) + \\eta(t)\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+\\left(\\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)\\right)\\Delta t\\end{aligned}$$",
           explanation: "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
           parameters: [
             "<strong>Coupling</strong> (\\(K\\)) sets the synchronization strength.",
@@ -70,8 +69,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "firefly-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [{ label: "FPS", valueId: "firefly-fps-live", initial: "--" }],
@@ -84,8 +82,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     simulation: {
-      sectionKey: "firefly-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -673,3 +670,4 @@ function getFireflyStateColors(name) {
     blink: 0x1f78b4,
   };
 }
+

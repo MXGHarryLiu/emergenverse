@@ -13,8 +13,6 @@ export function setupUiOverlays({
   getPaused,
   setPaused,
   onPauseStateChange,
-  getShowBounds,
-  setShowBounds,
   getExportData,
 }) {
   setupSupportPopup(dom);
@@ -32,8 +30,6 @@ export function setupUiOverlays({
     getPaused,
     setPaused,
     onPauseStateChange,
-    getShowBounds,
-    setShowBounds,
   });
 }
 
@@ -424,8 +420,6 @@ function setupScreenshotPopup({
   getPaused,
   setPaused,
   onPauseStateChange,
-  getShowBounds,
-  setShowBounds,
 }) {
   if (
     !dom.viewportScreenshotBtn ||
@@ -433,12 +427,14 @@ function setupScreenshotPopup({
     !dom.screenshotInfoClose ||
     !dom.screenshotCapture ||
     !dom.screenshotTransparentBg ||
+    !dom.screenshotIncludeOverlay ||
     !dom.screenshotPreviewImage
   ) {
     return;
   }
 
   let screenshotInProgress = false;
+  let popupPausedByScreenshotDialog = false;
   let previewScale = 1;
   let previewOffsetX = 0;
   let previewOffsetY = 0;
@@ -447,6 +443,7 @@ function setupScreenshotPopup({
   let previewPanStartY = 0;
   let previewPanOriginX = 0;
   let previewPanOriginY = 0;
+  let previewPixelScalePercent = 100;
   const previewMinScale = 1;
   const previewMaxScale = 6;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -470,6 +467,27 @@ function setupScreenshotPopup({
     previewOffsetY = clamp(previewOffsetY, -maxY, maxY);
   };
 
+  const updatePreviewZoomBadge = () => {
+    const badge = dom.screenshotPreviewZoom;
+    if (!badge) {
+      return;
+    }
+    const text = badge.querySelector("span");
+    if (text) {
+      const effectivePercent = clamp(previewPixelScalePercent * previewScale, 1, 999);
+      text.textContent = `${Math.round(effectivePercent)}%`;
+    }
+  };
+
+  const updatePreviewPixelScale = (width, height) => {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const screenWidthPx = Math.max(1, Math.round((window.screen?.width || window.innerWidth || 1) * dpr));
+    const screenHeightPx = Math.max(1, Math.round((window.screen?.height || window.innerHeight || 1) * dpr));
+    const ratio = Math.min(width / screenWidthPx, height / screenHeightPx);
+    previewPixelScalePercent = clamp(ratio * 100, 1, 999);
+    updatePreviewZoomBadge();
+  };
+
   const applyPreviewTransform = () => {
     dom.screenshotPreviewImage.style.transform = `translate(${previewOffsetX}px, ${previewOffsetY}px) scale(${previewScale})`;
     if (previewPanning) {
@@ -477,6 +495,7 @@ function setupScreenshotPopup({
     } else {
       dom.screenshotPreviewImage.style.cursor = previewScale > previewMinScale ? "grab" : "zoom-in";
     }
+    updatePreviewZoomBadge();
   };
 
   const resetPreviewTransform = () => {
@@ -507,14 +526,12 @@ function setupScreenshotPopup({
     const previousBackground = scene.background;
     const previousFog = scene.fog;
     const previousClearAlpha = renderer.getClearAlpha();
-    const previousShowBounds = typeof getShowBounds === "function" ? getShowBounds() : true;
 
     try {
       if (transparentBackground) {
         scene.background = null;
         scene.fog = null;
         renderer.setClearAlpha(0);
-        setShowBounds?.(false);
       }
 
       renderer.render(scene, cameraController.getActiveCamera());
@@ -524,29 +541,143 @@ function setupScreenshotPopup({
         scene.background = previousBackground;
         scene.fog = previousFog;
         renderer.setClearAlpha(previousClearAlpha);
-        setShowBounds?.(previousShowBounds);
         renderer.render(scene, cameraController.getActiveCamera());
       }
     }
   };
 
-  const updatePreview = async (transparentBackground) => {
+  const drawRoundedRectPath = (ctx, x, y, width, height, radius) => {
+    const r = Math.max(0, Math.min(radius, width * 0.5, height * 0.5));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  };
+
+  const drawOverlayStatusLabel = (ctx, sourceElement, renderRect, scaleX, scaleY) => {
+    if (!sourceElement) {
+      return;
+    }
+
+    const elementRect = sourceElement.getBoundingClientRect();
+    if (elementRect.width <= 1 || elementRect.height <= 1) {
+      return;
+    }
+
+    const x = (elementRect.left - renderRect.left) * scaleX;
+    const y = (elementRect.top - renderRect.top) * scaleY;
+    const width = elementRect.width * scaleX;
+    const height = elementRect.height * scaleY;
+    if (width <= 1 || height <= 1) {
+      return;
+    }
+
+    const style = window.getComputedStyle(sourceElement);
+    const radius = Number.parseFloat(style.borderRadius || "0") * ((scaleX + scaleY) * 0.5);
+    const borderWidth = Number.parseFloat(style.borderTopWidth || "0") * ((scaleX + scaleY) * 0.5);
+
+    ctx.save();
+    drawRoundedRectPath(ctx, x, y, width, height, radius);
+    ctx.fillStyle = style.backgroundColor || "rgba(7, 13, 28, 0.72)";
+    ctx.fill();
+    if (borderWidth > 0.01) {
+      ctx.lineWidth = borderWidth;
+      ctx.strokeStyle = style.borderTopColor || "rgba(120, 170, 245, 0.35)";
+      ctx.stroke();
+    }
+
+    const text = (sourceElement.textContent || "").trim();
+    if (text) {
+      const fontSizePx = Math.max(10, Number.parseFloat(style.fontSize || "12") * ((scaleX + scaleY) * 0.5));
+      const fontWeight = style.fontWeight || "500";
+      const fontFamily = style.fontFamily || "Space Grotesk, sans-serif";
+      const padLeftPx = Number.parseFloat(style.paddingLeft || "10") * scaleX;
+      ctx.fillStyle = style.color || "#d7e7ff";
+      ctx.font = `${fontWeight} ${fontSizePx}px ${fontFamily}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x + padLeftPx, y + height * 0.5);
+    }
+    ctx.restore();
+  };
+
+  const composeScreenshotCanvas = (baseCanvas, includeOverlay) => {
+    if (!includeOverlay) {
+      return baseCanvas;
+    }
+
+    const output = document.createElement("canvas");
+    output.width = baseCanvas.width;
+    output.height = baseCanvas.height;
+    const ctx = output.getContext("2d");
+    if (!ctx) {
+      return baseCanvas;
+    }
+
+    ctx.drawImage(baseCanvas, 0, 0);
+
+    const renderRect = baseCanvas.getBoundingClientRect();
+    if (renderRect.width <= 1 || renderRect.height <= 1) {
+      return output;
+    }
+
+    const scaleX = output.width / renderRect.width;
+    const scaleY = output.height / renderRect.height;
+
+    const orientationCanvas = document.getElementById("orientation-indicator");
+    if (orientationCanvas instanceof HTMLCanvasElement) {
+      const orientationRect = orientationCanvas.getBoundingClientRect();
+      if (orientationRect.width > 1 && orientationRect.height > 1) {
+        const x = (orientationRect.left - renderRect.left) * scaleX;
+        const y = (orientationRect.top - renderRect.top) * scaleY;
+        const width = orientationRect.width * scaleX;
+        const height = orientationRect.height * scaleY;
+        ctx.drawImage(orientationCanvas, x, y, width, height);
+      }
+    }
+
+    drawOverlayStatusLabel(ctx, document.getElementById("frame-size"), renderRect, scaleX, scaleY);
+    return output;
+  };
+
+  const updatePreview = async (transparentBackground, includeOverlay) => {
     await withScreenshotSceneState(transparentBackground, async (canvas) => {
-      dom.screenshotPreviewImage.src = canvas.toDataURL("image/png");
+      const exportCanvas = composeScreenshotCanvas(canvas, includeOverlay);
+      dom.screenshotPreviewImage.src = exportCanvas.toDataURL("image/png");
       setMeta(`Resolution: ${canvas.width.toLocaleString()} × ${canvas.height.toLocaleString()} px`);
+      updatePreviewPixelScale(exportCanvas.width, exportCanvas.height);
     });
   };
 
   const openPopup = () => {
+    popupPausedByScreenshotDialog = false;
+    if (!getPaused()) {
+      setPaused(true);
+      onPauseStateChange();
+      popupPausedByScreenshotDialog = true;
+    }
     dom.screenshotTransparentBg.checked = false;
+    dom.screenshotIncludeOverlay.checked = false;
     setStatus("Transparent mode exports without the scene background or boundary box.");
     resetPreviewTransform();
-    updatePreview(false);
+    updatePreview(false, false);
     openOverlay(dom.screenshotInfoBackdrop);
   };
 
   const closePopup = () => {
     closeOverlay(dom.screenshotInfoBackdrop);
+    if (popupPausedByScreenshotDialog) {
+      setPaused(false);
+      onPauseStateChange();
+    }
+    popupPausedByScreenshotDialog = false;
     resetPreviewTransform();
   };
 
@@ -675,13 +806,28 @@ function setupScreenshotPopup({
     resetPreviewTransform();
   });
   dom.screenshotTransparentBg.addEventListener("change", () => {
-    const enabled = dom.screenshotTransparentBg.checked;
+    const transparentEnabled = dom.screenshotTransparentBg.checked;
+    const includeOverlay = dom.screenshotIncludeOverlay.checked;
     setStatus(
-      enabled
+      transparentEnabled
         ? "Transparent mode exports without the scene background or boundary box."
         : "Standard mode keeps the normal scene background and boundary box.",
     );
-    updatePreview(enabled);
+    updatePreview(transparentEnabled, includeOverlay);
+  });
+  dom.screenshotIncludeOverlay.addEventListener("change", () => {
+    const transparentEnabled = dom.screenshotTransparentBg.checked;
+    const includeOverlay = dom.screenshotIncludeOverlay.checked;
+    if (includeOverlay) {
+      setStatus("Overlay mode includes orientation marker and status label; viewport tool buttons remain hidden.");
+    } else {
+      setStatus(
+        transparentEnabled
+          ? "Transparent mode exports without the scene background or boundary box."
+          : "Standard mode keeps the normal scene background and boundary box.",
+      );
+    }
+    updatePreview(transparentEnabled, includeOverlay);
   });
   dom.screenshotInfoBackdrop.addEventListener("click", (event) => {
     if (event.target === dom.screenshotInfoBackdrop) {
@@ -704,6 +850,7 @@ function setupScreenshotPopup({
     const wasPausedBeforeScreenshot = getPaused();
     const shouldTemporarilyPause = !wasPausedBeforeScreenshot;
     const transparentBackground = Boolean(dom.screenshotTransparentBg?.checked);
+    const includeOverlay = Boolean(dom.screenshotIncludeOverlay?.checked);
     if (shouldTemporarilyPause) {
       setPaused(true);
       onPauseStateChange();
@@ -713,9 +860,10 @@ function setupScreenshotPopup({
     try {
       const filename = getFilename();
       await withScreenshotSceneState(transparentBackground, async (canvas) => {
-        let blob = await canvasToBlob(canvas);
+        const exportCanvas = composeScreenshotCanvas(canvas, includeOverlay);
+        let blob = await canvasToBlob(exportCanvas);
         if (!blob) {
-          const dataUrl = canvas.toDataURL("image/png");
+          const dataUrl = exportCanvas.toDataURL("image/png");
           triggerDownload(dataUrl, filename);
           setStatus("Screenshot saved.");
           closePopup();

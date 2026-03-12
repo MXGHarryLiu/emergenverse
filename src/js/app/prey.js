@@ -39,8 +39,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
   },
   left: {
     intro: {
-      sectionKey: "prey-introduction",
-      title: "Introduction",
+      sectionKey: "introduction",
       icon: "bi-journal-text",
       hidden: true,
       paragraphs: [
@@ -70,13 +69,13 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
           ],
         },
         {
-          title: "Position Update",
-          equation: "$$\\mathbf{p}_{k}(t+\\Delta t)=\\mathbf{p}_{k}(t)+\\mathbf{v}_{k}(t)\\Delta t$$",
+          title: "Position (\\(x\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{p}}{dt}&=\\mathbf{v}\\\\\\mathbf{p}_k(t+\\Delta t)&=\\mathbf{p}_k(t)+\\mathbf{v}_k(t)\\Delta t\\end{aligned}$$",
           explanation: "Each prey or predator moves forward using its current velocity.",
         },
         {
-          title: "Velocity Steering",
-          equation: "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
+          title: "Velocity (\\(v\\))",
+          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{norm}(\\mathbf{v}+\\mathbf{u}\\,\\Delta t)\\,s-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_{k}(t+\\Delta t)&=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}(t)+\\mathbf{u}_{k}(t)\\Delta t\\right)\\,s_k\\end{aligned}$$",
           explanation: "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
           parameters: [
             "<strong>Prey Speed</strong> (\\(s_{prey}\\)) and <strong>Predator Speed</strong> (\\(s_{pred}\\)) set the travel rates.",
@@ -85,8 +84,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
     stats: {
-      sectionKey: "prey-stats",
-      title: "Stats",
+      sectionKey: "stats",
       icon: "bi-bar-chart-line-fill",
       hidden: true,
       stats: [{ label: "FPS", valueId: "prey-fps-live", initial: "--" }],
@@ -99,8 +97,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
   },
   right: {
     simulation: {
-      sectionKey: "prey-simulation",
-      title: "Simulation",
+      sectionKey: "simulation",
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
@@ -811,3 +808,4 @@ function ensureVisibleColor(color, minLuminance) {
   );
   return color.lerp(new THREE.Color(1, 1, 1), deficiency * 0.55);
 }
+
