@@ -576,6 +576,16 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     if (!telemetry?.x) {
       return;
     }
+    const editingField =
+      (telemetry.x.isContentEditable && document.activeElement === telemetry.x) ||
+      (telemetry.y.isContentEditable && document.activeElement === telemetry.y) ||
+      (telemetry.z.isContentEditable && document.activeElement === telemetry.z) ||
+      (telemetry.roll.isContentEditable && document.activeElement === telemetry.roll) ||
+      (telemetry.pitch.isContentEditable && document.activeElement === telemetry.pitch) ||
+      (telemetry.yaw.isContentEditable && document.activeElement === telemetry.yaw);
+    if (editingField) {
+      return;
+    }
 
     const position = activeCamera.position;
     cameraEuler.setFromQuaternion(activeCamera.quaternion, "ZYX");

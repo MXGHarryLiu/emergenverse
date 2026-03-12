@@ -29,7 +29,6 @@ export function drawTrendChart(canvas, values, options) {
   const {
     stroke,
     fill,
-    axisLabel = "",
     tickFormatter = (value) => value.toFixed(1),
     forceZeroMin = false,
   } = options;
@@ -115,16 +114,6 @@ export function drawTrendChart(canvas, values, options) {
   ctx.lineTo(width - padRight, height - padBottom);
   ctx.stroke();
 
-  if (axisLabel) {
-    ctx.save();
-    ctx.translate(13 * dpr, padTop + plotHeight * 0.5);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = palette.label;
-    ctx.fillText(axisLabel, 0, 0);
-    ctx.restore();
-  }
   ctx.restore();
 
   if (values.length === 0) {

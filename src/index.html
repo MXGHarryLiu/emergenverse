@@ -62,14 +62,26 @@
     <nav class="navbar top-nav px-3 px-lg-4">
       <div class="container-fluid g-0">
         <div class="d-flex align-items-center gap-3 nav-brand-group">
+          <button
+            class="chip chip-button nav-icon-btn mobile-nav-open is-hidden"
+            id="mobile-nav-open"
+            type="button"
+            title="Open applet navigation"
+            aria-label="Open applet navigation"
+            aria-controls="mobile-nav-backdrop"
+            aria-expanded="false"
+          >
+            <i class="bi bi-list" aria-hidden="true"></i>
+          </button>
           <span class="brand-mark">E</span>
           <div>
             <div class="brand-title">Emergenverse</div>
             <div class="brand-subtitle">Discover patterns from simple rules</div>
           </div>
           <div class="applet-nav" id="applet-nav" role="tablist" aria-label="Applet mode"></div>
+          <div class="mobile-current-applet is-hidden" id="mobile-current-applet" aria-live="polite"></div>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 nav-actions">
           <button
             class="chip chip-button nav-icon-btn"
             id="support-info-open"
@@ -109,12 +121,45 @@
         </div>
       </div>
     </nav>
+    <div class="mobile-nav-backdrop is-hidden" id="mobile-nav-backdrop" aria-hidden="true">
+      <aside class="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label="Applet navigation menu">
+        <header class="mobile-nav-head">
+          <span class="mobile-nav-head-spacer" aria-hidden="true"></span>
+          <button class="icon-btn" id="mobile-nav-close" type="button" aria-label="Close applet navigation">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="mobile-applet-nav" id="mobile-applet-nav" role="tablist" aria-label="Mobile applet mode"></div>
+      </aside>
+    </div>
+    <div class="mobile-panel-bar is-hidden" id="mobile-panel-bar" aria-label="Mobile panel toggles">
+      <button
+        class="mobile-panel-btn"
+        id="mobile-show-info"
+        type="button"
+        aria-label="Toggle information panel"
+        aria-pressed="false"
+      >
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span>Information</span>
+      </button>
+      <button
+        class="mobile-panel-btn"
+        id="mobile-show-controls"
+        type="button"
+        aria-label="Toggle controls panel"
+        aria-pressed="false"
+      >
+        <i class="bi bi-sliders2-vertical" aria-hidden="true"></i>
+        <span>Controls</span>
+      </button>
+    </div>
 
     <main class="app-shell">
       <aside id="left-panel" class="panel left-panel">
         <div class="sidebar-head">
           <h2 class="panel-title sidebar-title">
-            <i class="bi bi-info-square-fill panel-head-icon" aria-hidden="true"></i>
+            <i class="bi bi-info-circle panel-head-icon" aria-hidden="true"></i>
             <span>Information</span>
           </h2>
           <button class="icon-btn" id="hide-left-panel" type="button" aria-label="Hide left panel">
@@ -131,7 +176,7 @@
       ></div>
 
       <section class="viewport-panel">
-        <div class="viewport-tools-left" aria-label="Viewport left tools">
+        <div class="viewport-tools" aria-label="Viewport tools">
           <button
             class="viewport-tool-btn is-hidden"
             id="show-left-panel"
@@ -139,10 +184,8 @@
             title="Show information panel"
             aria-label="Show information panel"
           >
-            <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
           </button>
-        </div>
-        <div class="viewport-tools" aria-label="Viewport tools">
           <button
             class="viewport-tool-btn"
             id="controls-info-open"
@@ -150,7 +193,7 @@
             title="Controls help"
             aria-label="Controls help"
           >
-            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <i class="bi bi-joystick" aria-hidden="true"></i>
           </button>
           <button
             class="viewport-tool-btn"
@@ -186,10 +229,18 @@
             title="Show controls panel"
             aria-label="Show controls panel"
           >
-            <i class="bi bi-layout-sidebar-inset-reverse" aria-hidden="true"></i>
+            <i class="bi bi-sliders2-vertical" aria-hidden="true"></i>
           </button>
         </div>
         <div id="scene-host" data-app-visible="*" aria-label="3D simulation viewport"></div>
+        <div class="orientation-indicator-wrap" aria-hidden="true">
+          <canvas
+            id="orientation-indicator"
+            class="orientation-indicator-canvas"
+            width="84"
+            height="84"
+          ></canvas>
+        </div>
         <div class="overlay-corner" id="frame-size" data-app-visible="*">Grid size: -- m | -- | --</div>
       </section>
       <div
@@ -198,6 +249,13 @@
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize right panel"
+      ></div>
+      <div
+        class="middle-resizer is-hidden"
+        id="middle-resizer"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize middle right stack"
       ></div>
 
       <aside id="right-panel" class="panel right-panel">
@@ -282,19 +340,19 @@
           </div>
 
           <label class="form-label" for="world-size-x">
-            <span class="label-name"><i class="bi bi-arrows-expand" aria-hidden="true"></i>World Size X</span>
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>World Size X</span>
             <span class="label-value" id="world-size-x-value">100 m</span>
           </label>
           <input class="form-range" type="range" id="world-size-x" min="40" max="320" step="2" value="100" />
 
           <label class="form-label" for="world-size-y">
-            <span class="label-name"><i class="bi bi-arrows-vertical" aria-hidden="true"></i>World Size Y</span>
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>World Size Y</span>
             <span class="label-value" id="world-size-y-value">100 m</span>
           </label>
           <input class="form-range" type="range" id="world-size-y" min="40" max="320" step="2" value="100" />
 
           <label class="form-label" for="world-size-z">
-            <span class="label-name"><i class="bi bi-arrows-collapse" aria-hidden="true"></i>World Size Z</span>
+            <span class="label-name"><i class="bi bi-rulers" aria-hidden="true"></i>World Size Z</span>
             <span class="label-value" id="world-size-z-value">100 m</span>
           </label>
           <input class="form-range" type="range" id="world-size-z" min="30" max="260" step="2" value="100" />
@@ -319,13 +377,6 @@
         </div>
       </aside>
     </main>
-
-    <div class="narrow-screen-blocker is-hidden" id="narrow-screen-blocker" aria-live="polite" aria-hidden="true">
-      <div class="narrow-screen-card">
-        <h2>Screen Too Narrow</h2>
-        <p>This app needs a wider viewport. Please enable desktop mode or widen your browser window.</p>
-      </div>
-    </div>
 
     <div class="controls-modal-backdrop is-hidden" id="controls-info-backdrop" aria-hidden="true">
       <section class="controls-modal controls-modal-wide" role="dialog" aria-modal="true" aria-labelledby="controls-info-title">

@@ -435,8 +435,18 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
   }
 
   (interactionConfig.switches || []).forEach((switchConfig, index) => {
+    const row = document.createElement("div");
+    row.className = `form-label${index > 0 ? " mt-2" : ""}`;
+
+    const labelName = document.createElement("span");
+    labelName.className = "label-name";
+    labelName.innerHTML = `
+      <i class="${switchConfig.icon || "bi bi-toggle-on"}" aria-hidden="true"></i>
+      <span>${switchConfig.label || ""}</span>
+    `;
+
     const switchWrap = document.createElement("div");
-    switchWrap.className = `form-check form-switch${index > 0 ? " mt-2" : ""}`;
+    switchWrap.className = "form-check form-switch m-0";
 
     const input = document.createElement("input");
     input.className = "form-check-input";
@@ -444,15 +454,14 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
     input.setAttribute("role", "switch");
     input.id = switchConfig.id;
     input.checked = Boolean(switchConfig.checked);
-
-    const label = document.createElement("label");
-    label.className = "form-check-label";
-    label.setAttribute("for", switchConfig.id);
-    label.textContent = switchConfig.label || "";
+    if (switchConfig.label) {
+      input.setAttribute("aria-label", switchConfig.label);
+    }
 
     switchWrap.appendChild(input);
-    switchWrap.appendChild(label);
-    body.appendChild(switchWrap);
+    row.appendChild(labelName);
+    row.appendChild(switchWrap);
+    body.appendChild(row);
   });
 
   (interactionConfig.sliders || []).forEach((slider) => {

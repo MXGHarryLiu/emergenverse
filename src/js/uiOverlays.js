@@ -440,18 +440,49 @@ function setupScreenshotPopup({
 
   let screenshotInProgress = false;
   let previewScale = 1;
+  let previewOffsetX = 0;
+  let previewOffsetY = 0;
+  let previewPanning = false;
+  let previewPanStartX = 0;
+  let previewPanStartY = 0;
+  let previewPanOriginX = 0;
+  let previewPanOriginY = 0;
   const previewMinScale = 1;
   const previewMaxScale = 6;
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const previewCard = dom.screenshotPreviewImage.closest(".screenshot-preview-card");
+
+  const getPreviewPanBounds = () => {
+    const width = dom.screenshotPreviewImage.clientWidth || previewCard?.clientWidth || 0;
+    const height = dom.screenshotPreviewImage.clientHeight || previewCard?.clientHeight || 0;
+    if (width <= 0 || height <= 0 || previewScale <= previewMinScale) {
+      return { maxX: 0, maxY: 0 };
+    }
+    return {
+      maxX: ((previewScale - 1) * width) / 2,
+      maxY: ((previewScale - 1) * height) / 2,
+    };
+  };
+
+  const clampPreviewPan = () => {
+    const { maxX, maxY } = getPreviewPanBounds();
+    previewOffsetX = clamp(previewOffsetX, -maxX, maxX);
+    previewOffsetY = clamp(previewOffsetY, -maxY, maxY);
+  };
 
   const applyPreviewTransform = () => {
-    dom.screenshotPreviewImage.style.transform = `scale(${previewScale})`;
-    dom.screenshotPreviewImage.style.cursor = previewScale > previewMinScale ? "zoom-out" : "zoom-in";
+    dom.screenshotPreviewImage.style.transform = `translate(${previewOffsetX}px, ${previewOffsetY}px) scale(${previewScale})`;
+    if (previewPanning) {
+      dom.screenshotPreviewImage.style.cursor = "grabbing";
+    } else {
+      dom.screenshotPreviewImage.style.cursor = previewScale > previewMinScale ? "grab" : "zoom-in";
+    }
   };
 
   const resetPreviewTransform = () => {
     previewScale = previewMinScale;
-    dom.screenshotPreviewImage.style.transformOrigin = "50% 50%";
+    previewOffsetX = 0;
+    previewOffsetY = 0;
     applyPreviewTransform();
   };
 
@@ -590,16 +621,55 @@ function setupScreenshotPopup({
         return;
       }
 
-      const originX = clamp(((event.clientX - imageRect.left) / imageRect.width) * 100, 0, 100);
-      const originY = clamp(((event.clientY - imageRect.top) / imageRect.height) * 100, 0, 100);
-      dom.screenshotPreviewImage.style.transformOrigin = `${originX}% ${originY}%`;
-
       const zoomStep = event.deltaY < 0 ? 1.12 : 1 / 1.12;
       previewScale = clamp(previewScale * zoomStep, previewMinScale, previewMaxScale);
+      clampPreviewPan();
       applyPreviewTransform();
     },
     { passive: false },
   );
+  dom.screenshotPreviewImage.addEventListener("pointerdown", (event) => {
+    if (!dom.screenshotPreviewImage.src || previewScale <= previewMinScale || event.button !== 0) {
+      return;
+    }
+    previewPanning = true;
+    previewPanStartX = event.clientX;
+    previewPanStartY = event.clientY;
+    previewPanOriginX = previewOffsetX;
+    previewPanOriginY = previewOffsetY;
+    dom.screenshotPreviewImage.setPointerCapture(event.pointerId);
+    applyPreviewTransform();
+  });
+  dom.screenshotPreviewImage.addEventListener("pointermove", (event) => {
+    if (!previewPanning) {
+      return;
+    }
+    previewOffsetX = previewPanOriginX + (event.clientX - previewPanStartX);
+    previewOffsetY = previewPanOriginY + (event.clientY - previewPanStartY);
+    clampPreviewPan();
+    applyPreviewTransform();
+  });
+  dom.screenshotPreviewImage.addEventListener("pointerup", (event) => {
+    if (previewPanning) {
+      dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
+      previewPanning = false;
+      applyPreviewTransform();
+    }
+  });
+  dom.screenshotPreviewImage.addEventListener("pointercancel", (event) => {
+    if (previewPanning) {
+      if (dom.screenshotPreviewImage.hasPointerCapture?.(event.pointerId)) {
+        dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
+      }
+      previewPanning = false;
+      applyPreviewTransform();
+    }
+  });
+  dom.screenshotPreviewImage.addEventListener("pointerleave", () => {
+    if (!previewPanning) {
+      applyPreviewTransform();
+    }
+  });
   dom.screenshotPreviewImage.addEventListener("dblclick", (event) => {
     event.preventDefault();
     resetPreviewTransform();

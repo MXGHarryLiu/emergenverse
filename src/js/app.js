@@ -70,32 +70,52 @@ function getAppletCameraDefaults(appletId = activeApplet) {
 }
 
 function renderAppletNavigationFromConfig() {
-  const navHost = document.getElementById("applet-nav");
-  if (!navHost) {
+  const desktopHost = document.getElementById("applet-nav");
+  const mobileHost = document.getElementById("mobile-applet-nav");
+  if (!desktopHost && !mobileHost) {
     return;
   }
 
-  navHost.replaceChildren();
+  desktopHost?.replaceChildren();
+  mobileHost?.replaceChildren();
   APPLET_ORDER.forEach((id, index) => {
     const meta = APPLET_META[id] || {};
     const tabLabel = String(meta.shortLabel ?? meta.label ?? id);
     const titleLabel = String(meta.label ?? tabLabel);
-    const button = document.createElement("button");
-    button.className = "applet-tab";
-    if (index === 0) {
-      button.classList.add("is-active");
+
+    if (desktopHost) {
+      const desktopButton = document.createElement("button");
+      desktopButton.className = "applet-tab";
+      if (index === 0) {
+        desktopButton.classList.add("is-active");
+      }
+      desktopButton.type = "button";
+      desktopButton.setAttribute("data-applet-item", id);
+      desktopButton.setAttribute("aria-selected", String(index === 0));
+      desktopButton.setAttribute("title", `${titleLabel} applet`);
+      desktopButton.textContent = tabLabel;
+      desktopHost.appendChild(desktopButton);
     }
-    button.type = "button";
-    button.setAttribute("data-applet-item", id);
-    button.setAttribute("aria-selected", String(index === 0));
-    button.setAttribute("title", `${titleLabel} applet`);
-    button.textContent = tabLabel;
-    navHost.appendChild(button);
+
+    if (mobileHost) {
+      const mobileButton = document.createElement("button");
+      mobileButton.className = "mobile-applet-tab";
+      if (index === 0) {
+        mobileButton.classList.add("is-active");
+      }
+      mobileButton.type = "button";
+      mobileButton.setAttribute("data-applet-item", id);
+      mobileButton.setAttribute("aria-selected", String(index === 0));
+      mobileButton.setAttribute("title", `${titleLabel} applet`);
+      mobileButton.textContent = tabLabel;
+      mobileHost.appendChild(mobileButton);
+    }
   });
 }
 
 // DOM References + Shared UI State
 const dom = {
+  topNav: document.querySelector(".top-nav"),
   appShell: document.querySelector(".app-shell"),
   leftPanel: document.getElementById("left-panel"),
   rightPanel: document.getElementById("right-panel"),
@@ -103,11 +123,22 @@ const dom = {
   hideRightPanel: document.getElementById("hide-right-panel"),
   showLeftPanel: document.getElementById("show-left-panel"),
   showRightPanel: document.getElementById("show-right-panel"),
+  middleResizer: document.getElementById("middle-resizer"),
+  mobilePanelBar: document.getElementById("mobile-panel-bar"),
+  mobileShowInfo: document.getElementById("mobile-show-info"),
+  mobileShowControls: document.getElementById("mobile-show-controls"),
+  mobileCurrentApplet: document.getElementById("mobile-current-applet"),
+  mobileNavOpen: document.getElementById("mobile-nav-open"),
+  mobileNavClose: document.getElementById("mobile-nav-close"),
+  mobileNavBackdrop: document.getElementById("mobile-nav-backdrop"),
+  topNavContainer: document.querySelector(".top-nav .container-fluid"),
+  navBrandGroup: document.querySelector(".nav-brand-group"),
+  navActions: document.querySelector(".nav-actions"),
   leftResizer: document.getElementById("left-resizer"),
   rightResizer: document.getElementById("right-resizer"),
   sceneHost: document.getElementById("scene-host"),
+  orientationIndicator: document.getElementById("orientation-indicator"),
   frameSize: document.getElementById("frame-size"),
-  narrowScreenBlocker: document.getElementById("narrow-screen-blocker"),
   chartToggles: document.querySelectorAll("[data-chart-toggle]"),
   appletTabs: document.querySelectorAll("[data-applet-item]"),
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
@@ -184,11 +215,21 @@ function setElementText(id, text) {
 const uiState = {
   leftPanelVisible: true,
   rightPanelVisible: true,
+  layoutMode: "desktop",
+  nonMobileVisibility: { left: true, right: true },
+  mobileForcedFromBoth: false,
+  layoutInitialized: false,
 };
 
 const panelWidthState = {
   left: 270,
   right: 320,
+};
+
+const middleLayoutState = {
+  splitRatio: 0.5,
+  minPanelPx: 140,
+  resizerPx: 10,
 };
 
 let visualControls = null;
@@ -391,7 +432,15 @@ const chartState = Object.fromEntries(
 );
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
-const narrowScreenThresholdPx = 980;
+const middleLayoutThresholdPx = 1180;
+const mobileLayoutThresholdPx = 760;
+const orientationIndicatorAxes = [
+  { label: "X", color: "#e55353", vector: new THREE.Vector3(1, 0, 0) },
+  { label: "Y", color: "#43b581", vector: new THREE.Vector3(0, 1, 0) },
+  { label: "Z", color: "#4d8dff", vector: new THREE.Vector3(0, 0, 1) },
+];
+const orientationIndicatorInvQuat = new THREE.Quaternion();
+const orientationIndicatorDir = new THREE.Vector3();
 
 // Startup Wiring + App Initialization Sequence
 cameraController.setPerspectiveCameraFromParams(false);
@@ -400,12 +449,15 @@ cameraController.applyCameraInteractivity();
 rebuildBoundsAndGrid();
 simulationManager.initAll();
 setupCompactSectionSliders();
+setupMobileNavigation();
 setupControls();
 setupRangeFocusEscape();
 setupPanelToggles();
 setupPanelResizers();
+setupMiddleResizer();
 setupControlSectionCollapses();
 setupThemeToggle();
+setupOrientationIndicatorInteractions();
 setupUiOverlays({
   dom,
   renderer,
@@ -439,6 +491,7 @@ handleViewportResize();
 const resizeObserver = new ResizeObserver(() => handleViewportResize());
 resizeObserver.observe(dom.sceneHost);
 window.addEventListener("resize", handleViewportResize);
+window.addEventListener("load", handleViewportResize, { once: true });
 window.addEventListener("keydown", onKeyDown);
 window.addEventListener("keyup", onKeyUp);
 
@@ -468,6 +521,7 @@ function animate() {
 
   controls.update();
   cameraController.updateTelemetry();
+  updateOrientationIndicator();
 
   renderer.render(scene, cameraController.getActiveCamera());
 }
@@ -555,6 +609,7 @@ function setupControls() {
         return;
       }
       applyAppletMode(mode, { updateUrl: true, replaceHistory: false });
+      closeMobileNavigation();
     });
   });
 
@@ -665,6 +720,7 @@ function setupControls() {
   updateProjectionToggleUI();
 
   cameraController.switchToPerspective();
+  setupCameraTelemetryEditors();
 }
 
 function bindAppletSimulationControls() {
@@ -683,6 +739,241 @@ function bindAppletSimulationControls() {
       });
     });
   });
+}
+
+function setupCameraTelemetryEditors() {
+  const fields = [
+    { key: "x", element: dom.cameraPosX, type: "length" },
+    { key: "y", element: dom.cameraPosY, type: "length" },
+    { key: "z", element: dom.cameraPosZ, type: "length" },
+    { key: "roll", element: dom.cameraRoll, type: "angle" },
+    { key: "pitch", element: dom.cameraPitch, type: "angle" },
+    { key: "yaw", element: dom.cameraYaw, type: "angle" },
+  ].filter((entry) => entry.element);
+
+  fields.forEach(({ key, element, type }) => {
+    element.classList.add("camera-dof-editable");
+    element.setAttribute("role", "button");
+    element.setAttribute("tabindex", "0");
+    element.setAttribute("aria-label", `Edit camera ${key}`);
+
+    const beginEdit = () => {
+      element.dataset.editing = "true";
+      element.setAttribute("contenteditable", "true");
+      element.setAttribute("role", "textbox");
+      element.setAttribute("inputmode", "decimal");
+      element.setAttribute("spellcheck", "false");
+      element.textContent = getCameraTelemetryNumericText(key, type);
+      focusEditableText(element);
+    };
+
+    const endEdit = () => {
+      element.dataset.editing = "false";
+      element.setAttribute("contenteditable", "false");
+      element.setAttribute("role", "button");
+      element.removeAttribute("inputmode");
+      element.removeAttribute("spellcheck");
+    };
+
+    const cancelEdit = () => {
+      endEdit();
+      cameraController.updateTelemetry();
+    };
+
+    const commitEdit = () => {
+      const parsed = parseCameraTelemetryInput(element.textContent, type);
+      if (!Number.isFinite(parsed)) {
+        cancelEdit();
+        return;
+      }
+      const committed = applyCameraTelemetryValue(key, type, parsed, {
+        rotationQuat: new THREE.Quaternion(),
+        lookOffset: new THREE.Vector3(),
+        axis: new THREE.Vector3(),
+        right: new THREE.Vector3(),
+        up: new THREE.Vector3(),
+      });
+      endEdit();
+      if (!committed) {
+        cameraController.updateTelemetry();
+        return;
+      }
+      controls.update();
+      cameraController.updateTelemetry();
+      updateViewportLabel();
+    };
+
+    element.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      if (element.dataset.editing === "true") {
+        focusEditableText(element);
+        return;
+      }
+      beginEdit();
+    });
+
+    element.addEventListener("keydown", (event) => {
+      const editing = element.dataset.editing === "true";
+      if (!editing) {
+        if (event.key === "Enter" || event.key === " " || event.key === "F2") {
+          event.preventDefault();
+          beginEdit();
+        }
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitEdit();
+        element.blur();
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelEdit();
+        element.blur();
+      }
+    });
+
+    element.addEventListener("blur", () => {
+      if (element.dataset.editing !== "true") {
+        return;
+      }
+      commitEdit();
+    });
+  });
+}
+
+function getCameraTelemetryNumericText(key, type) {
+  const activeCamera = cameraController.getActiveCamera();
+  if (!activeCamera) {
+    return "0";
+  }
+  if (type === "length") {
+    const rawValue = activeCamera.position[key] ?? 0;
+    const displayValue = convertLengthForDisplay(rawValue, activeApplet);
+    return formatEditableNumericValue(displayValue);
+  }
+
+  const euler = new THREE.Euler(0, 0, 0, "ZYX");
+  euler.setFromQuaternion(activeCamera.quaternion, "ZYX");
+  if (key === "roll") {
+    return formatEditableNumericValue(THREE.MathUtils.radToDeg(euler.x));
+  }
+  if (key === "pitch") {
+    return formatEditableNumericValue(THREE.MathUtils.radToDeg(euler.y));
+  }
+  return formatEditableNumericValue(THREE.MathUtils.radToDeg(euler.z));
+}
+
+function applyCameraTelemetryValue(key, type, displayValue, math) {
+  const snapshot = cameraController.getCameraSnapshot?.();
+  if (!snapshot || typeof snapshot !== "object") {
+    return false;
+  }
+
+  const projectionMode = snapshot.projectionMode === "orthographic" ? "orthographic" : "perspective";
+  const pose = projectionMode === "orthographic" ? snapshot.orthographic : snapshot.perspective;
+  if (!pose?.position || !Array.isArray(pose.position) || pose.position.length < 3) {
+    return false;
+  }
+
+  if (type === "length") {
+    const axisIndex = key === "x" ? 0 : key === "y" ? 1 : 2;
+    const worldValue = convertLengthFromDisplay(displayValue, activeApplet);
+    if (!Number.isFinite(worldValue)) {
+      return false;
+    }
+    const oldValue = Number(pose.position[axisIndex]) || 0;
+    const delta = worldValue - oldValue;
+    pose.position[axisIndex] = worldValue;
+    if (Array.isArray(snapshot.target) && snapshot.target.length >= 3) {
+      snapshot.target[axisIndex] = (Number(snapshot.target[axisIndex]) || 0) + delta;
+    }
+    return cameraController.restoreCameraSnapshot?.(snapshot) ?? false;
+  }
+
+  if (projectionMode !== "perspective") {
+    return false;
+  }
+  if (cameraController.getActiveCamera?.() !== perspectiveCamera) {
+    return false;
+  }
+
+  const currentDisplayDeg = parseStrictNumericText(getCameraTelemetryNumericText(key, "angle"));
+  if (!Number.isFinite(currentDisplayDeg)) {
+    return false;
+  }
+  const deltaRad = THREE.MathUtils.degToRad(displayValue - currentDisplayDeg);
+  if (!Number.isFinite(deltaRad)) {
+    return false;
+  }
+  if (Math.abs(deltaRad) < 1e-8) {
+    return true;
+  }
+
+  math.lookOffset.subVectors(controls.target, perspectiveCamera.position);
+  if (math.lookOffset.lengthSq() < 1e-10) {
+    math.lookOffset.set(0, 0, -1);
+  }
+
+  if (key === "roll") {
+    math.axis.copy(math.lookOffset).normalize();
+  } else if (key === "pitch") {
+    math.right.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    math.axis.copy(math.right);
+  } else {
+    math.up.copy(perspectiveCamera.up).normalize();
+    math.axis.copy(math.up);
+  }
+
+  math.rotationQuat.setFromAxisAngle(math.axis, deltaRad);
+  math.lookOffset.applyQuaternion(math.rotationQuat);
+  perspectiveCamera.up.applyQuaternion(math.rotationQuat).normalize();
+  controls.target.copy(perspectiveCamera.position).add(math.lookOffset);
+  controls.update();
+  return true;
+}
+
+function focusEditableText(element) {
+  if (!element) {
+    return;
+  }
+  element.focus();
+  const selection = window.getSelection?.();
+  if (!selection || typeof document.createRange !== "function") {
+    return;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function formatEditableNumericValue(value) {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  const rounded = Math.round(value * 1000) / 1000;
+  const abs = Math.abs(rounded);
+  const digits = abs >= 100 ? 1 : abs >= 10 ? 2 : 3;
+  return rounded.toFixed(digits).replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+}
+
+function parseCameraTelemetryInput(text, type) {
+  const raw = String(text ?? "").trim();
+  if (!raw) {
+    return Number.NaN;
+  }
+
+  if (type === "angle") {
+    // Camera angle editors accept plain numbers as degrees and optional trailing degree symbol.
+    const normalized = raw.replace(/\s*°\s*$/u, "");
+    return parseStrictNumericText(normalized);
+  }
+
+  return parseStrictNumericText(raw);
 }
 
 function getSimulationSliderInputId(appletId, slider) {
@@ -816,7 +1107,8 @@ function formatSliderDisplayValue(slider, value) {
   }
 
   const numericTemplate = numericMatch[0];
-  const suffix = trimmed.slice(numericTemplate.length);
+  const rawSuffix = trimmed.slice(numericTemplate.length);
+  const suffix = rawSuffix.trim().toLowerCase() === "x" ? "" : rawSuffix;
   const numeric = formatNumberLikeTemplate(value, numericTemplate, slider?.step);
   return `${numeric}${suffix}`;
 }
@@ -1014,6 +1306,14 @@ function applyAppletVisibility(appletId) {
   refreshVisibleSectionDividers();
 }
 
+function updateMobileCurrentAppletLabel(appletId) {
+  if (!dom.mobileCurrentApplet) {
+    return;
+  }
+  const label = APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? appletId;
+  dom.mobileCurrentApplet.textContent = label;
+}
+
 function refreshVisibleSectionDividers() {
   const panels = [dom.leftPanel, dom.rightPanel];
 
@@ -1062,6 +1362,7 @@ function applyAppletMode(appletId, options = {}) {
   });
 
   applyAppletVisibility(normalizedId);
+  updateMobileCurrentAppletLabel(normalizedId);
   visualControls?.syncFromParams?.();
   resetCompactSectionDefaults();
   const restoredCamera = cameraController.restoreCameraSnapshot(appletCameraState[normalizedId]);
@@ -1083,6 +1384,7 @@ function applyAppletMode(appletId, options = {}) {
 
   updateSimulationStateUI();
   updateViewportLabel();
+  updateNavActionPriorityVisibility();
   handleViewportResize();
 
   if (updateUrl) {
@@ -1178,7 +1480,67 @@ function setupPanelToggles() {
     applyPanelVisibility();
   });
 
+  dom.mobileShowInfo?.addEventListener("click", () => {
+    if (uiState.layoutMode !== "mobile") {
+      return;
+    }
+    uiState.mobileForcedFromBoth = false;
+    const nextVisible = !uiState.leftPanelVisible;
+    uiState.leftPanelVisible = nextVisible;
+    uiState.rightPanelVisible = false;
+    applyPanelVisibility();
+  });
+
+  dom.mobileShowControls?.addEventListener("click", () => {
+    if (uiState.layoutMode !== "mobile") {
+      return;
+    }
+    uiState.mobileForcedFromBoth = false;
+    const nextVisible = !uiState.rightPanelVisible;
+    uiState.rightPanelVisible = nextVisible;
+    uiState.leftPanelVisible = false;
+    applyPanelVisibility();
+  });
+
   applyPanelVisibility();
+}
+
+function setupMobileNavigation() {
+  if (!dom.mobileNavBackdrop || !dom.mobileNavOpen || !dom.mobileNavClose) {
+    return;
+  }
+
+  dom.mobileNavOpen.addEventListener("click", openMobileNavigation);
+  dom.mobileNavClose.addEventListener("click", closeMobileNavigation);
+  dom.mobileNavBackdrop.addEventListener("click", (event) => {
+    if (event.target === dom.mobileNavBackdrop) {
+      closeMobileNavigation();
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeMobileNavigation();
+    }
+  });
+}
+
+function openMobileNavigation() {
+  if (!dom.mobileNavBackdrop || !dom.mobileNavOpen) {
+    return;
+  }
+  dom.mobileNavBackdrop.classList.remove("is-hidden");
+  dom.mobileNavBackdrop.setAttribute("aria-hidden", "false");
+  dom.mobileNavOpen.setAttribute("aria-expanded", "true");
+}
+
+function closeMobileNavigation() {
+  if (!dom.mobileNavBackdrop || !dom.mobileNavOpen) {
+    return;
+  }
+  dom.mobileNavBackdrop.classList.add("is-hidden");
+  dom.mobileNavBackdrop.setAttribute("aria-hidden", "true");
+  dom.mobileNavOpen.setAttribute("aria-expanded", "false");
 }
 
 function setupPanelResizers() {
@@ -1224,11 +1586,19 @@ function setupPanelResizers() {
           limits.leftMin,
           Math.min(limits.leftMax, dynamicLeftMax),
         );
-      } else if (side === "right" && uiState.rightPanelVisible) {
-        const dynamicRightMax = Math.max(
-          limits.rightMin,
-          shellRect.width - panelWidthState.left - minViewportWidth - resizerWidth * 2,
-        );
+      } else if (
+        side === "right" &&
+        (uiState.rightPanelVisible || (uiState.layoutMode === "middle" && uiState.leftPanelVisible))
+      ) {
+        const dynamicRightMax = uiState.layoutMode === "middle"
+          ? Math.max(
+              limits.rightMin,
+              shellRect.width - minViewportWidth - resizerWidth,
+            )
+          : Math.max(
+              limits.rightMin,
+              shellRect.width - panelWidthState.left - minViewportWidth - resizerWidth * 2,
+            );
         panelWidthState.right = clamp(
           shellRect.right - moveEvent.clientX,
           limits.rightMin,
@@ -1237,7 +1607,6 @@ function setupPanelResizers() {
       }
 
       applyWidths();
-      handleViewportResize();
     };
 
     const onPointerEnd = () => {
@@ -1248,6 +1617,7 @@ function setupPanelResizers() {
         dom.leftResizer.releasePointerCapture?.(pointerId);
         dom.rightResizer.releasePointerCapture?.(pointerId);
       }
+      handleViewportResize();
     };
 
     window.addEventListener("pointermove", onPointerMove);
@@ -1266,6 +1636,60 @@ function setupPanelResizers() {
   dom.leftResizer.addEventListener("pointerdown", (event) => beginDrag("left", event));
   dom.rightResizer.addEventListener("pointerdown", (event) => beginDrag("right", event));
   applyWidths();
+}
+
+function setupMiddleResizer() {
+  if (!dom.middleResizer || !dom.appShell) {
+    return;
+  }
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+  const beginDrag = (pointerDownEvent) => {
+    if (pointerDownEvent.button !== 0) {
+      return;
+    }
+    if (uiState.layoutMode !== "middle" || !uiState.leftPanelVisible || !uiState.rightPanelVisible) {
+      return;
+    }
+
+    const pointerId = pointerDownEvent.pointerId;
+
+    const onPointerMove = (moveEvent) => {
+      if (uiState.layoutMode !== "middle") {
+        return;
+      }
+      const shellRect = dom.appShell.getBoundingClientRect();
+      const totalHeight = Math.max(1, shellRect.height - middleLayoutState.resizerPx);
+      const y = clamp(
+        moveEvent.clientY - shellRect.top,
+        middleLayoutState.minPanelPx,
+        totalHeight - middleLayoutState.minPanelPx,
+      );
+      middleLayoutState.splitRatio = y / totalHeight;
+      updateMiddleLayoutSizing();
+    };
+
+    const onPointerEnd = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerEnd);
+      window.removeEventListener("pointercancel", onPointerEnd);
+      if (pointerId !== undefined) {
+        dom.middleResizer.releasePointerCapture?.(pointerId);
+      }
+      handleViewportResize();
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerEnd);
+    window.addEventListener("pointercancel", onPointerEnd);
+
+    if (pointerId !== undefined) {
+      dom.middleResizer.setPointerCapture?.(pointerId);
+    }
+  };
+
+  dom.middleResizer.addEventListener("pointerdown", beginDrag);
 }
 
 function setupControlSectionCollapses() {
@@ -1290,17 +1714,45 @@ function setupControlSectionCollapses() {
 }
 
 function applyPanelVisibility() {
+  const inMiddle = uiState.layoutMode === "middle";
+  const rightStackVisible = uiState.leftPanelVisible || uiState.rightPanelVisible;
+  if (uiState.layoutMode !== "mobile") {
+    uiState.nonMobileVisibility = {
+      left: uiState.leftPanelVisible,
+      right: uiState.rightPanelVisible,
+    };
+  }
+
   dom.leftPanel.classList.toggle("is-hidden", !uiState.leftPanelVisible);
   dom.rightPanel.classList.toggle("is-hidden", !uiState.rightPanelVisible);
-  dom.appShell.classList.toggle("left-hidden", !uiState.leftPanelVisible);
-  dom.appShell.classList.toggle("right-hidden", !uiState.rightPanelVisible);
-  dom.leftResizer?.classList.toggle("is-hidden", !uiState.leftPanelVisible);
-  dom.rightResizer?.classList.toggle("is-hidden", !uiState.rightPanelVisible);
+  dom.appShell.classList.toggle("left-hidden", !inMiddle && !uiState.leftPanelVisible);
+  dom.appShell.classList.toggle("right-hidden", !inMiddle && !uiState.rightPanelVisible);
+  dom.leftResizer?.classList.toggle("is-hidden", inMiddle || !uiState.leftPanelVisible);
+  dom.rightResizer?.classList.toggle("is-hidden", inMiddle ? !rightStackVisible : !uiState.rightPanelVisible);
 
   dom.showLeftPanel.classList.toggle("is-hidden", uiState.leftPanelVisible);
   dom.showRightPanel.classList.toggle("is-hidden", uiState.rightPanelVisible);
   dom.hideLeftPanel.setAttribute("aria-pressed", String(!uiState.leftPanelVisible));
   dom.hideRightPanel.setAttribute("aria-pressed", String(!uiState.rightPanelVisible));
+
+  const middleBothVisible = inMiddle && uiState.leftPanelVisible && uiState.rightPanelVisible;
+  const middleNoneVisible = inMiddle && !uiState.leftPanelVisible && !uiState.rightPanelVisible;
+  dom.appShell.classList.toggle("middle-info-only", inMiddle && uiState.leftPanelVisible && !uiState.rightPanelVisible);
+  dom.appShell.classList.toggle("middle-controls-only", inMiddle && !uiState.leftPanelVisible && uiState.rightPanelVisible);
+  dom.appShell.classList.toggle("middle-both-visible", middleBothVisible);
+  dom.appShell.classList.toggle("middle-none-visible", middleNoneVisible);
+  dom.middleResizer?.classList.toggle("is-hidden", !middleBothVisible);
+
+  if (dom.mobileShowInfo) {
+    dom.mobileShowInfo.classList.toggle("is-active", uiState.leftPanelVisible);
+    dom.mobileShowInfo.setAttribute("aria-pressed", String(uiState.leftPanelVisible));
+  }
+  if (dom.mobileShowControls) {
+    dom.mobileShowControls.classList.toggle("is-active", uiState.rightPanelVisible);
+    dom.mobileShowControls.setAttribute("aria-pressed", String(uiState.rightPanelVisible));
+  }
+
+  updateMiddleLayoutSizing();
 
   requestAnimationFrame(() => {
     handleViewportResize();
@@ -1308,19 +1760,153 @@ function applyPanelVisibility() {
 }
 
 function handleViewportResize() {
-  updateNarrowScreenBlocker();
+  updateResponsiveLayoutMode();
+  updateViewportOffsetHeight();
+  updateMiddleLayoutSizing();
+  updateNavActionPriorityVisibility();
   resizeRenderer();
   resizeTrendCharts();
 }
 
-function updateNarrowScreenBlocker() {
-  if (!dom.narrowScreenBlocker) {
+function updateViewportOffsetHeight() {
+  const navHeight = dom.topNav?.offsetHeight ?? 0;
+  const mobileBarVisible =
+    uiState.layoutMode === "mobile" &&
+    Boolean(dom.mobilePanelBar) &&
+    !dom.mobilePanelBar.classList.contains("is-hidden");
+  const mobileBarHeight = mobileBarVisible ? dom.mobilePanelBar.offsetHeight : 0;
+  const offsetHeight = Math.max(0, Math.round(navHeight + mobileBarHeight));
+  document.documentElement.style.setProperty("--top-offset-h", `${offsetHeight}px`);
+}
+
+function updateResponsiveLayoutMode() {
+  const viewportWidth = window.innerWidth;
+  const nextLayoutMode = viewportWidth < mobileLayoutThresholdPx
+    ? "mobile"
+    : viewportWidth < middleLayoutThresholdPx
+    ? "middle"
+    : "desktop";
+
+  document.body.classList.toggle("layout-mobile", nextLayoutMode === "mobile");
+  document.body.classList.toggle("layout-middle", nextLayoutMode === "middle");
+  document.body.classList.toggle("layout-desktop", nextLayoutMode === "desktop");
+
+  if (!uiState.layoutInitialized) {
+    uiState.layoutInitialized = true;
+    uiState.layoutMode = nextLayoutMode;
+
+    dom.appShell?.classList.toggle("is-mobile-layout", nextLayoutMode === "mobile");
+    dom.appShell?.classList.toggle("is-middle-layout", nextLayoutMode === "middle");
+    dom.mobilePanelBar?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+    dom.mobileNavOpen?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+    dom.mobileCurrentApplet?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+
+    if (nextLayoutMode === "mobile") {
+      uiState.mobileForcedFromBoth = false;
+      uiState.leftPanelVisible = false;
+      uiState.rightPanelVisible = false;
+    } else {
+      uiState.leftPanelVisible = uiState.nonMobileVisibility.left;
+      uiState.rightPanelVisible = uiState.nonMobileVisibility.right;
+    }
+
+    closeMobileNavigation();
+    applyPanelVisibility();
     return;
   }
 
-  const tooNarrow = window.innerWidth < narrowScreenThresholdPx;
-  dom.narrowScreenBlocker.classList.toggle("is-hidden", !tooNarrow);
-  dom.narrowScreenBlocker.setAttribute("aria-hidden", String(!tooNarrow));
+  if (nextLayoutMode !== uiState.layoutMode) {
+    const previousLayoutMode = uiState.layoutMode;
+    const previousLeftVisible = uiState.leftPanelVisible;
+    const previousRightVisible = uiState.rightPanelVisible;
+    if (previousLayoutMode !== "mobile") {
+      uiState.nonMobileVisibility = {
+        left: previousLeftVisible,
+        right: previousRightVisible,
+      };
+    }
+    uiState.layoutMode = nextLayoutMode;
+
+    dom.appShell?.classList.toggle("is-mobile-layout", nextLayoutMode === "mobile");
+    dom.appShell?.classList.toggle("is-middle-layout", nextLayoutMode === "middle");
+    dom.mobilePanelBar?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+    dom.mobileNavOpen?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+    dom.mobileCurrentApplet?.classList.toggle("is-hidden", nextLayoutMode !== "mobile");
+
+    if (nextLayoutMode === "mobile") {
+      if (previousLeftVisible && previousRightVisible) {
+        uiState.mobileForcedFromBoth = true;
+        uiState.leftPanelVisible = false;
+        uiState.rightPanelVisible = true;
+      } else {
+        uiState.mobileForcedFromBoth = false;
+        uiState.leftPanelVisible = previousLeftVisible;
+        uiState.rightPanelVisible = previousRightVisible;
+      }
+    } else if (previousLayoutMode === "mobile") {
+      if (!uiState.mobileForcedFromBoth) {
+        uiState.nonMobileVisibility = {
+          left: previousLeftVisible,
+          right: previousRightVisible,
+        };
+      }
+      uiState.leftPanelVisible = uiState.nonMobileVisibility.left;
+      uiState.rightPanelVisible = uiState.nonMobileVisibility.right;
+      uiState.mobileForcedFromBoth = false;
+    } else {
+      uiState.leftPanelVisible = previousLeftVisible;
+      uiState.rightPanelVisible = previousRightVisible;
+    }
+
+    closeMobileNavigation();
+    applyPanelVisibility();
+  }
+
+}
+
+function updateMiddleLayoutSizing() {
+  if (uiState.layoutMode !== "middle" || !dom.appShell) {
+    return;
+  }
+
+  const shellRect = dom.appShell.getBoundingClientRect();
+  const totalHeight = Math.max(1, shellRect.height - middleLayoutState.resizerPx);
+  const topHeight = Math.round(totalHeight * middleLayoutState.splitRatio);
+  const clampedTop = Math.min(
+    Math.max(topHeight, middleLayoutState.minPanelPx),
+    Math.max(middleLayoutState.minPanelPx, totalHeight - middleLayoutState.minPanelPx),
+  );
+  const bottomHeight = Math.max(middleLayoutState.minPanelPx, totalHeight - clampedTop);
+
+  dom.appShell.style.setProperty("--middle-resizer-h", `${middleLayoutState.resizerPx}px`);
+  dom.appShell.style.setProperty("--middle-top-h", `${clampedTop}px`);
+  dom.appShell.style.setProperty("--middle-bottom-h", `${bottomHeight}px`);
+}
+
+function updateNavActionPriorityVisibility() {
+  if (!dom.topNavContainer || !dom.navBrandGroup || !dom.navActions) {
+    return;
+  }
+
+  const priorityButtons = [dom.supportInfoOpen, dom.themeToggle, dom.aboutInfoOpen].filter(Boolean);
+  priorityButtons.forEach((button) => button.classList.remove("nav-priority-hidden"));
+  const minGapPx = 8;
+  const hasCollision = () => {
+    const brandRect = dom.navBrandGroup.getBoundingClientRect();
+    const actionsRect = dom.navActions.getBoundingClientRect();
+    return brandRect.right + minGapPx > actionsRect.left;
+  };
+
+  if (!hasCollision()) {
+    return;
+  }
+
+  for (const button of priorityButtons) {
+    if (!hasCollision()) {
+      break;
+    }
+    button.classList.add("nav-priority-hidden");
+  }
 }
 
 // Trend Charts + Runtime Metrics
@@ -1379,11 +1965,13 @@ function drawTrendCharts() {
 }
 
 function createChartMetricsEntry(canvasId, liveId, initialText, options) {
+  const sanitizedOptions = { ...(options || {}) };
+  delete sanitizedOptions.axisLabel;
   return {
     canvasId,
     liveId,
     initialText,
-    options,
+    options: sanitizedOptions,
     history: [],
   };
 }
@@ -1423,6 +2011,7 @@ function bindRange(inputId, valueId, applyValue) {
     const value = Number(input.value);
     const display = applyValue(value);
     output.textContent = display;
+    output.dataset.formattedValue = display;
     syncCompactSectionSlider(inputId);
     visualControls?.refreshLegend?.(activeApplet);
   };
@@ -1438,7 +2027,9 @@ function setControlValue(inputId, value, valueId, formatter) {
     return;
   }
   input.value = String(value);
-  output.textContent = formatter(value);
+  const display = formatter(value);
+  output.textContent = display;
+  output.dataset.formattedValue = display;
   syncCompactSectionSlider(inputId);
 }
 
@@ -1561,7 +2152,30 @@ function registerCompactRangeControl(inputRef, outputRef) {
   sectionState.firstInputId = getFirstCompactRangeInputId(sectionKey) || sectionState.firstInputId || input.id;
 
   const activate = (event) => {
-    if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") {
+    const binding = compactRangeRegistry.get(input.id);
+    const isEditable = Boolean(binding && isCompactValueEditable(binding));
+    if (isEditable) {
+      if (event.type === "click") {
+        event.preventDefault();
+        focusEditableText(output);
+        return;
+      }
+
+      if (event.type === "keydown") {
+        if (event.key === "F2") {
+          event.preventDefault();
+          focusEditableText(output);
+        }
+        return;
+      }
+    }
+
+    if (
+      event.type === "keydown" &&
+      event.key !== "Enter" &&
+      event.key !== " " &&
+      event.key !== "F2"
+    ) {
       return;
     }
 
@@ -1572,8 +2186,47 @@ function registerCompactRangeControl(inputRef, outputRef) {
     activateCompactRangeControl(input.id);
   };
 
+  output.addEventListener("pointerdown", (event) => {
+    const binding = compactRangeRegistry.get(input.id);
+    if (!binding || !isCompactValueEditable(binding)) {
+      return;
+    }
+    // Prevent label default behavior from stealing focus to the hidden range input.
+    event.preventDefault();
+    focusEditableText(output);
+  });
   output.addEventListener("click", activate);
   output.addEventListener("keydown", activate);
+  output.addEventListener("blur", () => {
+    const binding = compactRangeRegistry.get(input.id);
+    if (!binding) {
+      return;
+    }
+    if (!isCompactValueEditable(binding)) {
+      return;
+    }
+    commitCompactValueEdit(binding);
+  });
+  output.addEventListener("keydown", (event) => {
+    const binding = compactRangeRegistry.get(input.id);
+    if (!binding) {
+      return;
+    }
+    if (!isCompactValueEditable(binding)) {
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitCompactValueEdit(binding);
+      output.blur();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      restoreCompactValueDisplay(binding);
+      output.blur();
+    }
+  });
 
   if (!sectionState.activeInputId) {
     activateCompactRangeControl(input.id);
@@ -1603,16 +2256,23 @@ function activateCompactRangeControl(inputId) {
   sectionState.slider.max = binding.input.max;
   sectionState.slider.step = binding.input.step || "1";
   sectionState.slider.value = binding.input.value;
-  sectionState.value.textContent = binding.output.textContent;
+  sectionState.value.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
   if (sectionState.hub && binding.labelEl && binding.labelEl.parentElement) {
     binding.labelEl.insertAdjacentElement("afterend", sectionState.hub);
   }
 
   for (const item of compactRangeRegistry.values()) {
     if (item.sectionKey === binding.sectionKey) {
-      item.output.classList.toggle("is-active-control", item.input.id === inputId);
+      const isActive = item.input.id === inputId;
+      item.output.classList.toggle("is-active-control", isActive);
+      setCompactValueEditable(item, isActive);
+      if (!isActive) {
+        restoreCompactValueDisplay(item);
+      }
     }
   }
+
+  restoreCompactValueDisplay(binding);
 }
 
 function resetCompactSectionDefaults() {
@@ -1641,7 +2301,122 @@ function syncCompactSectionSlider(inputId) {
   sectionState.slider.max = binding.input.max;
   sectionState.slider.step = binding.input.step || "1";
   sectionState.slider.value = binding.input.value;
-  sectionState.value.textContent = binding.output.textContent;
+  sectionState.value.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
+  restoreCompactValueDisplay(binding);
+}
+
+function isCompactValueEditable(binding) {
+  return binding?.output?.getAttribute("contenteditable") === "true";
+}
+
+function setCompactValueEditable(binding, editable) {
+  const output = binding?.output;
+  if (!output) {
+    return;
+  }
+  const sectionKey = String(binding.sectionKey || "").toLowerCase();
+  const supportsInlineNumericEdit =
+    sectionKey === "world" ||
+    sectionKey === "camera" ||
+    sectionKey.includes("simulation") ||
+    sectionKey.includes("interaction");
+  const canEdit = editable && supportsInlineNumericEdit;
+  output.setAttribute("contenteditable", canEdit ? "true" : "false");
+  output.setAttribute("role", canEdit ? "textbox" : "button");
+  output.setAttribute("aria-label", canEdit ? `Edit ${binding.labelText} value` : `Edit ${binding.labelText}`);
+  if (canEdit) {
+    output.setAttribute("inputmode", "decimal");
+    output.setAttribute("spellcheck", "false");
+  } else {
+    output.removeAttribute("inputmode");
+    output.removeAttribute("spellcheck");
+  }
+}
+
+function restoreCompactValueDisplay(binding) {
+  if (!binding?.input || !binding?.output) {
+    return;
+  }
+
+  if (isCompactValueEditable(binding)) {
+    binding.output.textContent = formatCompactEditableNumber(binding.input.value, binding.input.step);
+    return;
+  }
+
+  binding.output.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
+}
+
+function commitCompactValueEdit(binding) {
+  if (!binding?.input || !binding?.output) {
+    return;
+  }
+
+  const parsed = parseStrictNumericText(binding.output.textContent);
+  if (!Number.isFinite(parsed)) {
+    restoreCompactValueDisplay(binding);
+    return;
+  }
+
+  const nextValue = clampAndSnapRangeValue(binding.input, parsed);
+  binding.input.value = String(nextValue);
+  binding.input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function clampAndSnapRangeValue(input, value) {
+  const min = Number.parseFloat(input?.min ?? "");
+  const max = Number.parseFloat(input?.max ?? "");
+  const step = Number.parseFloat(input?.step ?? "");
+  const hasStep = Number.isFinite(step) && step > 0;
+  const base = Number.isFinite(min) ? min : 0;
+
+  let next = value;
+  if (Number.isFinite(min)) {
+    next = Math.max(min, next);
+  }
+  if (Number.isFinite(max)) {
+    next = Math.min(max, next);
+  }
+  if (hasStep) {
+    next = base + Math.round((next - base) / step) * step;
+  }
+  if (Number.isFinite(min)) {
+    next = Math.max(min, next);
+  }
+  if (Number.isFinite(max)) {
+    next = Math.min(max, next);
+  }
+  return Number.parseFloat(formatCompactEditableNumber(next, input?.step));
+}
+
+function formatCompactEditableNumber(value, stepText) {
+  const numeric = Number.parseFloat(String(value));
+  if (!Number.isFinite(numeric)) {
+    return "";
+  }
+
+  const step = Number.parseFloat(stepText ?? "");
+  const decimals = Number.isFinite(step) && step > 0
+    ? Math.min(6, Math.max(0, (String(stepText).split(".")[1] || "").length))
+    : 3;
+  const rendered = numeric.toFixed(decimals);
+  if (!rendered.includes(".")) {
+    return rendered;
+  }
+  return rendered
+    .replace(/(\.\d*?[1-9])0+$/, "$1")
+    .replace(/\.0+$/, "");
+}
+
+function parseStrictNumericText(text) {
+  const raw = String(text ?? "").trim();
+  if (!raw) {
+    return Number.NaN;
+  }
+  if (!/^[-+]?(?:\d+\.?\d*|\.\d+)$/.test(raw)) {
+    return Number.NaN;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
 function resizeRenderer() {
@@ -1655,6 +2430,143 @@ function resizeRenderer() {
 
   cameraController.updateOrthographicCamera(false);
   updateViewportLabel();
+  updateOrientationIndicator();
+}
+
+function updateOrientationIndicator() {
+  const canvas = dom.orientationIndicator;
+  if (!canvas) {
+    return;
+  }
+  const ctx = canvas.getContext("2d");
+  const activeCamera = cameraController.getActiveCamera();
+  if (!ctx || !activeCamera) {
+    return;
+  }
+
+  const cssWidth = Math.max(1, Math.floor(canvas.clientWidth || 84));
+  const cssHeight = Math.max(1, Math.floor(canvas.clientHeight || 84));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const pixelWidth = Math.max(1, Math.floor(cssWidth * dpr));
+  const pixelHeight = Math.max(1, Math.floor(cssHeight * dpr));
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+  const radius = Math.min(width, height) * 0.32;
+  const fontPx = Math.max(10, Math.round(11 * dpr));
+  const theme = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const ringStroke = theme === "light" ? "rgba(69, 100, 150, 0.45)" : "rgba(150, 184, 245, 0.35)";
+  const centerFill = theme === "light" ? "rgba(63, 97, 150, 0.95)" : "rgba(182, 214, 255, 0.95)";
+  const labelColorRaw = getComputedStyle(document.body).getPropertyValue("--text-soft");
+  const axisLabelColor = labelColorRaw?.trim() || (theme === "light" ? "#5a6b8b" : "#a7b6d8");
+
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.strokeStyle = ringStroke;
+  ctx.lineWidth = Math.max(1, dpr);
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, radius + 2 * dpr, 0, Math.PI * 2);
+  ctx.stroke();
+
+  orientationIndicatorInvQuat.copy(activeCamera.quaternion).invert();
+  const projected = orientationIndicatorAxes.map((axis) => {
+    orientationIndicatorDir.copy(axis.vector).applyQuaternion(orientationIndicatorInvQuat).normalize();
+    return {
+      ...axis,
+      x: orientationIndicatorDir.x,
+      y: orientationIndicatorDir.y,
+      z: orientationIndicatorDir.z,
+    };
+  });
+
+  projected.sort((a, b) => a.z - b.z);
+
+  ctx.font = `${fontPx}px "Space Grotesk", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  projected.forEach((axis) => {
+    const tipX = centerX + axis.x * radius;
+    const tipY = centerY - axis.y * radius;
+    const depth = THREE.MathUtils.clamp((1 - axis.z) * 0.5, 0, 1);
+    const alpha = 0.42 + depth * 0.55;
+    const lineWidth = (1.2 + depth * 1.6) * dpr;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = axis.color;
+    ctx.fillStyle = axis.color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    ctx.moveTo(centerX, centerY);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+
+    const angle = Math.atan2(tipY - centerY, tipX - centerX);
+    const headLength = Math.max(5, 7 * dpr);
+    const spread = Math.PI / 7;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(
+      tipX - headLength * Math.cos(angle - spread),
+      tipY - headLength * Math.sin(angle - spread),
+    );
+    ctx.lineTo(
+      tipX - headLength * Math.cos(angle + spread),
+      tipY - headLength * Math.sin(angle + spread),
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    const labelDistance = Math.max(10, 11 * dpr);
+    ctx.fillStyle = axisLabelColor;
+    ctx.fillText(
+      axis.label,
+      tipX + Math.cos(angle) * labelDistance,
+      tipY + Math.sin(angle) * labelDistance,
+    );
+    ctx.restore();
+  });
+
+  ctx.fillStyle = centerFill;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, Math.max(2.2, 2.8 * dpr), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function setupOrientationIndicatorInteractions() {
+  if (!dom.orientationIndicator) {
+    return;
+  }
+
+  dom.orientationIndicator.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    snapCameraToPerspectiveInitialOrientation();
+  });
+}
+
+function snapCameraToPerspectiveInitialOrientation() {
+  const appletCameraDefaults = getAppletCameraDefaults(activeApplet);
+  params.cameraDistance = appletCameraDefaults.cameraDistance;
+  params.cameraHeight = appletCameraDefaults.cameraHeight;
+
+  if (params.projectionMode !== "perspective") {
+    params.projectionMode = "perspective";
+    updateProjectionToggleUI();
+  }
+
+  perspectiveCamera.up.set(0, 0, 1);
+  controls.target.set(0, 0, 0);
+  cameraController.switchToPerspective();
+  cameraController.updateTelemetry();
+  updateOrientationIndicator();
 }
 
 function updateViewportLabel() {

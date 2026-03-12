@@ -122,6 +122,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         {
           id: "ant-food-placement-enabled",
           label: "Double Click To Add Food",
+          icon: "bi bi-mouse2-fill",
           checked: false,
         },
       ],
