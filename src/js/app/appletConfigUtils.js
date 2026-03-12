@@ -39,7 +39,7 @@ export function defineAppletConfig(config) {
     label,
     shortLabel,
     defaultProjection: config.defaultProjection ?? "perspective",
-    defaultBoundaryMode: config.defaultBoundaryMode ?? "cyclic",
+    defaultBoundaryMode: config.defaultBoundaryMode ?? "cyclic-xyz",
     camera: {
       distance: config.camera?.distance ?? 185,
       height: config.camera?.height ?? 80,

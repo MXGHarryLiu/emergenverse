@@ -330,7 +330,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
     const width = Math.max(1, sceneHost.clientWidth);
     const height = Math.max(1, sceneHost.clientHeight);
-    const screenScale = Math.max(getWorldSpan() * touchTranslateSensitivity, params.keyboardMoveSpeed);
+    const screenScale = Math.max(getWorldSpan() * touchTranslateSensitivity, 0.01);
     const horizontalAmount = -(dx / width) * screenScale;
     const verticalAmount = (dy / height) * screenScale;
 
@@ -532,7 +532,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     }
 
     const rotationSpeed = 1.45;
-    const yawInput = (keyState.ArrowRight ? 1 : 0) - (keyState.ArrowLeft ? 1 : 0);
+    const yawInput = (keyState.ArrowLeft ? 1 : 0) - (keyState.ArrowRight ? 1 : 0);
     const pitchInput = (keyState.ArrowUp ? 1 : 0) - (keyState.ArrowDown ? 1 : 0);
     const rollInput = (keyState.BracketRight ? 1 : 0) - (keyState.BracketLeft ? 1 : 0);
     if (yawInput === 0 && pitchInput === 0 && rollInput === 0) {
@@ -790,7 +790,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     }
 
     const height = Math.max(1, sceneHost.clientHeight);
-    const screenScale = Math.max(getWorldSpan() * 0.8, params.keyboardMoveSpeed);
+    const screenScale = Math.max(getWorldSpan() * 0.8, 0.1);
     const forwardAmount = (-dy / height) * screenScale;
 
     forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();

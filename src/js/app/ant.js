@@ -34,6 +34,7 @@ export const ANT_DEFAULT_PARAMS = {
 export const ANT_APPLET_CONFIG = defineAppletConfig({
   label: "Ant Trails",
   defaultProjection: "orthographic",
+  defaultBoundaryMode: "cyclic-xy",
   world: {
     defaults: { x: 2000, y: 2000, z: 2000 },
     range: { minX: 500, maxX: 10000, minY: 500, maxY: 10000, minZ: 500, maxZ: 8000, step: 50 },
@@ -155,19 +156,19 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         valueNum: "120",
       },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
-        slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120", { resetTrendCharts: true }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
-        slider("speed", "Speed", "bi-speedometer2", "speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
-        slider("sensor-distance", "Sensor Distance", "bi-broadcast", "sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
-        slider("food-sense-distance", "Food Sensing Distance", "bi-bullseye", "food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
-        slider("sensor-angle", "Sensor Angle", "bi-compass", "sensor-angle-value", "35°", "5", "90", "1", "35"),
-        slider("turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
-        slider("goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
-        slider("departure-rate", "Departure Rate", "bi-box-arrow-up-right", "departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
-        slider("deposit-rate", "Deposit Rate (\\(Q_j\\))", "bi-droplet-fill", "deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
-        slider("diffusion-rate", "Diffusion Rate (\\(D\\))", "bi-water", "diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
-        slider("evap-rate", "Evaporation Rate (\\(\\lambda\\))", "bi-wind", "evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0", { group: "dynamic" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120", { group: "initial", resetTrendCharts: true }),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030", { group: "dynamic" }),
+        slider("speed", "Speed", "bi-speedometer2", "speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012", { group: "dynamic" }),
+        slider("sensor-distance", "Sensor Distance", "bi-broadcast", "sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08", { group: "dynamic" }),
+        slider("food-sense-distance", "Food Sensing Distance", "bi-bullseye", "food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18", { group: "dynamic" }),
+        slider("sensor-angle", "Sensor Angle", "bi-compass", "sensor-angle-value", "35°", "5", "90", "1", "35", { group: "dynamic" }),
+        slider("turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0", { group: "dynamic" }),
+        slider("goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0", { group: "dynamic" }),
+        slider("departure-rate", "Departure Rate", "bi-box-arrow-up-right", "departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6", { group: "dynamic" }),
+        slider("deposit-rate", "Deposit Rate (\\(Q_j\\))", "bi-droplet-fill", "deposit-rate-value", "5.0", "0", "20", "0.25", "5.0", { group: "dynamic" }),
+        slider("diffusion-rate", "Diffusion Rate (\\(D\\))", "bi-water", "diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0", { group: "dynamic" }),
+        slider("evap-rate", "Evaporation Rate (\\(\\lambda\\))", "bi-wind", "evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8", { group: "dynamic" }),
       ],
       pauseButtonId: "toggle-ant-pause",
       defaultButtonId: "default-ant-sim",
@@ -935,14 +936,15 @@ export class AntSimulation extends BaseSimulation {
     const size = this.fieldSize;
     const diffusion = THREE.MathUtils.clamp(this.params.diffusionRate * dt, 0, 0.45);
     const decay = THREE.MathUtils.clamp(this.params.evapRate * dt, 0, 0.95);
+    const periodicXY = isPeriodicXYBoundary(this.params.boundaryMode);
 
     for (let y = 0; y < size; y += 1) {
-      const yUp = y === 0 ? (this.params.boundaryMode === "cyclic" ? size - 1 : 0) : y - 1;
-      const yDown = y === size - 1 ? (this.params.boundaryMode === "cyclic" ? 0 : size - 1) : y + 1;
+      const yUp = y === 0 ? (periodicXY ? size - 1 : 0) : y - 1;
+      const yDown = y === size - 1 ? (periodicXY ? 0 : size - 1) : y + 1;
 
       for (let x = 0; x < size; x += 1) {
-        const xLeft = x === 0 ? (this.params.boundaryMode === "cyclic" ? size - 1 : 0) : x - 1;
-        const xRight = x === size - 1 ? (this.params.boundaryMode === "cyclic" ? 0 : size - 1) : x + 1;
+        const xLeft = x === 0 ? (periodicXY ? size - 1 : 0) : x - 1;
+        const xRight = x === size - 1 ? (periodicXY ? 0 : size - 1) : x + 1;
 
         const idx = y * size + x;
         const idxL = y * size + xLeft;
@@ -1075,8 +1077,9 @@ export class AntSimulation extends BaseSimulation {
   applyBoundaryConditions(ant) {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
+    const mode = normalizeBoundaryMode(this.params.boundaryMode);
 
-    if (this.params.boundaryMode === "cyclic") {
+    if (mode === "cyclic-xyz" || mode === "cyclic-xy") {
       ant.position.x = wrapAxisLocal(ant.position.x, halfX);
       ant.position.y = wrapAxisLocal(ant.position.y, halfY);
       ant.lost = false;
@@ -1120,6 +1123,21 @@ function wrapAxisLocal(value, halfExtent) {
     return ((((value + halfExtent) % span) + span) % span) - halfExtent;
   }
   return value;
+}
+
+function normalizeBoundaryMode(mode) {
+  if (mode === "cyclic") {
+    return "cyclic-xyz";
+  }
+  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
+    return mode;
+  }
+  return "cyclic-xyz";
+}
+
+function isPeriodicXYBoundary(mode) {
+  const normalized = normalizeBoundaryMode(mode);
+  return normalized === "cyclic-xyz" || normalized === "cyclic-xy";
 }
 
 function shortestAngleDelta(value) {

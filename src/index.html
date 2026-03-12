@@ -130,6 +130,38 @@
           </button>
         </header>
         <div class="mobile-applet-nav" id="mobile-applet-nav" role="tablist" aria-label="Mobile applet mode"></div>
+        <div class="mobile-nav-actions is-hidden" id="mobile-nav-actions" aria-label="Additional actions">
+          <button
+            class="mobile-nav-action-btn is-hidden"
+            id="mobile-nav-support"
+            type="button"
+            aria-label="Support this project"
+            title="Support this project"
+          >
+            <i class="bi bi-heart-fill" aria-hidden="true"></i>
+            <span>Support</span>
+          </button>
+          <button
+            class="mobile-nav-action-btn is-hidden"
+            id="mobile-nav-theme"
+            type="button"
+            aria-label="Theme settings"
+            title="Theme settings"
+          >
+            <i class="bi bi-circle-half" id="mobile-nav-theme-icon" aria-hidden="true"></i>
+            <span>Theme</span>
+          </button>
+          <button
+            class="mobile-nav-action-btn is-hidden"
+            id="mobile-nav-about"
+            type="button"
+            aria-label="About this project"
+            title="About this project"
+          >
+            <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
+            <span>About</span>
+          </button>
+        </div>
       </aside>
     </div>
     <div class="mobile-panel-bar is-hidden" id="mobile-panel-bar" aria-label="Mobile panel toggles">
@@ -361,7 +393,8 @@
             <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
           </label>
           <select class="form-select form-select-sm theme-select" id="boundary-mode">
-            <option value="cyclic" selected>Cyclic (default)</option>
+            <option value="cyclic-xyz" selected>Cyclic (3-axis)</option>
+            <option value="cyclic-xy">Cyclic (X/Y only)</option>
             <option value="lost">Lost (remove out-of-bounds)</option>
           </select>
 
@@ -737,6 +770,12 @@
           </label>
           <input class="form-range" type="range" id="camera-fov" min="20" max="90" step="1" value="50" />
 
+          <label class="form-label mt-1" for="camera-move-speed">
+            <span class="label-name"><i class="bi bi-speedometer2" aria-hidden="true"></i>Keyboard Move Speed</span>
+            <span class="label-value" id="camera-move-speed-value">42 m/s</span>
+          </label>
+          <input class="form-range" type="range" id="camera-move-speed" min="1" max="100000" step="1" value="42" />
+
           <div class="d-flex align-items-center justify-content-between mt-2">
             <label class="form-label mb-0" for="camera-locked">
               <span class="label-name"><i class="bi bi-lock-fill" aria-hidden="true"></i>Camera Lock</span>
@@ -751,14 +790,10 @@
             <span>Top Orthographic (Z+)</span>
           </button>
 
-          <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-sm btn-outline-theme flex-fill" id="reset-camera">
+          <div class="mt-2">
+            <button class="btn btn-sm btn-outline-theme w-100" id="reset-camera">
               <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>
               <span>Reset</span>
-            </button>
-            <button class="btn btn-sm btn-outline-theme flex-fill" id="home-camera">
-              <i class="bi bi-house-door me-1" aria-hidden="true"></i>
-              <span>Home</span>
             </button>
           </div>
         </div>

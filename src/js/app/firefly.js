@@ -88,15 +88,15 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       className: "mt-2",
       sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180", { resetTrendCharts: true }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { paramKey: "size" }),
-        slider("speed", "Speed", "bi-arrow-repeat", "speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
-        slider("coupling", "Coupling (\\(K\\))", "bi-diagram-2", "coupling-value", "2.20", "0", "8", "0.05", "2.2"),
-        slider("radius", "Interaction Radius", "bi-broadcast", "radius-value", "18.0 m", "1", "60", "0.5", "18.0"),
-        slider("frequency", "Base Frequency", "bi-speedometer2", "frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { paramKey: "frequencyHz" }),
-        slider("jitter", "Frequency Jitter", "bi-slash-circle", "jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { paramKey: "freqJitterHz" }),
-        slider("noise", "Phase Noise", "bi-shuffle", "noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4", { paramKey: "phaseNoise" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180", { group: "initial", resetTrendCharts: true }),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { group: "dynamic", paramKey: "size" }),
+        slider("speed", "Speed", "bi-arrow-repeat", "speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2", { group: "dynamic" }),
+        slider("coupling", "Coupling (\\(K\\))", "bi-diagram-2", "coupling-value", "2.20", "0", "8", "0.05", "2.2", { group: "dynamic" }),
+        slider("radius", "Interaction Radius", "bi-broadcast", "radius-value", "18.0 m", "1", "60", "0.5", "18.0", { group: "dynamic" }),
+        slider("frequency", "Base Frequency", "bi-speedometer2", "frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { group: "dynamic", paramKey: "frequencyHz" }),
+        slider("jitter", "Frequency Jitter", "bi-slash-circle", "jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { group: "dynamic", paramKey: "freqJitterHz" }),
+        slider("noise", "Phase Noise", "bi-shuffle", "noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4", { group: "dynamic", paramKey: "phaseNoise" }),
       ],
       pauseButtonId: "toggle-firefly-pause",
       defaultButtonId: "default-firefly-sim",
@@ -567,13 +567,22 @@ export class FireflySimulation extends BaseSimulation {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
     const halfZ = this.params.worldSizeZ * 0.5;
+    const mode = normalizeBoundaryMode(this.params.boundaryMode);
 
-    if (this.params.boundaryMode === "cyclic") {
+    if (mode === "cyclic-xyz") {
       agent.position.x = wrapAxis(agent.position.x, halfX);
       agent.position.y = wrapAxis(agent.position.y, halfY);
       agent.position.z = wrapAxis(agent.position.z, halfZ);
       agent.lost = false;
       return true;
+    }
+
+    if (mode === "cyclic-xy") {
+      agent.position.x = wrapAxis(agent.position.x, halfX);
+      agent.position.y = wrapAxis(agent.position.y, halfY);
+      const outOfBoundsZ = Math.abs(agent.position.z) > halfZ;
+      agent.lost = outOfBoundsZ;
+      return !outOfBoundsZ;
     }
 
     const outOfBounds =
@@ -626,6 +635,16 @@ function wrapAxis(value, halfExtent) {
     return ((((value + halfExtent) % span) + span) % span) - halfExtent;
   }
   return value;
+}
+
+function normalizeBoundaryMode(mode) {
+  if (mode === "cyclic") {
+    return "cyclic-xyz";
+  }
+  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
+    return mode;
+  }
+  return "cyclic-xyz";
 }
 
 function buildColormapLUT(stopsByName) {

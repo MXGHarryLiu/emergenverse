@@ -250,6 +250,10 @@ function buildSimulationSection(simConfig, appletId, templates) {
     });
   });
 
+  let groupActive = false;
+  let alphabetActive = false;
+  let orderButtons = [];
+
   if (hasGrouping) {
     const controlsRow = document.createElement("div");
     controlsRow.className = "d-flex justify-content-end mt-0 mb-1";
@@ -258,9 +262,6 @@ function buildSimulationSection(simConfig, appletId, templates) {
         <button type="button" class="btn btn-theme simulation-order-btn" data-order-mode="group" aria-pressed="true" aria-label="Group order" title="Group order">
           <i class="bi bi-collection" aria-hidden="true"></i>
         </button>
-        <button type="button" class="btn btn-outline-theme simulation-order-btn" data-order-mode="default" aria-pressed="false" aria-label="Default order" title="Default order">
-          <i class="bi bi-list-ol" aria-hidden="true"></i>
-        </button>
         <button type="button" class="btn btn-outline-theme simulation-order-btn" data-order-mode="alphabet" aria-pressed="false" aria-label="Alphabetical order" title="A-Z order">
           <i class="bi bi-sort-alpha-down" aria-hidden="true"></i>
         </button>
@@ -268,22 +269,30 @@ function buildSimulationSection(simConfig, appletId, templates) {
     `;
     body.appendChild(controlsRow);
 
-    let orderMode = "group";
-    const orderButtons = Array.from(controlsRow.querySelectorAll("[data-order-mode]"));
+    groupActive = true;
+    alphabetActive = false;
+    orderButtons = Array.from(controlsRow.querySelectorAll("[data-order-mode]"));
     orderButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        orderMode = button.getAttribute("data-order-mode") || "group";
-        orderButtons.forEach((entry) => {
-          const active = entry === button;
-          entry.classList.toggle("btn-theme", active);
-          entry.classList.toggle("btn-outline-theme", !active);
-          entry.setAttribute("aria-pressed", String(active));
-        });
-        renderSliderRows(orderMode);
+        const mode = button.getAttribute("data-order-mode");
+        if (mode === "group") {
+          groupActive = !groupActive;
+          if (groupActive) {
+            alphabetActive = false;
+          }
+        } else if (mode === "alphabet") {
+          alphabetActive = !alphabetActive;
+          if (alphabetActive) {
+            groupActive = false;
+          }
+        }
+        updateOrderButtonVisuals();
+        renderSliderRows(resolveOrderMode());
       });
     });
 
-    renderSliderRows(orderMode);
+    updateOrderButtonVisuals();
+    renderSliderRows(resolveOrderMode());
   } else {
     sliderRows.forEach(({ row }) => sliderList.appendChild(row));
   }
@@ -359,6 +368,26 @@ function buildSimulationSection(simConfig, appletId, templates) {
       heading.textContent = label;
       sliderList.appendChild(heading);
       rows.forEach(({ row }) => sliderList.appendChild(row));
+    });
+  }
+
+  function resolveOrderMode() {
+    if (groupActive) {
+      return "group";
+    }
+    if (alphabetActive) {
+      return "alphabet";
+    }
+    return "default";
+  }
+
+  function updateOrderButtonVisuals() {
+    orderButtons.forEach((entry) => {
+      const mode = entry.getAttribute("data-order-mode");
+      const active = mode === "group" ? groupActive : alphabetActive;
+      entry.classList.toggle("btn-theme", active);
+      entry.classList.toggle("btn-outline-theme", !active);
+      entry.setAttribute("aria-pressed", String(active));
     });
   }
 }

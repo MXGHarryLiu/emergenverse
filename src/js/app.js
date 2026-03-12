@@ -32,7 +32,7 @@ const params = {
   worldSizeY: 100,
   worldSizeZ: 100,
   worldGridSize: 5,
-  boundaryMode: "cyclic",
+  boundaryMode: "cyclic-xyz",
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
@@ -131,6 +131,11 @@ const dom = {
   mobileNavOpen: document.getElementById("mobile-nav-open"),
   mobileNavClose: document.getElementById("mobile-nav-close"),
   mobileNavBackdrop: document.getElementById("mobile-nav-backdrop"),
+  mobileNavActions: document.getElementById("mobile-nav-actions"),
+  mobileNavSupport: document.getElementById("mobile-nav-support"),
+  mobileNavTheme: document.getElementById("mobile-nav-theme"),
+  mobileNavThemeIcon: document.getElementById("mobile-nav-theme-icon"),
+  mobileNavAbout: document.getElementById("mobile-nav-about"),
   topNavContainer: document.querySelector(".top-nav .container-fluid"),
   navBrandGroup: document.querySelector(".nav-brand-group"),
   navActions: document.querySelector(".nav-actions"),
@@ -144,7 +149,6 @@ const dom = {
   appVisibleElements: document.querySelectorAll("[data-app-visible]"),
   runState: document.getElementById("run-state"),
   resetCamera: document.getElementById("reset-camera"),
-  homeCamera: document.getElementById("home-camera"),
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   boundaryMode: document.getElementById("boundary-mode"),
@@ -236,6 +240,46 @@ const middleLayoutState = {
 
 let visualControls = null;
 
+function normalizeBoundaryMode(mode) {
+  if (mode === "cyclic") {
+    return "cyclic-xyz";
+  }
+  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
+    return mode;
+  }
+  return "cyclic-xyz";
+}
+
+function initializeSimulationsWithAppletWorldState() {
+  const snapshot = {
+    worldSizeX: params.worldSizeX,
+    worldSizeY: params.worldSizeY,
+    worldSizeZ: params.worldSizeZ,
+    worldGridSize: params.worldGridSize,
+    boundaryMode: params.boundaryMode,
+  };
+
+  APPLET_ORDER.forEach((appletId) => {
+    const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
+    params.worldSizeX = state.x;
+    params.worldSizeY = state.y;
+    params.worldSizeZ = state.z;
+    params.worldGridSize = Number.isFinite(state.gridSize)
+      ? state.gridSize
+      : snapshot.worldGridSize;
+    params.boundaryMode = normalizeBoundaryMode(
+      state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+    );
+    simulations[appletId]?.init?.();
+  });
+
+  params.worldSizeX = snapshot.worldSizeX;
+  params.worldSizeY = snapshot.worldSizeY;
+  params.worldSizeZ = snapshot.worldSizeZ;
+  params.worldGridSize = snapshot.worldGridSize;
+  params.boundaryMode = snapshot.boundaryMode;
+}
+
 // World Unit + Display Formatting Helpers
 function getAppletWorldConfig(appletId) {
   const fallback = {
@@ -316,6 +360,10 @@ function formatWorldDisplayValue(displayValue, appletId = activeApplet, options 
   return `${formatDisplayNumber(displayValue, options)} ${getWorldUnitLabel(appletId)}`;
 }
 
+function formatKeyboardMoveSpeed(value, appletId = activeApplet) {
+  return `${formatDisplayNumber(value, { trailingDigits: 1 })} ${getWorldUnitLabel(appletId)}/s`;
+}
+
 function getViewportAppletLabel(appletId = activeApplet) {
   return APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? "Applet";
 }
@@ -332,6 +380,7 @@ const ROUTING_OPTIONS = {
   defaultAppletId: DEFAULT_APPLET_ID,
 };
 const appletCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
+const appletInitialCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 const appletWorldState = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, createDefaultWorldState(id)]),
 );
@@ -342,6 +391,7 @@ const appletPausedPreferences = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, params.paused]),
 );
 const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
+const appletSimulationPrimed = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
 // Runtime Construction: Renderer, Camera, World, Simulations, Charts
 const renderer = new THREE.WebGLRenderer({
@@ -449,7 +499,7 @@ cameraController.setPerspectiveCameraFromParams(false);
 cameraController.updateOrthographicCamera(true);
 cameraController.applyCameraInteractivity();
 rebuildBoundsAndGrid();
-simulationManager.initAll();
+initializeSimulationsWithAppletWorldState();
 setupCompactSectionSliders();
 setupMobileNavigation();
 setupControls();
@@ -588,6 +638,11 @@ function setupControls() {
     return `${Math.round(value)}°`;
   });
 
+  bindRange("camera-move-speed", "camera-move-speed-value", (value) => {
+    params.keyboardMoveSpeed = Math.max(0.1, value);
+    return formatKeyboardMoveSpeed(params.keyboardMoveSpeed);
+  });
+
   const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
@@ -638,7 +693,7 @@ function setupControls() {
   });
 
   dom.boundaryMode.addEventListener("change", () => {
-    params.boundaryMode = dom.boundaryMode.value;
+    params.boundaryMode = normalizeBoundaryMode(dom.boundaryMode.value);
     if (worldStatePersistenceEnabled) {
       persistActiveAppletWorldState();
     }
@@ -662,18 +717,24 @@ function setupControls() {
   if (dom.resetCamera) {
     dom.resetCamera.addEventListener("click", () => {
       const appletCameraDefaults = getAppletCameraDefaults(activeApplet);
-      params.cameraDistance = appletCameraDefaults.cameraDistance;
-      params.cameraHeight = appletCameraDefaults.cameraHeight;
-      params.cameraFov = appletCameraDefaults.cameraFov;
       params.cameraLocked = appletCameraDefaults.cameraLocked;
-
-      setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
       dom.cameraLocked.checked = params.cameraLocked;
-
-      perspectiveCamera.fov = params.cameraFov;
-      perspectiveCamera.updateProjectionMatrix();
-      cameraController.updateOrthographicCamera(false);
-      cameraController.resetOrientationKeepPosition();
+      const restored = cameraController.restoreCameraSnapshot(appletInitialCameraState[activeApplet]);
+      if (!restored) {
+        params.cameraDistance = appletCameraDefaults.cameraDistance;
+        params.cameraHeight = appletCameraDefaults.cameraHeight;
+        params.cameraFov = appletCameraDefaults.cameraFov;
+        const projectionMode = APPLET_CONFIGS[activeApplet]?.defaultProjection || "perspective";
+        if (projectionMode === "orthographic") {
+          params.projectionMode = "orthographic";
+          cameraController.switchToOrthographicTop(true);
+        } else {
+          params.projectionMode = "perspective";
+          cameraController.switchToPerspective(false);
+          cameraController.resetOrientationKeepPosition();
+        }
+      }
+      setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
       cameraController.applyCameraInteractivity();
       cameraController.updateTelemetry();
       updateProjectionToggleUI();
@@ -681,17 +742,9 @@ function setupControls() {
     });
   }
 
-  if (dom.homeCamera) {
-    dom.homeCamera.addEventListener("click", () => {
-      cameraController.moveActiveCameraToOrigin();
-      cameraController.updateTelemetry();
-      updateViewportLabel();
-    });
-  }
-
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
-  dom.boundaryMode.value = params.boundaryMode;
+  dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
   APPLET_ORDER.forEach((appletId) => {
     APPLET_DEFINITIONS[appletId].runtime?.bindInteractionControls?.({
       appletId,
@@ -1176,7 +1229,7 @@ function createDefaultWorldState(appletId) {
     y: convertLengthFromDisplay(Number(config.defaults?.y ?? 100), appletId),
     z: convertLengthFromDisplay(Number(config.defaults?.z ?? 100), appletId),
     gridSize: convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId),
-    boundaryMode: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic",
+    boundaryMode: normalizeBoundaryMode(APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz"),
   };
 }
 
@@ -1190,7 +1243,7 @@ function persistActiveAppletWorldState() {
     y: params.worldSizeY,
     z: params.worldSizeZ,
     gridSize: params.worldGridSize,
-    boundaryMode: params.boundaryMode,
+    boundaryMode: normalizeBoundaryMode(params.boundaryMode),
   };
 }
 
@@ -1230,7 +1283,9 @@ function applyAppletWorldState(appletId) {
   params.worldGridSize = Number.isFinite(state.gridSize)
     ? state.gridSize
     : convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId);
-  params.boundaryMode = state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic";
+  params.boundaryMode = normalizeBoundaryMode(
+    state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+  );
 
   setControlValue(
     "world-size-x",
@@ -1251,7 +1306,7 @@ function applyAppletWorldState(appletId) {
     (value) => formatWorldDisplayValue(value, appletId),
   );
   if (dom.boundaryMode) {
-    dom.boundaryMode.value = params.boundaryMode;
+    dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
   }
 
   rebuildBoundsAndGrid();
@@ -1280,6 +1335,7 @@ function applyDefaultProjectionForApplet(appletId) {
   }
 
   appletProjectionInitialized[appletId] = true;
+  appletInitialCameraState[appletId] = cameraController.getCameraSnapshot();
   updateProjectionToggleUI();
 }
 
@@ -1349,6 +1405,10 @@ function applyAppletMode(appletId, options = {}) {
   activeApplet = normalizedId;
   applySceneObjectVisibility(normalizedId);
   applyAppletWorldState(normalizedId);
+  if (!appletSimulationPrimed[normalizedId]) {
+    simulations[normalizedId]?.reset?.();
+    appletSimulationPrimed[normalizedId] = true;
+  }
 
   dom.appletTabs?.forEach((tab) => {
     const tabApplet = tab.getAttribute("data-applet-item");
@@ -1367,6 +1427,12 @@ function applyAppletMode(appletId, options = {}) {
   }
 
   setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
+  setControlValue(
+    "camera-move-speed",
+    params.keyboardMoveSpeed,
+    "camera-move-speed-value",
+    (value) => formatKeyboardMoveSpeed(value),
+  );
   updateProjectionToggleUI();
   if (previousApplet && APPLET_IDS.has(previousApplet)) {
     appletPausedPreferences[previousApplet] = params.paused;
@@ -1439,11 +1505,24 @@ function updateSimulationStateUI() {
 
 // Theme + Panels + Layout + Section Collapses
 function setupThemeToggle() {
+  const syncMobileThemeIcon = (mode) => {
+    if (!dom.mobileNavThemeIcon) {
+      return;
+    }
+    const iconMap = {
+      auto: "bi-circle-half",
+      dark: "bi-moon-stars-fill",
+      light: "bi-sun-fill",
+    };
+    dom.mobileNavThemeIcon.className = `bi ${iconMap[mode] || "bi-circle-half"}`;
+  };
+
   createThemeManager({
     toggleButton: dom.themeToggle,
     labelEl: dom.themeToggleLabel,
     iconEl: dom.themeToggleIcon,
-    onThemeChange: (effectiveTheme) => {
+    onThemeChange: (effectiveTheme, mode) => {
+      syncMobileThemeIcon(mode);
       applySceneTheme(effectiveTheme);
       drawTrendCharts();
     },
@@ -1518,6 +1597,18 @@ function setupMobileNavigation() {
     if (event.key === "Escape") {
       closeMobileNavigation();
     }
+  });
+
+  dom.mobileNavSupport?.addEventListener("click", () => {
+    dom.supportInfoOpen?.click();
+    closeMobileNavigation();
+  });
+  dom.mobileNavTheme?.addEventListener("click", () => {
+    dom.themeToggle?.click();
+  });
+  dom.mobileNavAbout?.addEventListener("click", () => {
+    dom.aboutInfoOpen?.click();
+    closeMobileNavigation();
   });
 }
 
@@ -1894,6 +1985,7 @@ function updateNavActionPriorityVisibility() {
   };
 
   if (!hasCollision()) {
+    syncMobileNavPriorityActions();
     return;
   }
 
@@ -1903,6 +1995,34 @@ function updateNavActionPriorityVisibility() {
     }
     button.classList.add("nav-priority-hidden");
   }
+
+  syncMobileNavPriorityActions();
+}
+
+function syncMobileNavPriorityActions() {
+  if (!dom.mobileNavActions) {
+    return;
+  }
+
+  const actionBindings = [
+    [dom.supportInfoOpen, dom.mobileNavSupport],
+    [dom.themeToggle, dom.mobileNavTheme],
+    [dom.aboutInfoOpen, dom.mobileNavAbout],
+  ];
+
+  let visibleCount = 0;
+  actionBindings.forEach(([topButton, sideButton]) => {
+    if (!sideButton) {
+      return;
+    }
+    const isHiddenInTopNav = Boolean(topButton?.classList.contains("nav-priority-hidden"));
+    sideButton.classList.toggle("is-hidden", !isHiddenInTopNav);
+    if (isHiddenInTopNav) {
+      visibleCount += 1;
+    }
+  });
+
+  dom.mobileNavActions.classList.toggle("is-hidden", visibleCount === 0);
 }
 
 // Trend Charts + Runtime Metrics

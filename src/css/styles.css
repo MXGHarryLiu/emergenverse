@@ -136,6 +136,37 @@ body {
   border-bottom-color: rgba(90, 164, 255, 0.55);
 }
 
+.mobile-nav-actions {
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 0.15rem;
+}
+
+.mobile-nav-action-btn {
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font: 600 0.8rem/1.2 "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.38rem 0.1rem 0.46rem;
+}
+
+.mobile-nav-action-btn:hover,
+.mobile-nav-action-btn:focus-visible {
+  color: var(--title-color);
+  border-bottom-color: rgba(90, 164, 255, 0.55);
+}
+
 /* Parameter Order + Colormap Header Controls */
 .simulation-order-toggle {
   gap: 0;

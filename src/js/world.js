@@ -76,13 +76,22 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     const halfX = params.worldSizeX * 0.5;
     const halfY = params.worldSizeY * 0.5;
     const halfZ = params.worldSizeZ * 0.5;
+    const mode = normalizeBoundaryMode(params.boundaryMode);
 
-    if (params.boundaryMode === "cyclic") {
+    if (mode === "cyclic-xyz") {
       entity.position.x = wrapAxis(entity.position.x, halfX);
       entity.position.y = wrapAxis(entity.position.y, halfY);
       entity.position.z = wrapAxis(entity.position.z, halfZ);
       entity.lost = false;
       return true;
+    }
+
+    if (mode === "cyclic-xy") {
+      entity.position.x = wrapAxis(entity.position.x, halfX);
+      entity.position.y = wrapAxis(entity.position.y, halfY);
+      const outOfBoundsZ = Math.abs(entity.position.z) > halfZ;
+      entity.lost = outOfBoundsZ;
+      return !outOfBoundsZ;
     }
 
     const outOfBounds =
@@ -100,6 +109,16 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     setBoundsVisibility,
     applyBoundaryConditions,
   };
+}
+
+function normalizeBoundaryMode(mode) {
+  if (mode === "cyclic") {
+    return "cyclic-xyz";
+  }
+  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
+    return mode;
+  }
+  return "cyclic-xyz";
 }
 
 function buildFloorGrid({ width, height, z, step }) {

@@ -443,6 +443,10 @@ function setupScreenshotPopup({
   let previewPanStartY = 0;
   let previewPanOriginX = 0;
   let previewPanOriginY = 0;
+  const previewTouchPointers = new Map();
+  let previewTouchPinchActive = false;
+  let previewTouchPinchStartDistance = 0;
+  let previewTouchPinchStartScale = 1;
   let previewPixelScalePercent = 100;
   const previewMinScale = 1;
   const previewMaxScale = 6;
@@ -760,7 +764,37 @@ function setupScreenshotPopup({
     { passive: false },
   );
   dom.screenshotPreviewImage.addEventListener("pointerdown", (event) => {
-    if (!dom.screenshotPreviewImage.src || previewScale <= previewMinScale || event.button !== 0) {
+    if (!dom.screenshotPreviewImage.src) {
+      return;
+    }
+    if (event.pointerType === "touch") {
+      previewTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      dom.screenshotPreviewImage.setPointerCapture(event.pointerId);
+
+      if (previewTouchPointers.size >= 2) {
+        const points = Array.from(previewTouchPointers.values());
+        previewTouchPinchStartDistance = Math.hypot(
+          points[1].x - points[0].x,
+          points[1].y - points[0].y,
+        );
+        previewTouchPinchStartScale = previewScale;
+        previewTouchPinchActive = previewTouchPinchStartDistance > 0.001;
+        previewPanning = false;
+      } else if (previewTouchPointers.size === 1) {
+        previewTouchPinchActive = false;
+        previewPanning = true;
+        previewPanStartX = event.clientX;
+        previewPanStartY = event.clientY;
+        previewPanOriginX = previewOffsetX;
+        previewPanOriginY = previewOffsetY;
+      }
+
+      applyPreviewTransform();
+      event.preventDefault();
+      return;
+    }
+
+    if (previewScale <= previewMinScale || event.button !== 0) {
       return;
     }
     previewPanning = true;
@@ -772,6 +806,38 @@ function setupScreenshotPopup({
     applyPreviewTransform();
   });
   dom.screenshotPreviewImage.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch") {
+      if (previewTouchPointers.has(event.pointerId)) {
+        previewTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+
+      if (previewTouchPinchActive && previewTouchPointers.size >= 2) {
+        const points = Array.from(previewTouchPointers.values());
+        const distance = Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+        if (previewTouchPinchStartDistance > 0.001) {
+          previewScale = clamp(
+            previewTouchPinchStartScale * (distance / previewTouchPinchStartDistance),
+            previewMinScale,
+            previewMaxScale,
+          );
+          clampPreviewPan();
+          applyPreviewTransform();
+        }
+        event.preventDefault();
+        return;
+      }
+
+      if (!previewPanning) {
+        return;
+      }
+      previewOffsetX = previewPanOriginX + (event.clientX - previewPanStartX);
+      previewOffsetY = previewPanOriginY + (event.clientY - previewPanStartY);
+      clampPreviewPan();
+      applyPreviewTransform();
+      event.preventDefault();
+      return;
+    }
+
     if (!previewPanning) {
       return;
     }
@@ -781,6 +847,32 @@ function setupScreenshotPopup({
     applyPreviewTransform();
   });
   dom.screenshotPreviewImage.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "touch") {
+      previewTouchPointers.delete(event.pointerId);
+      if (dom.screenshotPreviewImage.hasPointerCapture?.(event.pointerId)) {
+        dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
+      }
+
+      if (previewTouchPointers.size < 2) {
+        previewTouchPinchActive = false;
+      }
+
+      if (previewTouchPointers.size === 1) {
+        const remaining = Array.from(previewTouchPointers.values())[0];
+        previewPanning = true;
+        previewPanStartX = remaining.x;
+        previewPanStartY = remaining.y;
+        previewPanOriginX = previewOffsetX;
+        previewPanOriginY = previewOffsetY;
+      } else {
+        previewPanning = false;
+      }
+
+      applyPreviewTransform();
+      event.preventDefault();
+      return;
+    }
+
     if (previewPanning) {
       dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
       previewPanning = false;
@@ -788,6 +880,17 @@ function setupScreenshotPopup({
     }
   });
   dom.screenshotPreviewImage.addEventListener("pointercancel", (event) => {
+    if (event.pointerType === "touch") {
+      previewTouchPointers.delete(event.pointerId);
+      previewTouchPinchActive = false;
+      previewPanning = false;
+      if (dom.screenshotPreviewImage.hasPointerCapture?.(event.pointerId)) {
+        dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
+      }
+      applyPreviewTransform();
+      return;
+    }
+
     if (previewPanning) {
       if (dom.screenshotPreviewImage.hasPointerCapture?.(event.pointerId)) {
         dom.screenshotPreviewImage.releasePointerCapture(event.pointerId);
