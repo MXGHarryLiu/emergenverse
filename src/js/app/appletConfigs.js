@@ -37,6 +37,7 @@ function buildAppletDefinition(id, module) {
     "simulation class",
     (value) => typeof value === "function",
   );
+  validateSimulationContract(id, SimulationClass);
   const config = pickModuleExport(module, id, "_APPLET_CONFIG", "applet config");
   const defaultParams = pickModuleExport(module, id, "_DEFAULT_PARAMS", "default params");
   const runtime = pickModuleExport(module, id, "_APPLET_RUNTIME", "runtime hooks");
@@ -50,6 +51,25 @@ function buildAppletDefinition(id, module) {
     createSimulation: ({ scene, params, world, onStats }) =>
       new SimulationClass({ scene, params, world, onStats }),
   };
+}
+
+function validateSimulationContract(id, SimulationClass) {
+  const requiredMethods = [
+    "init",
+    "setVisible",
+    "onTheme",
+    "reset",
+    "onWorldGeometryChanged",
+    "onBoundaryModeChanged",
+    "step",
+  ];
+  const prototype = SimulationClass?.prototype || {};
+  const missing = requiredMethods.filter((name) => typeof prototype[name] !== "function");
+  if (missing.length > 0) {
+    throw new Error(
+      `[appletConfigs] Simulation "${id}" is missing required methods: ${missing.join(", ")}.`,
+    );
+  }
 }
 
 export const APPLET_ORDER = APPLET_MODULES.map(({ id }) => id);

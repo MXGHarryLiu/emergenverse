@@ -1,6 +1,7 @@
 // Galaxy gravity applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Unit metadata used to derive the internal gravity constant from SI.
 const GALAXY_UNITS = {
@@ -125,12 +126,12 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       sliderHub: { title: "Count", value: "500", min: "50", max: "2000", step: "10", valueNum: "500" },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("count", "Count", "bi-people-fill", "count-value", "500", "50", "2000", "10", "500"),
+        slider("count", "Count", "bi-people-fill", "count-value", "500", "50", "2000", "10", "500", { resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", `900 ${GALAXY_UNITS.length.label}`, "80", "4000", "20", "900", { paramKey: "particleSize" }),
-        slider("galaxy-spin", "Initial Orbital Speed", "bi-arrow-clockwise", "galaxy-spin-value", "1.35", "0.2", "2.5", "0.05", "1.35"),
-        slider("galaxy-central-mass", "Central Mass (\\(M_c\\))", "bi-bullseye", "galaxy-central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12"),
-        slider("galaxy-softening", "Softening (\\(\\epsilon\\))", "bi-dot", "galaxy-softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180"),
-        slider("galaxy-damping", "Damping (\\(\\lambda\\))", "bi-sliders", "galaxy-damping-value", `0.0030 1/${GALAXY_UNITS.time.label}`, "0.0", "0.020", "0.0005", "0.003"),
+        slider("spin", "Initial Orbital Speed", "bi-arrow-clockwise", "spin-value", "1.35", "0.2", "2.5", "0.05", "1.35"),
+        slider("central-mass", "Central Mass (\\(M_c\\))", "bi-bullseye", "central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12"),
+        slider("softening", "Softening (\\(\\epsilon\\))", "bi-dot", "softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180"),
+        slider("damping", "Damping (\\(\\lambda\\))", "bi-sliders", "damping-value", `0.0030 1/${GALAXY_UNITS.time.label}`, "0.0", "0.020", "0.0005", "0.003"),
       ],
       pauseButtonId: "toggle-galaxy-pause",
       defaultButtonId: "default-galaxy-sim",
@@ -141,23 +142,23 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const GALAXY_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-galaxy-count", "chart-galaxy-count-live", () => "0", {
+      createChartMetricsEntry("chart-galaxy-count", "chart-galaxy-count-live", () => "0", {
         stroke: "#8eb7ff",
         fill: "rgba(142, 183, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-galaxy-radius", "chart-galaxy-radius-live", () => `0 ${GALAXY_UNITS.length.label}`, {
+      createChartMetricsEntry("chart-galaxy-radius", "chart-galaxy-radius-live", () => `0 ${GALAXY_UNITS.length.label}`, {
         stroke: "#9de2ff",
         fill: "rgba(157, 226, 255, 0.16)",
         axisLabel: GALAXY_UNITS.length.label,
         tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-galaxy-speed", "chart-galaxy-speed-live", () => `0 ${GALAXY_SPEED_UNIT}`, {
+      createChartMetricsEntry("chart-galaxy-speed", "chart-galaxy-speed-live", () => `0 ${GALAXY_SPEED_UNIT}`, {
         stroke: "#ffbe8d",
         fill: "rgba(255, 190, 141, 0.16)",
         axisLabel: GALAXY_SPEED_UNIT,
@@ -255,12 +256,9 @@ function lengthToInternalLightYears(value) {
 }
 
 // Simulation implementation.
-export class GalaxySimulation {
+export class GalaxySimulation extends BaseSimulation {
   constructor({ scene, params, world, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "galaxy");
-    this.world = world;
-    this.onStats = onStats;
+    super({ scene, params, world, onStats, appletId: "galaxy" });
 
     this.geometry = new THREE.SphereGeometry(0.42, 10, 8);
     this.material = new THREE.MeshBasicMaterial({

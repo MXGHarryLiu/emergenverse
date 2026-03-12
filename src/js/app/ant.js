@@ -1,6 +1,7 @@
 // Ant trail applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Default applet parameters.
 export const ANT_DEFAULT_PARAMS = {
@@ -158,18 +159,18 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
-        slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120"),
+        slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120", { resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
-        slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
-        slider("ant-sensor-distance", "Sensor Distance", "bi-broadcast", "ant-sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
-        slider("ant-food-sense-distance", "Food Sensing Distance", "bi-bullseye", "ant-food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
-        slider("ant-sensor-angle", "Sensor Angle", "bi-compass", "ant-sensor-angle-value", "35°", "5", "90", "1", "35"),
-        slider("ant-turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "ant-turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
-        slider("ant-goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "ant-goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
-        slider("ant-departure-rate", "Departure Rate", "bi-box-arrow-up-right", "ant-departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
-        slider("ant-deposit-rate", "Deposit Rate", "bi-droplet-fill", "ant-deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
-        slider("ant-diffusion-rate", "Diffusion Rate", "bi-water", "ant-diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
-        slider("ant-evap-rate", "Evaporation Rate", "bi-wind", "ant-evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
+        slider("speed", "Speed", "bi-speedometer2", "speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
+        slider("sensor-distance", "Sensor Distance", "bi-broadcast", "sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
+        slider("food-sense-distance", "Food Sensing Distance", "bi-bullseye", "food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
+        slider("sensor-angle", "Sensor Angle", "bi-compass", "sensor-angle-value", "35°", "5", "90", "1", "35"),
+        slider("turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
+        slider("goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
+        slider("departure-rate", "Departure Rate", "bi-box-arrow-up-right", "departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
+        slider("deposit-rate", "Deposit Rate", "bi-droplet-fill", "deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
+        slider("diffusion-rate", "Diffusion Rate", "bi-water", "diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
+        slider("evap-rate", "Evaporation Rate", "bi-wind", "evap-rate-value", "0.80 1/s", "0", "4", "0.05", "0.8"),
       ],
       pauseButtonId: "toggle-ant-pause",
       defaultButtonId: "default-ant-sim",
@@ -180,23 +181,23 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const ANT_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-ant-count", "chart-ant-count-live", () => "0", {
+      createChartMetricsEntry("chart-ant-count", "chart-ant-count-live", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-ant-trips", "chart-ant-trips-live", () => "0", {
+      createChartMetricsEntry("chart-ant-trips", "chart-ant-trips-live", () => "0", {
         stroke: "#f1b55b",
         fill: "rgba(241, 181, 91, 0.18)",
         axisLabel: "trips",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-ant-pheromone", "chart-ant-pheromone-live", () => "0.00", {
+      createChartMetricsEntry("chart-ant-pheromone", "chart-ant-pheromone-live", () => "0.00", {
         stroke: "#79d2ff",
         fill: "rgba(121, 210, 255, 0.18)",
         axisLabel: "a.u.",
@@ -338,11 +339,9 @@ const antLerpA = new THREE.Color();
 const antLerpB = new THREE.Color();
 
 // Simulation implementation.
-export class AntSimulation {
-  constructor({ scene, params, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "ants");
-    this.onStats = onStats;
+export class AntSimulation extends BaseSimulation {
+  constructor({ scene, params, world, onStats }) {
+    super({ scene, params, world, onStats, appletId: "ants" });
 
     this.geometry = new THREE.ConeGeometry(0.45, 1.05, 8);
     this.material = new THREE.MeshPhongMaterial({

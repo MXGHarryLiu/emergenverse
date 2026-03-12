@@ -1,5 +1,10 @@
 // Shared applet config helpers used inside individual applet modules.
 export function slider(id, label, icon, valueId, valueText, min, max, step, value, options = {}) {
+  // Common options:
+  // - paramKey: explicit params key when id->camelCase inference is not desired
+  // - simulationSetter: explicit simulation method name for slider side effects
+  // - simulationAction: auto | reset | sync | none
+  // - resetTrendCharts: boolean
   return { id, label, icon, valueId, valueText, min, max, step, value, ...options };
 }
 

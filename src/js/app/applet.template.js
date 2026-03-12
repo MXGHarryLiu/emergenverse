@@ -2,7 +2,8 @@
 // This file is not imported by the app runtime.
 
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Namespace / registration id for this applet.
 export const APPLET_ID = "example";
@@ -80,13 +81,13 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
       sliderHub: { title: "Count", value: "100", min: "10", max: "500", step: "10", valueNum: "100" },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("count", "Count", "bi-people-fill", "count-value", "100", "10", "500", "10", "100", { group: "initial" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "100", "10", "500", "10", "100", { group: "initial", resetTrendCharts: true }),
         // Optional explicit mapping when slider id does not convert to the desired param key.
         slider(
-          "example-frequency",
+          "frequency",
           "Base Frequency",
           "bi-speedometer2",
-          "example-frequency-value",
+          "frequency-value",
           "1.80 Hz",
           "0.2",
           "6.0",
@@ -94,6 +95,10 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
           "1.8",
           { group: "dynamic", paramKey: "frequencyHz" },
         ),
+        // Optional simulation behavior flags:
+        // - simulationSetter: explicit method to call (e.g., "setPreyCount")
+        // - simulationAction: "auto" | "reset" | "sync" | "none"
+        // - resetTrendCharts: true to clear chart history after this slider changes
       ],
       pauseButtonId: "toggle-example-pause",
       defaultButtonId: "default-example-sim",
@@ -104,9 +109,9 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const EXAMPLE_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-example-count", "chart-example-count-live", () => "0", {
+      createChartMetricsEntry("chart-example-count", "chart-example-count-live", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
@@ -123,7 +128,7 @@ export const EXAMPLE_APPLET_RUNTIME = {
     ui.updateChartMetrics(APPLET_ID, [count], [String(count)]);
   },
   // Optional hook called from app.js after a slider changes.
-  // Use this for applet-specific side effects that are not covered by generic shell behavior.
+  // Prefer slider config options first (simulationSetter/simulationAction/resetTrendCharts).
   onSliderChange() {},
   // Optional hook for extra interactions (e.g., click-to-place objects).
   bindInteractionControls() {},
@@ -182,12 +187,10 @@ const EXAMPLE_COLORMAP_STOPS = {
 };
 
 // Simulation implementation.
-export class ExampleSimulation {
+// Extend BaseSimulation to get shared params/app context wiring.
+export class ExampleSimulation extends BaseSimulation {
   constructor({ scene, params, world, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, APPLET_ID);
-    this.world = world;
-    this.onStats = onStats;
+    super({ scene, params, world, onStats, appletId: APPLET_ID });
   }
 
   init() {}

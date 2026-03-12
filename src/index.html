@@ -328,7 +328,7 @@
     </div>
 
     <div class="controls-modal-backdrop is-hidden" id="controls-info-backdrop" aria-hidden="true">
-      <section class="controls-modal" role="dialog" aria-modal="true" aria-labelledby="controls-info-title">
+      <section class="controls-modal controls-modal-wide" role="dialog" aria-modal="true" aria-labelledby="controls-info-title">
         <header class="controls-modal-head">
           <h2 class="panel-title controls-modal-title" id="controls-info-title">
             <i class="bi bi-joystick panel-head-icon" aria-hidden="true"></i>
@@ -339,17 +339,74 @@
           </button>
         </header>
         <div class="controls-modal-body">
-          <p class="controls-modal-subtitle">6-DOF camera control (when camera lock is off)</p>
-          <ul class="controls-list">
-            <li><strong>Translate (keyboard/mouse)</strong>: `A/S/D/Q/W/E` for camera-relative XYZ movement, or hold right mouse and drag.</li>
-            <li><strong>Translate (touch)</strong>: Two-finger drag pans the camera relative to the current view (screen-space horizontal/vertical). In top orthographic it pans across the plane.</li>
-            <li><strong>Yaw (keyboard/mouse)</strong>: `ArrowLeft` / `ArrowRight`, or left-drag horizontally (perspective mode).</li>
-            <li><strong>Pitch (keyboard/mouse)</strong>: `ArrowUp` / `ArrowDown`, or left-drag vertically (perspective mode).</li>
-            <li><strong>Roll (keyboard)</strong>: `[` / `]`.</li>
-            <li><strong>Boost (keyboard)</strong>: Hold `Shift` while translating.</li>
-            <li><strong>Zoom / View Scale (mouse/keyboard/touch)</strong>: Scroll wheel, pinch with two fingers, or `<` / `>` (same keys as `,` / `.`) changes FOV in perspective and zoom level in top orthographic.</li>
-            <li><strong>Simulation controls</strong>: Use the Simulation, Visual, Camera, and World panels to adjust model and rendering parameters.</li>
-          </ul>
+          <div class="controls-table-wrap">
+            <table class="controls-table" aria-label="Camera controls tutorial">
+              <thead>
+                <tr>
+                  <th scope="col">Action</th>
+                  <th scope="col">Mouse</th>
+                  <th scope="col">
+                    Keyboard
+                    <span class="controls-platform-icons" aria-hidden="true">
+                      <i class="bi bi-windows" title="Windows/Linux key labels"></i>
+                      <i class="bi bi-apple" title="macOS key labels"></i>
+                    </span>
+                  </th>
+                  <th scope="col">Touch</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Translate X</th>
+                  <td>Right-drag horizontal</td>
+                  <td><span class="keycaps"><kbd class="keycap">A</kbd><kbd class="keycap">D</kbd></span></td>
+                  <td>One-finger drag horizontal</td>
+                </tr>
+                <tr>
+                  <th scope="row">Translate Y</th>
+                  <td>Right-drag vertical</td>
+                  <td><span class="keycaps"><kbd class="keycap">S</kbd><kbd class="keycap">W</kbd></span></td>
+                  <td>One-finger drag vertical</td>
+                </tr>
+                <tr>
+                  <th scope="row">Translate Z</th>
+                  <td>Middle-drag vertical (perspective)</td>
+                  <td><span class="keycaps"><kbd class="keycap">Q</kbd><kbd class="keycap">E</kbd></span></td>
+                  <td>Not mapped</td>
+                </tr>
+                <tr>
+                  <th scope="row">Yaw</th>
+                  <td>Left-drag horizontal (perspective)</td>
+                  <td><span class="keycaps"><kbd class="keycap">&larr;</kbd><kbd class="keycap">&rarr;</kbd></span></td>
+                  <td>Two-finger drag horizontal (perspective)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Pitch</th>
+                  <td>Left-drag vertical (perspective)</td>
+                  <td><span class="keycaps"><kbd class="keycap">&uarr;</kbd><kbd class="keycap">&darr;</kbd></span></td>
+                  <td>Two-finger drag vertical (perspective)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Roll</th>
+                  <td>Left+Right drag vertical (perspective)</td>
+                  <td><span class="keycaps"><kbd class="keycap">[</kbd><kbd class="keycap">]</kbd></span></td>
+                  <td>Two-finger twist (perspective)</td>
+                </tr>
+                <tr>
+                  <th scope="row">Zoom / View Scale</th>
+                  <td>Mouse wheel</td>
+                  <td><span class="keycaps"><kbd class="keycap">,</kbd><kbd class="keycap">.</kbd></span></td>
+                  <td>Pinch</td>
+                </tr>
+                <tr>
+                  <th scope="row">Speed Boost</th>
+                  <td>Not mapped</td>
+                  <td><span class="keycaps"><kbd class="keycap">Shift</kbd></span></td>
+                  <td>Not mapped</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>

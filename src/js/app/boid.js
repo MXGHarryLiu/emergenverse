@@ -1,6 +1,7 @@
 // Boids applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Default applet parameters.
 export const BOID_DEFAULT_PARAMS = {
@@ -93,7 +94,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("count", "Count", "bi-people-fill", "count-value", "220", "30", "650", "10", "220", { group: "initial" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "220", "30", "650", "10", "220", { group: "initial", resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5", { group: "dynamic" }),
         slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18", { group: "dynamic" }),
         slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8", { group: "dynamic" }),
@@ -112,23 +113,23 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const BOID_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-count", "chart-count-live", () => "0", {
+      createChartMetricsEntry("chart-count", "chart-count-live", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-speed", "chart-speed-live", () => "0.00 m/s", {
+      createChartMetricsEntry("chart-speed", "chart-speed-live", () => "0.00 m/s", {
         stroke: "#4cd3b6",
         fill: "rgba(76, 211, 182, 0.14)",
         axisLabel: "m/s",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-neighbors", "chart-neighbors-live", () => "0.00", {
+      createChartMetricsEntry("chart-neighbors", "chart-neighbors-live", () => "0.00", {
         stroke: "#5aa4ff",
         fill: "rgba(90, 164, 255, 0.14)",
         axisLabel: "count",
@@ -224,12 +225,9 @@ export const BOID_APPLET_VISUAL = {
 
 // File-local constants and helpers.
 // Simulation implementation.
-export class BoidSimulation {
+export class BoidSimulation extends BaseSimulation {
   constructor({ scene, params, world, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "boid");
-    this.world = world;
-    this.onStats = onStats;
+    super({ scene, params, world, onStats, appletId: "boid" });
 
     this.geometry = new THREE.ConeGeometry(0.7, 2.6, 10);
     this.geometry.rotateX(Math.PI / 2);

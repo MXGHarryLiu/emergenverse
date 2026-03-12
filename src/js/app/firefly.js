@@ -1,6 +1,7 @@
 // Firefly synchronization applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Default applet parameters.
 export const FIREFLY_DEFAULT_PARAMS = {
@@ -91,14 +92,14 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180"),
+        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180", { resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { paramKey: "size" }),
-        slider("firefly-speed", "Speed", "bi-arrow-repeat", "firefly-speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
-        slider("firefly-coupling", "Coupling (\\(K\\))", "bi-diagram-2", "firefly-coupling-value", "2.20", "0", "8", "0.05", "2.2"),
-        slider("firefly-radius", "Interaction Radius", "bi-broadcast", "firefly-radius-value", "18.0 m", "1", "60", "0.5", "18.0"),
-        slider("firefly-frequency", "Base Frequency", "bi-speedometer2", "firefly-frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { paramKey: "frequencyHz" }),
-        slider("firefly-jitter", "Frequency Jitter", "bi-slash-circle", "firefly-jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { paramKey: "freqJitterHz" }),
-        slider("firefly-noise", "Phase Noise", "bi-shuffle", "firefly-noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4", { paramKey: "phaseNoise" }),
+        slider("speed", "Speed", "bi-arrow-repeat", "speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
+        slider("coupling", "Coupling (\\(K\\))", "bi-diagram-2", "coupling-value", "2.20", "0", "8", "0.05", "2.2"),
+        slider("radius", "Interaction Radius", "bi-broadcast", "radius-value", "18.0 m", "1", "60", "0.5", "18.0"),
+        slider("frequency", "Base Frequency", "bi-speedometer2", "frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { paramKey: "frequencyHz" }),
+        slider("jitter", "Frequency Jitter", "bi-slash-circle", "jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { paramKey: "freqJitterHz" }),
+        slider("noise", "Phase Noise", "bi-shuffle", "noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4", { paramKey: "phaseNoise" }),
       ],
       pauseButtonId: "toggle-firefly-pause",
       defaultButtonId: "default-firefly-sim",
@@ -109,16 +110,16 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const FIREFLY_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-firefly-count", "chart-firefly-count-live", () => "0", {
+      createChartMetricsEntry("chart-firefly-count", "chart-firefly-count-live", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
+      createChartMetricsEntry("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
         stroke: "#ffe38d",
         fill: "rgba(255, 227, 141, 0.18)",
         axisLabel: "R",
@@ -126,7 +127,7 @@ export const FIREFLY_APPLET_RUNTIME = {
         minValue: 0,
         maxValue: 1,
       }),
-      createChartMetric("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
+      createChartMetricsEntry("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
         stroke: "#ffd26e",
         fill: "rgba(255, 210, 110, 0.16)",
         axisLabel: "/s",
@@ -266,11 +267,9 @@ const fireflyLerpA = new THREE.Color();
 const fireflyLerpB = new THREE.Color();
 
 // Simulation implementation.
-export class FireflySimulation {
-  constructor({ scene, params, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "firefly");
-    this.onStats = onStats;
+export class FireflySimulation extends BaseSimulation {
+  constructor({ scene, params, world, onStats }) {
+    super({ scene, params, world, onStats, appletId: "firefly" });
 
     this.geometry = new THREE.SphereGeometry(0.45, 10, 8);
     this.material = new THREE.MeshBasicMaterial({

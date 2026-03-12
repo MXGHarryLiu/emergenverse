@@ -1,6 +1,9 @@
 // Overlay and modal behavior for help, model equations, about, share, export, and screenshot actions.
 import { APPLET_CONFIGS } from "./app/appletConfigs.js";
 
+const escapeOverlayBindings = [];
+let escapeOverlayListenerAttached = false;
+
 export function setupUiOverlays({
   dom,
   renderer,
@@ -335,11 +338,31 @@ function bindEscapeToOverlay(backdrop, onClose) {
     return;
   }
 
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !backdrop.classList.contains("is-hidden")) {
+  const existing = escapeOverlayBindings.find((entry) => entry.backdrop === backdrop);
+  if (existing) {
+    existing.onClose = onClose;
+  } else {
+    escapeOverlayBindings.push({ backdrop, onClose });
+  }
+
+  if (!escapeOverlayListenerAttached) {
+    window.addEventListener("keydown", handleEscapeOverlayKeydown);
+    escapeOverlayListenerAttached = true;
+  }
+}
+
+function handleEscapeOverlayKeydown(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  for (let index = escapeOverlayBindings.length - 1; index >= 0; index -= 1) {
+    const { backdrop, onClose } = escapeOverlayBindings[index];
+    if (!backdrop.classList.contains("is-hidden")) {
       onClose();
+      return;
     }
-  });
+  }
 }
 
 function openOverlay(backdrop) {

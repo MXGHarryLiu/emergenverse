@@ -7,6 +7,11 @@ import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
 import {
+  normalizeAppletId as normalizeAppletIdParam,
+  setAppletInUrl as setAppletInUrlParam,
+  setupAppRouting as setupUrlRouting,
+} from "./routing.js";
+import {
   APPLET_CONFIGS,
   APPLET_DEFINITIONS,
   APPLET_META,
@@ -19,6 +24,7 @@ import {
   resizeCanvasBackingStore as resizeChartCanvas,
 } from "./chartUtils.js";
 
+// App Bootstrapping: Core Params + Initial UI Template Rendering
 const DEFAULT_APPLET_ID = APPLET_ORDER[0] || "boid";
 
 const params = {
@@ -44,6 +50,7 @@ renderAppletSectionsFromConfig();
 renderAppletNavigationFromConfig();
 scheduleMathRendering();
 
+// Applet Defaults + Navigation Rendering
 const cameraDefaults = {
   cameraDistance: 185,
   cameraHeight: 80,
@@ -87,6 +94,7 @@ function renderAppletNavigationFromConfig() {
   });
 }
 
+// DOM References + Shared UI State
 const dom = {
   appShell: document.querySelector(".app-shell"),
   leftPanel: document.getElementById("left-panel"),
@@ -185,6 +193,7 @@ const panelWidthState = {
 
 let visualControls = null;
 
+// World Unit + Display Formatting Helpers
 function getAppletWorldConfig(appletId) {
   const fallback = {
     defaults: { x: 100, y: 100, z: 100 },
@@ -275,6 +284,10 @@ function refreshAppletLegend(appletId = activeApplet) {
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
 const APPLET_IDS = new Set(APPLET_ORDER);
+const ROUTING_OPTIONS = {
+  validAppletIds: APPLET_IDS,
+  defaultAppletId: DEFAULT_APPLET_ID,
+};
 const appletCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 const appletWorldState = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, createDefaultWorldState(id)]),
@@ -287,8 +300,7 @@ const appletPausedPreferences = Object.fromEntries(
 );
 const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
-let themeManager = null;
-
+// Runtime Construction: Renderer, Camera, World, Simulations, Charts
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: true,
@@ -325,7 +337,7 @@ const onKeyUp = cameraController.onKeyUp;
 const world = createWorldManager({
   params,
   onWorldGeometryChanged: () => {
-    updateOrthographicCamera(false);
+    cameraController.updateOrthographicCamera(false);
     simulationManager.onWorldGeometryChanged();
   },
 });
@@ -373,26 +385,18 @@ const chartState = Object.fromEntries(
     id,
     {
       frameCounter: 0,
-      metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(createChartMetric) ?? [],
+      metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(createChartMetricsEntry) ?? [],
     },
-  ]),
-);
-const applets = Object.fromEntries(
-  APPLET_ORDER.map((id) => [
-    id,
-    createAppletRuntime({
-      id,
-      simulation: simulations[id],
-      applyStats: (stats) => APPLET_DEFINITIONS[id].runtime?.applyStats?.(stats, appletStatsApis[id]),
-    }),
   ]),
 );
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
 const narrowScreenThresholdPx = 980;
-setPerspectiveCameraFromParams(false);
-updateOrthographicCamera(true);
-applyCameraInteractivity();
+
+// Startup Wiring + App Initialization Sequence
+cameraController.setPerspectiveCameraFromParams(false);
+cameraController.updateOrthographicCamera(true);
+cameraController.applyCameraInteractivity();
 rebuildBoundsAndGrid();
 simulationManager.initAll();
 setupCompactSectionSliders();
@@ -441,6 +445,7 @@ window.addEventListener("keyup", onKeyUp);
 const clock = new THREE.Clock();
 animate();
 
+// Main Loop + Frame Updates
 function animate() {
   requestAnimationFrame(animate);
 
@@ -448,7 +453,6 @@ function animate() {
   if (simulationManager.activeId !== activeApplet) {
     simulationManager.setActive(activeApplet);
   }
-  simulationManager.enforceVisibility?.();
   updateFpsMetric(dt);
   if (!params.paused) {
     let remaining = dt * getActiveSimulationSpeed();
@@ -460,10 +464,10 @@ function animate() {
     }
   }
 
-  updateKeyboardTranslation(dt);
+  cameraController.updateKeyboardTranslation(dt);
 
   controls.update();
-  updateCameraTelemetry();
+  cameraController.updateTelemetry();
 
   renderer.render(scene, cameraController.getActiveCamera());
 }
@@ -493,6 +497,7 @@ function rebuildBoundsAndGrid() {
   updateViewportLabel();
 }
 
+// Controls: Binding, Simulation Sliders, Defaults
 function setupControls() {
   bindAppletSimulationControls();
 
@@ -529,7 +534,7 @@ function setupControls() {
     params.cameraFov = value;
     perspectiveCamera.fov = value;
     perspectiveCamera.updateProjectionMatrix();
-    updateOrthographicCamera(false);
+    cameraController.updateOrthographicCamera(false);
     return `${Math.round(value)}°`;
   });
 
@@ -558,7 +563,7 @@ function setupControls() {
       if (activeApplet !== appletId) {
         return;
       }
-      applets[appletId]?.simulation.reset?.();
+    simulations[appletId]?.reset?.();
       resetTrendCharts(appletId);
       refreshAppletLegend(appletId);
     });
@@ -578,7 +583,7 @@ function setupControls() {
 
   dom.cameraLocked.addEventListener("change", () => {
     params.cameraLocked = dom.cameraLocked.checked;
-    applyCameraInteractivity();
+    cameraController.applyCameraInteractivity();
   });
 
   dom.boundaryMode.addEventListener("change", () => {
@@ -593,10 +598,10 @@ function setupControls() {
     dom.cameraProjectionToggle.addEventListener("click", () => {
       if (params.projectionMode === "perspective") {
         params.projectionMode = "orthographic";
-        switchToOrthographicTop();
+        cameraController.switchToOrthographicTop();
       } else {
         params.projectionMode = "perspective";
-        switchToPerspective();
+        cameraController.switchToPerspective();
       }
       updateProjectionToggleUI();
       updateViewportLabel();
@@ -616,10 +621,10 @@ function setupControls() {
 
       perspectiveCamera.fov = params.cameraFov;
       perspectiveCamera.updateProjectionMatrix();
-      updateOrthographicCamera(false);
+      cameraController.updateOrthographicCamera(false);
       cameraController.resetOrientationKeepPosition();
-      applyCameraInteractivity();
-      updateCameraTelemetry();
+      cameraController.applyCameraInteractivity();
+      cameraController.updateTelemetry();
       updateProjectionToggleUI();
       updateViewportLabel();
     });
@@ -628,7 +633,7 @@ function setupControls() {
   if (dom.homeCamera) {
     dom.homeCamera.addEventListener("click", () => {
       cameraController.moveActiveCameraToOrigin();
-      updateCameraTelemetry();
+      cameraController.updateTelemetry();
       updateViewportLabel();
     });
   }
@@ -659,7 +664,7 @@ function setupControls() {
   updateSimulationStateUI();
   updateProjectionToggleUI();
 
-  switchToPerspective();
+  cameraController.switchToPerspective();
 }
 
 function bindAppletSimulationControls() {
@@ -700,48 +705,10 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
     return rawValue;
   }
 
-  let value = Number(rawValue);
-  if (!Number.isFinite(value)) {
-    value = Number(slider?.value ?? 0);
-  }
-  if (!Number.isFinite(value)) {
-    value = 0;
-  }
-
-  if (paramKey === "resolution" || paramKey === "count" || paramKey === "predatorCount") {
-    value = Math.round(value);
-  }
+  const value = normalizeSliderInputValue(slider, rawValue);
 
   appletParams[paramKey] = value;
-
-  let shouldResetChart = false;
-
-  if (paramKey === "count") {
-    if (typeof simulation?.setCount === "function") {
-      simulation.setCount(value);
-      shouldResetChart = true;
-    } else if (typeof simulation?.setPreyCount === "function") {
-      simulation.setPreyCount(value);
-      shouldResetChart = true;
-    }
-  } else if (paramKey === "predatorCount") {
-    if (typeof simulation?.setPredatorCount === "function") {
-      simulation.setPredatorCount(value);
-      shouldResetChart = true;
-    }
-  } else if (paramKey === "resolution") {
-    if (typeof simulation?.setResolution === "function") {
-      simulation.setResolution(value);
-      shouldResetChart = true;
-    }
-  } else if (paramKey === "baseHeight" || paramKey === "noiseAmplitude") {
-    if (typeof simulation?.reset === "function") {
-      simulation.reset();
-      shouldResetChart = true;
-    }
-  } else if (typeof simulation?.syncInstances === "function") {
-    simulation.syncInstances();
-  }
+  applySliderChangeToSimulation({ slider, paramKey, value, simulation });
 
   APPLET_DEFINITIONS[appletId].runtime?.onSliderChange?.({
     appletId,
@@ -754,7 +721,7 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
     refreshLegend: () => refreshAppletLegend(appletId),
   });
 
-  if (shouldResetChart) {
+  if (slider?.resetTrendCharts) {
     resetTrendCharts(appletId);
   }
   refreshAppletLegend(appletId);
@@ -778,9 +745,62 @@ function inferSliderParamKey(appletId, sliderConfigOrId) {
     return null;
   }
 
-  const prefix = `${appletId}-`;
-  const stripped = sliderId.startsWith(prefix) ? sliderId.slice(prefix.length) : sliderId;
+  const prefixCandidates = [`${appletId}-`];
+  if (appletId.endsWith("s") && appletId.length > 1) {
+    prefixCandidates.push(`${appletId.slice(0, -1)}-`);
+  }
+  const matchedPrefix = prefixCandidates.find((prefix) => sliderId.startsWith(prefix));
+  const stripped = matchedPrefix ? sliderId.slice(matchedPrefix.length) : sliderId;
   return stripped.replace(/-([a-z0-9])/g, (_, char) => char.toUpperCase());
+}
+
+function normalizeSliderInputValue(slider, rawValue) {
+  let value = Number(rawValue);
+  if (!Number.isFinite(value)) {
+    value = Number(slider?.value ?? 0);
+  }
+  if (!Number.isFinite(value)) {
+    value = 0;
+  }
+
+  const step = String(slider?.step ?? "").trim();
+  const integerStep = step.length > 0 && !/[.eE]/.test(step);
+  return integerStep ? Math.round(value) : value;
+}
+
+function applySliderChangeToSimulation({ slider, paramKey, value, simulation }) {
+  if (!simulation) {
+    return;
+  }
+
+  const action = typeof slider?.simulationAction === "string"
+    ? slider.simulationAction
+    : "auto";
+
+  if (action === "none") {
+    return;
+  }
+  if (action === "reset") {
+    simulation.reset?.();
+    return;
+  }
+  if (action === "sync") {
+    simulation.syncInstances?.();
+    return;
+  }
+
+  const explicitSetter = typeof slider?.simulationSetter === "string" && slider.simulationSetter.length > 0
+    ? slider.simulationSetter
+    : null;
+  const methodName = explicitSetter || `set${paramKey.charAt(0).toUpperCase()}${paramKey.slice(1)}`;
+  const setter = simulation?.[methodName];
+
+  if (typeof setter === "function") {
+    setter.call(simulation, value);
+    return;
+  }
+
+  simulation.syncInstances?.();
 }
 
 function formatSliderDisplayValue(slider, value) {
@@ -853,38 +873,12 @@ function applySimulationDefaultsForApplet(appletId) {
   });
 }
 
+// App Routing + Applet Switching + Persisted Per-Applet State
 function setupAppRouting() {
-  const initial = getAppletFromUrl();
-  applyAppletMode(initial, { updateUrl: true, replaceHistory: true });
-
-  window.addEventListener("popstate", () => {
-    applyAppletMode(getAppletFromUrl(), { updateUrl: false, replaceHistory: true });
+  setupUrlRouting({
+    ...ROUTING_OPTIONS,
+    applyAppletMode,
   });
-}
-
-function normalizeAppletId(value) {
-  if (typeof value !== "string") {
-    return DEFAULT_APPLET_ID;
-  }
-
-  const normalized = value.toLowerCase().trim();
-  return APPLET_IDS.has(normalized) ? normalized : DEFAULT_APPLET_ID;
-}
-
-function getAppletFromUrl() {
-  try {
-    const url = new URL(window.location.href);
-    return normalizeAppletId(url.searchParams.get("app"));
-  } catch (error) {
-    return DEFAULT_APPLET_ID;
-  }
-}
-
-function setAppletInUrl(appletId, replaceHistory) {
-  const url = new URL(window.location.href);
-  url.searchParams.set("app", appletId);
-  const historyMethod = replaceHistory ? "replaceState" : "pushState";
-  window.history[historyMethod]?.({ app: appletId }, "", url);
 }
 
 function createDefaultWorldState(appletId) {
@@ -991,10 +985,10 @@ function applyDefaultProjectionForApplet(appletId) {
   const projectionMode = APPLET_CONFIGS[appletId]?.defaultProjection || "perspective";
   if (projectionMode === "orthographic") {
     params.projectionMode = "orthographic";
-    switchToOrthographicTop();
+    cameraController.switchToOrthographicTop();
   } else {
     params.projectionMode = "perspective";
-    switchToPerspective();
+    cameraController.switchToPerspective();
   }
 
   appletProjectionInitialized[appletId] = true;
@@ -1047,7 +1041,7 @@ function applySceneObjectVisibility(appletId) {
 }
 
 function applyAppletMode(appletId, options = {}) {
-  const normalizedId = normalizeAppletId(appletId);
+  const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
   const { updateUrl = false, replaceHistory = false } = options;
   const previousApplet = activeApplet;
 
@@ -1081,7 +1075,10 @@ function applyAppletMode(appletId, options = {}) {
     appletPausedPreferences[previousApplet] = params.paused;
   }
   params.paused = appletPausedPreferences[normalizedId];
-  applets[normalizedId]?.applyStats(lastAppletStats[normalizedId]);
+  APPLET_DEFINITIONS[normalizedId].runtime?.applyStats?.(
+    lastAppletStats[normalizedId],
+    appletStatsApis[normalizedId],
+  );
   refreshAppletLegend(normalizedId);
 
   updateSimulationStateUI();
@@ -1089,7 +1086,7 @@ function applyAppletMode(appletId, options = {}) {
   handleViewportResize();
 
   if (updateUrl) {
-    setAppletInUrl(normalizedId, replaceHistory);
+    setAppletInUrlParam(normalizedId, { replaceHistory: Boolean(replaceHistory) });
   }
 }
 
@@ -1142,8 +1139,9 @@ function updateSimulationStateUI() {
   dom.runState.disabled = false;
 }
 
+// Theme + Panels + Layout + Section Collapses
 function setupThemeToggle() {
-  themeManager = createThemeManager({
+  createThemeManager({
     toggleButton: dom.themeToggle,
     labelEl: dom.themeToggleLabel,
     iconEl: dom.themeToggleIcon,
@@ -1325,6 +1323,7 @@ function updateNarrowScreenBlocker() {
   dom.narrowScreenBlocker.setAttribute("aria-hidden", String(!tooNarrow));
 }
 
+// Trend Charts + Runtime Metrics
 function setupTrendCharts() {
   resizeTrendCharts();
   APPLET_ORDER.forEach((appletId) => resetTrendCharts(appletId));
@@ -1365,33 +1364,21 @@ function resetTrendCharts(appletId) {
 function resizeTrendCharts() {
   APPLET_ORDER.forEach((appletId) => {
     chartState[appletId]?.metrics.forEach((metric) => {
-      resizeCanvasBackingStore(getElement(metric.canvasId));
+      resizeChartCanvas(getElement(metric.canvasId));
     });
   });
   drawTrendCharts();
 }
 
-function resizeCanvasBackingStore(canvas) {
-  resizeChartCanvas(canvas);
-}
-
 function drawTrendCharts() {
   APPLET_ORDER.forEach((appletId) => {
     chartState[appletId]?.metrics.forEach((metric) => {
-      drawTrendChart(getElement(metric.canvasId), metric.history, metric.options);
+      renderTrendChart(getElement(metric.canvasId), metric.history, metric.options);
     });
   });
 }
 
-function drawTrendChart(canvas, values, options) {
-  renderTrendChart(canvas, values, options);
-}
-
-function pushTrendValue(series, value) {
-  appendTrendValue(series, value, chartMaxPoints);
-}
-
-function createChartMetric(canvasId, liveId, initialText, options) {
+function createChartMetricsEntry(canvasId, liveId, initialText, options) {
   return {
     canvasId,
     liveId,
@@ -1417,19 +1404,12 @@ function updateChartMetrics(appletId, values, liveTexts) {
   }
 
   state.metrics.forEach((metric, index) => {
-    pushTrendValue(metric.history, values[index]);
+    appendTrendValue(metric.history, values[index], chartMaxPoints);
   });
   drawTrendCharts();
 }
 
-function createAppletRuntime({ id, simulation, applyStats }) {
-  return {
-    id,
-    simulation,
-    applyStats,
-  };
-}
-
+// Generic Control Utils + Compact Slider Hub
 function bindRange(inputId, valueId, applyValue) {
   const input = document.getElementById(inputId);
   const output = document.getElementById(valueId);
@@ -1664,30 +1644,6 @@ function syncCompactSectionSlider(inputId) {
   sectionState.value.textContent = binding.output.textContent;
 }
 
-function setPerspectiveCameraFromParams(forceSnap = false) {
-  cameraController.setPerspectiveCameraFromParams(forceSnap);
-}
-
-function switchToPerspective() {
-  cameraController.switchToPerspective();
-}
-
-function switchToOrthographicTop() {
-  cameraController.switchToOrthographicTop();
-}
-
-function updateOrthographicCamera(snapToTop) {
-  cameraController.updateOrthographicCamera(snapToTop);
-}
-
-function applyCameraInteractivity() {
-  cameraController.applyCameraInteractivity();
-}
-
-function updateKeyboardTranslation(dt) {
-  cameraController.updateKeyboardTranslation(dt);
-}
-
 function resizeRenderer() {
   const width = Math.max(1, Math.floor(dom.sceneHost.clientWidth));
   const height = Math.max(1, Math.floor(dom.sceneHost.clientHeight));
@@ -1697,7 +1653,7 @@ function resizeRenderer() {
   perspectiveCamera.aspect = width / height;
   perspectiveCamera.updateProjectionMatrix();
 
-  updateOrthographicCamera(false);
+  cameraController.updateOrthographicCamera(false);
   updateViewportLabel();
 }
 
@@ -1716,14 +1672,11 @@ function updateViewportLabel() {
   dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
 }
 
-function updateCameraTelemetry() {
-  cameraController.updateTelemetry();
-}
-
 function getActiveSimulationSpeed() {
   return THREE.MathUtils.clamp(Number(params[activeApplet]?.simSpeed) || 1, 0.1, 10);
 }
 
+// Math Rendering Bootstrap
 function scheduleMathRendering() {
   const render = () => {
     if (typeof window.renderMathInElement !== "function") {
@@ -1752,3 +1705,5 @@ function scheduleMathRendering() {
     { once: true },
   );
 }
+
+

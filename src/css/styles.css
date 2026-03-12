@@ -1,3 +1,4 @@
+/* Base Reset + Page Shell */
 * {
   box-sizing: border-box;
 }
@@ -19,6 +20,7 @@ body {
   overflow: hidden;
 }
 
+/* Top Navigation + Branding */
 .top-nav {
   height: var(--nav-h);
   border-bottom: 1px solid var(--line);
@@ -53,6 +55,7 @@ body {
   text-transform: none;
 }
 
+/* Parameter Order + Colormap Header Controls */
 .simulation-order-toggle {
   gap: 0;
 }
@@ -104,6 +107,7 @@ body {
   line-height: 1;
 }
 
+/* Generic Chips + Top Buttons */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -177,6 +181,7 @@ body {
   min-width: 0;
 }
 
+/* Applet Tabs */
 .applet-nav {
   display: inline-flex;
   align-items: center;
@@ -219,6 +224,7 @@ body {
   outline: none;
 }
 
+/* Main Layout Grid + Panels */
 .app-shell {
   --left-panel-w: 270px;
   --right-panel-w: 320px;
@@ -369,6 +375,7 @@ body {
   display: none !important;
 }
 
+/* Sidebar Headers */
 .sidebar-head {
   display: flex;
   align-items: center;
@@ -418,6 +425,7 @@ body {
   color: var(--title-color);
 }
 
+/* Left Panel Content: Stats + Model + Charts */
 .panel-copy {
   color: var(--text-soft);
   line-height: 1.45;
@@ -615,6 +623,7 @@ body {
     );
 }
 
+/* Scene Viewport + In-Viewport Tools */
 #scene-host {
   width: 100%;
   height: 100%;
@@ -740,6 +749,7 @@ body {
   font-size: 0.86rem;
 }
 
+/* Right Panel Forms + Compact Slider Hub */
 .right-panel .form-label {
   display: flex;
   align-items: center;
@@ -853,6 +863,7 @@ body {
   color: #94fff0;
 }
 
+/* Shared Form Inputs + Switches + Colormap Legend */
 .form-range {
   margin-top: 0.15rem;
   margin-bottom: 0.75rem;
@@ -989,6 +1000,7 @@ body {
   box-shadow: 0 0 0 0.14rem rgba(76, 211, 182, 0.26);
 }
 
+/* Section Containers + Action Buttons */
 .section-toggle {
   width: 100%;
   display: inline-flex;
@@ -1126,6 +1138,7 @@ body {
   line-height: 1.35;
 }
 
+/* Narrow Screen Blocker */
 .narrow-screen-blocker {
   position: fixed;
   inset: 0;
@@ -1163,6 +1176,7 @@ body {
   font-size: 0.88rem;
 }
 
+/* Modals + Share + Screenshot Preview */
 .controls-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1228,13 +1242,26 @@ body {
   border: 1px solid var(--line-soft);
   border-radius: 0.8rem;
   overflow: hidden;
-  background:
-    linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
-  background-size: 18px 18px;
-  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+  background-color: rgba(13, 21, 38, 0.88);
+  background-image:
+    linear-gradient(
+      45deg,
+      rgba(238, 246, 255, 0.14) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(238, 246, 255, 0.14) 75%,
+      rgba(238, 246, 255, 0.14)
+    ),
+    linear-gradient(
+      45deg,
+      rgba(238, 246, 255, 0.14) 25%,
+      transparent 25%,
+      transparent 75%,
+      rgba(238, 246, 255, 0.14) 75%,
+      rgba(238, 246, 255, 0.14)
+    );
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
 }
 
 .screenshot-preview-image {
@@ -1267,6 +1294,7 @@ body {
   outline-offset: 1px;
 }
 
+/* Model Equation Cards + About Links */
 .controls-modal-head {
   display: flex;
   align-items: center;
@@ -1356,9 +1384,97 @@ body {
 
 .controls-list {
   margin: 0.45rem 0 0;
-  padding-left: 1rem;
+  padding-left: 0;
   color: var(--text-main);
   line-height: 1.45;
+}
+
+/* Controls Tutorial Table */
+.controls-table-wrap {
+  margin-top: 0.45rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  background: var(--chip-bg);
+}
+
+.controls-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+  font-size: 0.78rem;
+  background: transparent;
+}
+
+.controls-table thead th {
+  padding: 0.5rem 0.58rem;
+  text-align: left;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--title-color);
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--bg-elev) 72%, transparent);
+}
+
+.controls-platform-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.32rem;
+  color: var(--text-soft);
+  font-size: 0.78em;
+}
+
+.controls-table tbody th,
+.controls-table tbody td {
+  padding: 0.46rem 0.58rem;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+.controls-table tbody th {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.controls-table tbody td {
+  color: var(--text-main);
+}
+
+.keycaps {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.18rem;
+}
+
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.28rem;
+  height: 1.28rem;
+  padding: 0 0.35rem;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bg-elev) 68%, transparent);
+  color: var(--title-color);
+  font: 600 0.68rem/1 "Space Grotesk", "Segoe UI", sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.controls-table tbody tr:nth-child(even) th,
+.controls-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--bg-elev) 45%, transparent);
+}
+
+.controls-table tbody tr:last-child th,
+.controls-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .about-links a {
@@ -1373,6 +1489,7 @@ body {
   border-bottom-color: var(--accent);
 }
 
+/* Camera Telemetry Cards */
 .camera-dof-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1414,6 +1531,7 @@ body {
   display: none !important;
 }
 
+/* Responsive Breakpoints */
 @media (max-width: 1200px) {
   .app-shell {
     --left-panel-w: 240px;
@@ -1491,6 +1609,7 @@ body {
   }
 }
 
+/* Animations */
 @keyframes rise-in {
   from {
     opacity: 0;

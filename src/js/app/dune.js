@@ -1,6 +1,7 @@
 // Sand dune applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Default applet parameters.
 export const DUNE_DEFAULT_PARAMS = {
@@ -118,15 +119,15 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       sliderHub: { title: "Object Visual Size", value: "5.0 m", min: "0.5", max: "20.0", step: "0.1", valueNum: "5.0" },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "5.0 m", "0.5", "20.0", "0.1", "5.0", { paramKey: "objectSizeM" }),
-        slider("dune-height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "dune-height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8"),
-        slider("dune-wind-direction", "Wind Direction", "bi-compass", "dune-wind-direction-value", "20°", "-180", "180", "1", "20", { paramKey: "windDirectionDeg" }),
-        slider("dune-wind-strength", "Wind Strength", "bi-wind", "dune-wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9"),
-        slider("dune-transport-rate", "Transport Rate", "bi-arrow-left-right", "dune-transport-rate-value", "0.28", "0.0", "1.5", "0.02", "0.28"),
-        slider("dune-repose-slope", "Repose Slope", "bi-triangle-half", "dune-repose-slope-value", "1.40 m", "0.2", "4.0", "0.05", "1.4"),
-        slider("dune-avalanche-rate", "Avalanche Rate", "bi-chevron-down", "dune-avalanche-rate-value", "0.70", "0.0", "2.0", "0.05", "0.7"),
-        slider("dune-base-height", "Base Height", "bi-box-fill", "dune-base-height-value", "2.20 m", "0.2", "6.0", "0.05", "2.2"),
-        slider("dune-noise-amplitude", "Noise Amplitude", "bi-stars", "dune-noise-amplitude-value", "0.25 m", "0.0", "3.0", "0.05", "0.25"),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "5.0 m", "0.5", "20.0", "0.1", "5.0", { paramKey: "objectSizeM", simulationAction: "reset", resetTrendCharts: true }),
+        slider("height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8"),
+        slider("wind-direction", "Wind Direction", "bi-compass", "wind-direction-value", "20°", "-180", "180", "1", "20", { paramKey: "windDirectionDeg" }),
+        slider("wind-strength", "Wind Strength", "bi-wind", "wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9"),
+        slider("transport-rate", "Transport Rate", "bi-arrow-left-right", "transport-rate-value", "0.28", "0.0", "1.5", "0.02", "0.28"),
+        slider("repose-slope", "Repose Slope", "bi-triangle-half", "repose-slope-value", "1.40 m", "0.2", "4.0", "0.05", "1.4"),
+        slider("avalanche-rate", "Avalanche Rate", "bi-chevron-down", "avalanche-rate-value", "0.70", "0.0", "2.0", "0.05", "0.7"),
+        slider("base-height", "Base Height", "bi-box-fill", "base-height-value", "2.20 m", "0.2", "6.0", "0.05", "2.2", { simulationAction: "reset", resetTrendCharts: true }),
+        slider("noise-amplitude", "Noise Amplitude", "bi-stars", "noise-amplitude-value", "0.25 m", "0.0", "3.0", "0.05", "0.25", { simulationAction: "reset", resetTrendCharts: true }),
       ],
       pauseButtonId: "toggle-dune-pause",
       defaultButtonId: "default-dune-sim",
@@ -137,23 +138,23 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const DUNE_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-dune-height", "chart-dune-height-live", () => "0.00 m", {
+      createChartMetricsEntry("chart-dune-height", "chart-dune-height-live", () => "0.00 m", {
         stroke: "#f6d17b",
         fill: "rgba(246, 209, 123, 0.16)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-dune-relief", "chart-dune-relief-live", () => "0.00 m", {
+      createChartMetricsEntry("chart-dune-relief", "chart-dune-relief-live", () => "0.00 m", {
         stroke: "#ef9d5d",
         fill: "rgba(239, 157, 93, 0.15)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-dune-transport", "chart-dune-transport-live", () => "0.00 m/s", {
+      createChartMetricsEntry("chart-dune-transport", "chart-dune-transport-live", () => "0.00 m/s", {
         stroke: "#8fded4",
         fill: "rgba(143, 222, 212, 0.14)",
         axisLabel: "m/s",
@@ -177,12 +178,6 @@ export const DUNE_APPLET_RUNTIME = {
       `${(stats.relief ?? 0).toFixed(2)} m`,
       `${(stats.transportFlux ?? 0).toFixed(2)} m/s`,
     ]);
-  },
-  onSliderChange({ paramKey, simulation, resetTrendCharts }) {
-    if (paramKey === "objectSizeM") {
-      simulation?.reset?.();
-      resetTrendCharts?.();
-    }
   },
 };
 
@@ -256,12 +251,9 @@ const duneLerpB = new THREE.Color();
 const duneWhite = new THREE.Color(1, 1, 1);
 
 // Simulation implementation.
-export class DuneSimulation {
+export class DuneSimulation extends BaseSimulation {
   constructor({ scene, params, world, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "dune");
-    this.world = world;
-    this.onStats = onStats;
+    super({ scene, params, world, onStats, appletId: "dune" });
 
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshPhongMaterial({

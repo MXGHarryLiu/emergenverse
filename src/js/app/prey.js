@@ -1,6 +1,7 @@
 // Predator-prey applet config and simulation implementation.
 import * as THREE from "three";
-import { createAppletParams, defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { BaseSimulation } from "./baseSimulation.js";
 
 // Default applet parameters.
 export const PREY_DEFAULT_PARAMS = {
@@ -106,8 +107,8 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
       sliders: [
         slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260"),
-        slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24"),
+        slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260", { simulationSetter: "setPreyCount", resetTrendCharts: true }),
+        slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24", { resetTrendCharts: true }),
         slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5"),
         slider("predator-speed", "Predator Speed", "bi-lightning-charge-fill", "predator-speed-value", "6.2 m/s", "0.5", "24", "0.1", "6.2"),
         slider("predator-sense-radius", "Sense Radius", "bi-broadcast", "predator-sense-radius-value", "16.0 m", "1", "60", "0.5", "16.0"),
@@ -126,23 +127,23 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
 
 // Shell runtime hooks.
 export const PREY_APPLET_RUNTIME = {
-  createChartMetrics(createChartMetric) {
+  createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetric("chart-prey-count", "chart-prey-count-live", () => "0", {
+      createChartMetricsEntry("chart-prey-count", "chart-prey-count-live", () => "0", {
         stroke: "#6be39f",
         fill: "rgba(107, 227, 159, 0.16)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-predator-count", "chart-predator-count-live", () => "0", {
+      createChartMetricsEntry("chart-predator-count", "chart-predator-count-live", () => "0", {
         stroke: "#ff9b70",
         fill: "rgba(255, 155, 112, 0.18)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetric("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
+      createChartMetricsEntry("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
         stroke: "#f0cf72",
         fill: "rgba(240, 207, 114, 0.18)",
         axisLabel: "events",
@@ -237,11 +238,9 @@ const preyColormapLerpA = new THREE.Color();
 const preyColormapLerpB = new THREE.Color();
 
 // Simulation implementation.
-export class PreySimulation {
-  constructor({ scene, params, onStats }) {
-    this.scene = scene;
-    this.params = createAppletParams(params, "prey");
-    this.onStats = onStats;
+export class PreySimulation extends BaseSimulation {
+  constructor({ scene, params, world, onStats }) {
+    super({ scene, params, world, onStats, appletId: "prey" });
 
     this.preyGeometry = new THREE.SphereGeometry(0.42, 10, 8);
     this.preyMaterial = new THREE.MeshPhongMaterial({
