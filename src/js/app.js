@@ -129,6 +129,11 @@ const dom = {
   shareLinkInput: document.getElementById("share-link-input"),
   shareLinkCopy: document.getElementById("share-link-copy"),
   shareCopyStatus: document.getElementById("share-copy-status"),
+  exportInfoOpen: document.getElementById("export-info-open"),
+  exportInfoClose: document.getElementById("export-info-close"),
+  exportInfoBackdrop: document.getElementById("export-info-backdrop"),
+  exportParamsJson: document.getElementById("export-params-json"),
+  exportStatus: document.getElementById("export-status"),
   viewportScreenshotBtn: document.getElementById("viewport-screenshot-btn"),
   screenshotInfoClose: document.getElementById("screenshot-info-close"),
   screenshotInfoBackdrop: document.getElementById("screenshot-info-backdrop"),
@@ -414,6 +419,12 @@ setupUiOverlays({
     dom.showBounds.checked = params.showBounds;
     world.setBoundsVisibility(params.showBounds);
   },
+  getExportData: () => ({
+    app: "emergenverse",
+    exportedAt: new Date().toISOString(),
+    activeApplet,
+    params: JSON.parse(JSON.stringify(params)),
+  }),
 });
 setupTrendCharts();
 setupChartCollapses();
@@ -659,12 +670,22 @@ function bindAppletSimulationControls() {
     }
 
     sliders.forEach((slider) => {
-      bindRange(slider.id, slider.valueId, (value) => {
+      const inputId = getSimulationSliderInputId(appletId, slider);
+      const valueId = getSimulationSliderValueId(appletId, slider);
+      bindRange(inputId, valueId, (value) => {
         const displayValue = handleAppletSliderInput(appletId, slider, value);
         return formatSliderDisplayValue(slider, displayValue);
       });
     });
   });
+}
+
+function getSimulationSliderInputId(appletId, slider) {
+  return `${appletId}-${slider.id}`;
+}
+
+function getSimulationSliderValueId(appletId, slider) {
+  return `${appletId}-${slider.valueId}`;
 }
 
 function handleAppletSliderInput(appletId, slider, rawValue) {
@@ -823,7 +844,7 @@ function applySimulationDefaultsForApplet(appletId) {
   }
 
   sliders.forEach((slider) => {
-    const input = document.getElementById(slider.id);
+    const input = document.getElementById(getSimulationSliderInputId(appletId, slider));
     if (!input) {
       return;
     }

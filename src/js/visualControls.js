@@ -23,6 +23,10 @@ const CONTINUOUS_COLORMAP_GRADIENTS = {
   greys: "linear-gradient(90deg, #111111 0%, #3a3a3a 16%, #5f5f5f 32%, #878787 48%, #afafaf 64%, #d3d3d3 82%, #f2f2f2 100%)",
 };
 
+const CONTINUOUS_COLORMAP_GRADIENTS_INVERTED = Object.fromEntries(
+  Object.entries(CONTINUOUS_COLORMAP_GRADIENTS).map(([key, gradient]) => [key, invertLinearGradientDirection(gradient)]),
+);
+
 export function createVisualControls({
   params,
   simulations = {},
@@ -61,6 +65,7 @@ export function createVisualControls({
   function hideColormapPanel() {
     dom.colormapPanel.panel?.classList.add("is-hidden");
     dom.colormapPanel.legend.container?.classList.add("is-hidden");
+    dom.colormapPanel.invertWrap?.classList.add("is-hidden");
   }
 
   function mountColormapPanel(appletId) {
@@ -111,13 +116,30 @@ export function createVisualControls({
       return null;
     }
 
-    return visualAdapter.getColormapConfig({
+    const baseConfig = visualAdapter.getColormapConfig({
       appletId,
       params: appletParams,
       simulation: simulations[appletId],
       continuousColormapOptions: CONTINUOUS_COLORMAP_OPTIONS,
       continuousColormapGradients: CONTINUOUS_COLORMAP_GRADIENTS,
     });
+    if (!baseConfig) {
+      return null;
+    }
+
+    const supportsInvert =
+      baseConfig.options === CONTINUOUS_COLORMAP_OPTIONS &&
+      Boolean(baseConfig.visible);
+
+    return {
+      ...baseConfig,
+      invertVisible: supportsInvert,
+      inverted: Boolean(appletParams.colormapInverted) && supportsInvert,
+      setInverted(value) {
+        appletParams.colormapInverted = Boolean(value);
+        simulations[appletId]?.syncInstances?.();
+      },
+    };
   }
 
   function renderConfigLegend(config) {
@@ -126,7 +148,19 @@ export function createVisualControls({
       return;
     }
 
-    updateLegendDisplay(config.legend);
+    const selectedMap = config.value || "";
+    const normalGradient = config.legend.gradient;
+    const invertedGradient =
+      CONTINUOUS_COLORMAP_GRADIENTS_INVERTED[selectedMap] ||
+      invertLinearGradientDirection(normalGradient);
+    const gradient =
+      config.inverted && config.invertVisible ? invertedGradient : normalGradient;
+
+    updateLegendDisplay({
+      gradient,
+      minText: config.legend.minText,
+      maxText: config.legend.maxText,
+    });
   }
 
   function syncColormapPanel() {
@@ -141,12 +175,22 @@ export function createVisualControls({
     dom.colormapPanel.panel?.classList.toggle("is-hidden", !config.visible);
     if (!config.visible) {
       dom.colormapPanel.legend.container?.classList.add("is-hidden");
+      dom.colormapPanel.invertWrap?.classList.add("is-hidden");
       return;
     }
 
     const nextValue = rebuildColormapOptions(config.options, config.value);
     if (nextValue !== config.value) {
       config.setValue(nextValue);
+    }
+    const invertToggle = dom.colormapPanel.invertToggle;
+    const invertWrap = dom.colormapPanel.invertWrap;
+    if (invertToggle && invertWrap) {
+      const showInvert = Boolean(config.invertVisible);
+      invertWrap.classList.toggle("is-hidden", !showInvert);
+      invertToggle.checked = showInvert && Boolean(config.inverted);
+      invertToggle.title = config.inverted ? "Colormap inverted" : "Invert colormap";
+      invertToggle.disabled = !showInvert;
     }
     renderConfigLegend(config);
   }
@@ -201,6 +245,16 @@ export function createVisualControls({
       }
       config.setValue(dom.colormapPanel.select.value);
       renderConfigLegend(getColormapConfig(activeApplet));
+    });
+
+    dom.colormapPanel.invertToggle?.addEventListener("change", () => {
+      const activeApplet = getActiveApplet?.();
+      const config = getColormapConfig(activeApplet);
+      if (!config?.invertVisible) {
+        return;
+      }
+      config.setInverted(Boolean(dom.colormapPanel.invertToggle?.checked));
+      syncColormapPanel();
     });
   }
 
@@ -265,6 +319,8 @@ function getVisualControlsDom() {
     colormapPanel: {
       panel: document.getElementById("shared-colormap-panel"),
       select: document.getElementById("colormap"),
+      invertToggle: document.getElementById("colormap-invert-toggle"),
+      invertWrap: document.getElementById("colormap-invert-wrap"),
       legend: {
         container: document.getElementById("colormap-legend"),
         bar: document.getElementById("colormap-legend-bar"),
@@ -274,4 +330,14 @@ function getVisualControlsDom() {
       hosts,
     },
   };
+}
+
+function invertLinearGradientDirection(gradient) {
+  if (typeof gradient !== "string" || gradient.length === 0) {
+    return gradient;
+  }
+  if (gradient.includes("90deg")) {
+    return gradient.replace("90deg", "270deg");
+  }
+  return gradient;
 }

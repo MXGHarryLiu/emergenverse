@@ -7,6 +7,7 @@ export const ANT_DEFAULT_PARAMS = {
   simSpeed: 2.0,
   colorMode: "state",
   colormap: "turbo",
+  colormapInverted: false,
   solidColor: "#62d6f9",
   count: 120,
   scale: 0.03,
@@ -62,7 +63,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t$$",
           explanation: "Each ant moves forward according to its current heading and walking speed.",
           parameters: [
-            "<strong>Speed</strong> (<em>v<sub>a</sub></em>) sets the walking rate.",
+            "<strong>Speed</strong> (\\(v_a\\)) sets the walking rate.",
           ],
         },
         {
@@ -70,8 +71,8 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\theta_i(t+\\Delta t)=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i$$",
           explanation: "Heading changes with trail sensing, goal attraction, and a stochastic exploration term.",
           parameters: [
-            "<strong>Turn Gain</strong> (<em>k<sub>&theta;</sub></em>) scales steering responsiveness.",
-            "<strong>Goal Bias</strong> (<em>k<sub>g</sub></em>) strengthens return-to-target steering.",
+            "<strong>Turn Gain</strong> (\\(k_{\\theta}\\)) scales steering responsiveness.",
+            "<strong>Goal Bias</strong> (\\(k_g\\)) strengthens return-to-target steering.",
           ],
         },
         {
@@ -79,9 +80,9 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           equation: "$$P_j(t+\\Delta t)=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j+Q_j$$",
           explanation: "The trail field evaporates, diffuses across the floor, and receives new deposits from ants.",
           parameters: [
-            "<strong>Deposit Rate</strong> (<em>Q<sub>j</sub></em>) controls how much trail is added.",
-            "<strong>Diffusion Rate</strong> (<em>D</em>) controls how quickly trails spread.",
-            "<strong>Evaporation Rate</strong> (<em>&lambda;</em>) controls how quickly trails fade.",
+            "<strong>Deposit Rate</strong> (\\(Q_j\\)) controls how much trail is added.",
+            "<strong>Diffusion Rate</strong> (\\(D\\)) controls how quickly trails spread.",
+            "<strong>Evaporation Rate</strong> (\\(\\lambda\\)) controls how quickly trails fade.",
           ],
         },
       ],
@@ -156,15 +157,15 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         valueNum: "120",
       },
       sliders: [
-        slider("ant-sim-speed", "Simulation Speed", "bi-stopwatch", "ant-sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
-        slider("ant-count", "Count", "bi-people-fill", "ant-count-value", "120", "20", "400", "5", "120"),
-        slider("ant-scale", "Object Visual Size", "bi-rulers", "ant-scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0"),
+        slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120"),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030"),
         slider("ant-speed", "Speed", "bi-speedometer2", "ant-speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012"),
         slider("ant-sensor-distance", "Sensor Distance", "bi-broadcast", "ant-sensor-distance-value", "0.08 m", "0.01", "0.40", "0.005", "0.08"),
         slider("ant-food-sense-distance", "Food Sensing Distance", "bi-bullseye", "ant-food-sense-distance-value", "0.18 m", "0.02", "0.70", "0.01", "0.18"),
         slider("ant-sensor-angle", "Sensor Angle", "bi-compass", "ant-sensor-angle-value", "35°", "5", "90", "1", "35"),
-        slider("ant-turn-gain", "Turn Gain (kθ)", "bi-arrow-repeat", "ant-turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
-        slider("ant-goal-bias", "Goal Bias (kg)", "bi-bullseye", "ant-goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
+        slider("ant-turn-gain", "Turn Gain (\\(k_{\\theta}\\))", "bi-arrow-repeat", "ant-turn-gain-value", "3.00 1/s", "0", "8", "0.05", "3.0"),
+        slider("ant-goal-bias", "Goal Bias (\\(k_g\\))", "bi-bullseye", "ant-goal-bias-value", "1.00 1/s", "0", "2", "0.05", "1.0"),
         slider("ant-departure-rate", "Departure Rate", "bi-box-arrow-up-right", "ant-departure-rate-value", "6.0 Hz", "0", "20", "0.25", "6"),
         slider("ant-deposit-rate", "Deposit Rate", "bi-droplet-fill", "ant-deposit-rate-value", "5.0", "0", "20", "0.25", "5.0"),
         slider("ant-diffusion-rate", "Diffusion Rate", "bi-water", "ant-diffusion-rate-value", "3.00 1/s", "0", "12", "0.05", "3.0"),
@@ -828,7 +829,8 @@ export class AntSimulation {
 
     if (mode === "heading") {
       const t = (wrapAngle(ant.heading) + Math.PI) / (Math.PI * 2);
-      sampleColormap(this.params.colormap, t, outColor);
+      const colorT = this.params.colormapInverted ? 1 - t : t;
+      sampleColormap(this.params.colormap, colorT, outColor);
       return;
     }
 

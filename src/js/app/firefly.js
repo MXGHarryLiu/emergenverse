@@ -15,6 +15,7 @@ export const FIREFLY_DEFAULT_PARAMS = {
   phaseNoise: 0.4,
   colorMode: "blink",
   colormap: "blue-yellow",
+  colormapInverted: false,
   solidColor: "#ffd86b",
 };
 
@@ -51,8 +52,8 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\dot{\\theta}_i = \\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)$$",
           explanation: "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
           parameters: [
-            "<strong>Coupling</strong> (<em>K</em>) sets the synchronization strength.",
-            "<strong>Base Frequency</strong> (<em>&omega;</em>), <strong>Frequency Jitter</strong> (<em>&Delta;&omega;</em>), and <strong>Phase Noise</strong> (<em>&eta;</em>) shape the intrinsic rhythm spread.",
+            "<strong>Coupling</strong> (\\(K\\)) sets the synchronization strength.",
+            "<strong>Base Frequency</strong> (\\(\\omega\\)), <strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)), and <strong>Phase Noise</strong> (\\(\\eta\\)) shape the intrinsic rhythm spread.",
           ],
         },
         {
@@ -89,11 +90,11 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       className: "mt-2",
       sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
       sliders: [
-        slider("firefly-sim-speed", "Simulation Speed", "bi-stopwatch", "firefly-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("firefly-count", "Count", "bi-people-fill", "firefly-count-value", "180", "20", "900", "10", "180"),
-        slider("firefly-size", "Object Visual Size", "bi-rulers", "firefly-size-value", "0.80 m", "0.2", "2.5", "0.05", "0.8"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180"),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { paramKey: "size" }),
         slider("firefly-speed", "Speed", "bi-arrow-repeat", "firefly-speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2"),
-        slider("firefly-coupling", "Coupling (K)", "bi-diagram-2", "firefly-coupling-value", "2.20", "0", "8", "0.05", "2.2"),
+        slider("firefly-coupling", "Coupling (\\(K\\))", "bi-diagram-2", "firefly-coupling-value", "2.20", "0", "8", "0.05", "2.2"),
         slider("firefly-radius", "Interaction Radius", "bi-broadcast", "firefly-radius-value", "18.0 m", "1", "60", "0.5", "18.0"),
         slider("firefly-frequency", "Base Frequency", "bi-speedometer2", "firefly-frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { paramKey: "frequencyHz" }),
         slider("firefly-jitter", "Frequency Jitter", "bi-slash-circle", "firefly-jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { paramKey: "freqJitterHz" }),
@@ -512,7 +513,8 @@ export class FireflySimulation {
       } else if (this.params.colorMode === "frequency") {
         const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
         const t = THREE.MathUtils.clamp((firefly.omegaHz - frequencyRange.min) / span, 0, 1);
-        sampleColormap(this.params.colormap, t, this.tempColor);
+        const colorT = this.params.colormapInverted ? 1 - t : t;
+        sampleColormap(this.params.colormap, colorT, this.tempColor);
         // Frequency mode should show steady color, not phase blinking.
         this.tempColor.multiplyScalar(0.95);
       } else {

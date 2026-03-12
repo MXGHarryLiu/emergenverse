@@ -17,6 +17,7 @@ export const BOID_DEFAULT_PARAMS = {
   separationWeight: 1.35,
   colorMode: "speed",
   colormap: "turbo",
+  colormapInverted: false,
   solidColor: "#4cd3b6",
 };
 
@@ -41,7 +42,6 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
     },
     model: {
       buttonLabel: "Open Model Equations",
-      subtitle: "Discrete flocking update with bounded steering and speed.",
       references: [
         { label: "Wikipedia: Boids", url: "https://en.wikipedia.org/wiki/Boids" },
       ],
@@ -61,7 +61,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
           explanation: "The steering vector is formed by combining alignment, cohesion, and separation responses to nearby flockmates.",
           parameters: [
-            "<strong>Alignment Weight</strong> (<em>w<sub>a</sub></em>), <strong>Cohesion Weight</strong> (<em>w<sub>c</sub></em>), and <strong>Separation Weight</strong> (<em>w<sub>s</sub></em>) scale the three steering terms.",
+            "<strong>Alignment Weight</strong> (\\(w_a\\)), <strong>Cohesion Weight</strong> (\\(w_c\\)), and <strong>Separation Weight</strong> (\\(w_s\\)) scale the three steering terms.",
           ],
         },
       ],
@@ -92,16 +92,16 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
         valueNum: "220",
       },
       sliders: [
-        slider("boid-sim-speed", "Simulation Speed", "bi-stopwatch", "boid-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("boid-count", "Count", "bi-people-fill", "boid-count-value", "220", "30", "650", "10", "220"),
-        slider("boid-scale", "Object Visual Size", "bi-rulers", "boid-scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5"),
-        slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18"),
-        slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8"),
-        slider("max-speed", "Max Speed", "bi-speedometer2", "max-speed-value", "8.0 m/s", "1", "25", "0.25", "8"),
-        slider("max-accel", "Max Acceleration", "bi-lightning-charge-fill", "max-accel-value", "6.0 m/s²", "0.5", "30", "0.25", "6"),
-        slider("alignment-weight", "Alignment Weight (wₐ)", "bi-layout-three-columns", "alignment-weight-value", "1.00", "0", "3", "0.05", "1"),
-        slider("cohesion-weight", "Cohesion Weight (wᶜ)", "bi-diagram-3-fill", "cohesion-weight-value", "0.90", "0", "3", "0.05", "0.9"),
-        slider("separation-weight", "Separation Weight (wₛ)", "bi-arrow-left-right", "separation-weight-value", "1.35", "0", "4", "0.05", "1.35"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "220", "30", "650", "10", "220", { group: "initial" }),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5", { group: "dynamic" }),
+        slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18", { group: "dynamic" }),
+        slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8", { group: "dynamic" }),
+        slider("max-speed", "Max Speed", "bi-speedometer2", "max-speed-value", "8.0 m/s", "1", "25", "0.25", "8", { group: "dynamic" }),
+        slider("max-accel", "Max Acceleration", "bi-lightning-charge-fill", "max-accel-value", "6.0 m/s²", "0.5", "30", "0.25", "6", { group: "dynamic" }),
+        slider("alignment-weight", "Alignment Weight (\\(w_a\\))", "bi-layout-three-columns", "alignment-weight-value", "1.00", "0", "3", "0.05", "1", { group: "dynamic" }),
+        slider("cohesion-weight", "Cohesion Weight (\\(w_c\\))", "bi-diagram-3-fill", "cohesion-weight-value", "0.90", "0", "3", "0.05", "0.9", { group: "dynamic" }),
+        slider("separation-weight", "Separation Weight (\\(w_s\\))", "bi-arrow-left-right", "separation-weight-value", "1.35", "0", "4", "0.05", "1.35", { group: "dynamic" }),
       ],
       pauseButtonId: "toggle-pause",
       defaultButtonId: "default-sim",
@@ -624,7 +624,8 @@ export class BoidSimulation {
       return outColor.setRGB(1, 1, 1);
     }
 
-    const clamped = THREE.MathUtils.clamp(value, 0, 1);
+    const normalized = this.params.colormapInverted ? 1 - value : value;
+    const clamped = THREE.MathUtils.clamp(normalized, 0, 1);
     if (colors.length === 1) {
       return outColor.copy(colors[0]);
     }

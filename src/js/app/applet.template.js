@@ -14,6 +14,7 @@ export const EXAMPLE_DEFAULT_PARAMS = {
   scale: 1.0,
   colorMode: "none",
   colormap: "turbo",
+  colormapInverted: false,
   solidColor: "#4cd3b6",
 };
 
@@ -78,8 +79,8 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
       className: "mt-2",
       sliderHub: { title: "Count", value: "100", min: "10", max: "500", step: "10", valueNum: "100" },
       sliders: [
-        slider("example-sim-speed", "Simulation Speed", "bi-stopwatch", "example-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("example-count", "Count", "bi-people-fill", "example-count-value", "100", "10", "500", "10", "100"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("count", "Count", "bi-people-fill", "count-value", "100", "10", "500", "10", "100", { group: "initial" }),
         // Optional explicit mapping when slider id does not convert to the desired param key.
         slider(
           "example-frequency",
@@ -91,7 +92,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
           "6.0",
           "0.05",
           "1.8",
-          { paramKey: "frequencyHz" },
+          { group: "dynamic", paramKey: "frequencyHz" },
         ),
       ],
       pauseButtonId: "toggle-example-pause",

@@ -7,9 +7,9 @@ export const DUNE_DEFAULT_PARAMS = {
   simSpeed: 1.0,
   colorMode: "mass",
   colormap: "cividis",
+  colormapInverted: false,
   solidColor: "#D8B36A",
-  resolution: 40,
-  columnSizeScale: 0.94,
+  objectSizeM: 5.0,
   heightScale: 1.8,
   windDirectionDeg: 20,
   windStrength: 0.9,
@@ -17,7 +17,7 @@ export const DUNE_DEFAULT_PARAMS = {
   reposeSlope: 1.4,
   avalancheRate: 0.7,
   baseHeight: 2.2,
-  noiseAmplitude: 0.0,
+  noiseAmplitude: 0.25,
 };
 
 // Applet UI and metadata configuration.
@@ -59,8 +59,8 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
           equation: "$$q_{ij}=W\\,\\tau\\,h_{ij},\\qquad h_{ij}^{t+\\Delta t}=h_{ij}^{t}-q_{ij}\\,\\Delta t,\\qquad h_{i+u,j+v}^{t+\\Delta t}=h_{i+u,j+v}^{t}+q_{ij}\\,\\Delta t$$",
           explanation: "Sediment is removed from one column and deposited one cell downwind. In this reduced model, wind strength multiplies the transport term rather than acting as a separate force law.",
           parameters: [
-            "<strong>Wind Strength</strong> (<em>W</em>) scales the aerodynamic forcing that drives downwind transport.",
-            "<strong>Transport Rate</strong> (<em>&tau;</em>) controls how much movable sand shifts to the next downwind cell.",
+            "<strong>Wind Strength</strong> (\\(W\\)) scales the aerodynamic forcing that drives downwind transport.",
+            "<strong>Transport Rate</strong> (\\(\\tau\\)) controls how much movable sand shifts to the next downwind cell.",
           ],
         },
         {
@@ -68,8 +68,8 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\Delta h_{ij\\to kl}=A\\,\\max\\!\\left(0,\\,|h_{ij}-h_{kl}|-s_r\\right)$$",
           explanation: "When the local slope exceeds the repose threshold, sand is redistributed downhill until the face relaxes.",
           parameters: [
-            "<strong>Repose Slope</strong> (<em>s<sub>r</sub></em>) sets the critical height difference before failure.",
-            "<strong>Avalanche Rate</strong> (<em>A</em>) controls how quickly unstable faces relax.",
+            "<strong>Repose Slope</strong> (\\(s_r\\)) sets the critical height difference before failure.",
+            "<strong>Avalanche Rate</strong> (\\(A\\)) controls how quickly unstable faces relax.",
           ],
         },
         {
@@ -77,8 +77,8 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
           equation: "$$h_{ij}(0)=h_0+\\Delta h\\,\\xi_{ij},\\qquad \\xi_{ij}\\in[-1,1]$$",
           explanation: "The dune field starts from a uniform base height with optional random roughness. With <em>&Delta;h = 0</em>, the initial bed is flat.",
           parameters: [
-            "<strong>Base Height</strong> (<em>h<sub>0</sub></em>) sets the starting sand thickness.",
-            "<strong>Noise Amplitude</strong> (<em>&Delta;h</em>) controls how much initial roughness is added to the flat bed.",
+            "<strong>Base Height</strong> (\\(h_0\\)) sets the starting sand thickness.",
+            "<strong>Noise Amplitude</strong> (\\(\\Delta h\\)) controls how much initial roughness is added to the flat bed.",
           ],
         },
         {
@@ -86,8 +86,8 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
           equation: "$$w_{ij}=S_{xy}\\,\\Delta x,\\qquad \\ell_{ij}=S_{xy}\\,\\Delta y,\\qquad z_{ij}=S_h\\,h_{ij}$$",
           explanation: "Each square column is drawn using the simulation cell size scaled into a visual footprint in x and y, together with a separate visual height scale in z. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint in the underlying model.",
           parameters: [
-            "<strong>Object Visual Size</strong> (<em>S<sub>xy</sub></em>) scales the rendered column width and length without changing the simulation grid.",
-            "<strong>Vertical Exaggeration</strong> (<em>S<sub>h</sub></em>) scales column height in the rendered scene.",
+            "<strong>Object Visual Size</strong> (\\(w = \\ell = s_{obj}\\)) sets the rendered column width and length in meters without changing the simulation grid.",
+            "<strong>Vertical Exaggeration</strong> (\\(S_h\\)) scales column height in the rendered scene.",
           ],
         },
       ],
@@ -115,11 +115,10 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       icon: "bi-sliders2",
       hidden: true,
       className: "mt-2",
-      sliderHub: { title: "Resolution", value: "40", min: "16", max: "96", step: "2", valueNum: "40" },
+      sliderHub: { title: "Object Visual Size", value: "5.0 m", min: "0.5", max: "20.0", step: "0.1", valueNum: "5.0" },
       sliders: [
-        slider("dune-sim-speed", "Simulation Speed", "bi-stopwatch", "dune-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
-        slider("dune-resolution", "Resolution", "bi-grid-3x3-gap-fill", "dune-resolution-value", "40", "16", "96", "2", "40"),
-        slider("dune-column-size", "Object Visual Size", "bi-rulers", "dune-column-size-value", "0.94x", "0.2", "1.0", "0.02", "0.94"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "5.0 m", "0.5", "20.0", "0.1", "5.0", { paramKey: "objectSizeM" }),
         slider("dune-height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "dune-height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8"),
         slider("dune-wind-direction", "Wind Direction", "bi-compass", "dune-wind-direction-value", "20°", "-180", "180", "1", "20", { paramKey: "windDirectionDeg" }),
         slider("dune-wind-strength", "Wind Strength", "bi-wind", "dune-wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9"),
@@ -127,7 +126,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
         slider("dune-repose-slope", "Repose Slope", "bi-triangle-half", "dune-repose-slope-value", "1.40 m", "0.2", "4.0", "0.05", "1.4"),
         slider("dune-avalanche-rate", "Avalanche Rate", "bi-chevron-down", "dune-avalanche-rate-value", "0.70", "0.0", "2.0", "0.05", "0.7"),
         slider("dune-base-height", "Base Height", "bi-box-fill", "dune-base-height-value", "2.20 m", "0.2", "6.0", "0.05", "2.2"),
-        slider("dune-noise-amplitude", "Noise Amplitude", "bi-stars", "dune-noise-amplitude-value", "0.00 m", "0.0", "3.0", "0.05", "0.0"),
+        slider("dune-noise-amplitude", "Noise Amplitude", "bi-stars", "dune-noise-amplitude-value", "0.25 m", "0.0", "3.0", "0.05", "0.25"),
       ],
       pauseButtonId: "toggle-dune-pause",
       defaultButtonId: "default-dune-sim",
@@ -178,6 +177,12 @@ export const DUNE_APPLET_RUNTIME = {
       `${(stats.relief ?? 0).toFixed(2)} m`,
       `${(stats.transportFlux ?? 0).toFixed(2)} m/s`,
     ]);
+  },
+  onSliderChange({ paramKey, simulation, resetTrendCharts }) {
+    if (paramKey === "objectSizeM") {
+      simulation?.reset?.();
+      resetTrendCharts?.();
+    }
   },
 };
 
@@ -274,7 +279,8 @@ export class DuneSimulation {
 
     this.mesh = null;
     this.capacity = 0;
-    this.resolution = 0;
+    this.gridX = 0;
+    this.gridY = 0;
     this.heights = new Float32Array(0);
     this.transportHeights = new Float32Array(0);
     this.nextHeights = new Float32Array(0);
@@ -302,21 +308,15 @@ export class DuneSimulation {
     this.emitStats(0, 0);
   }
 
-  setResolution(value) {
-    this.params.resolution = value;
-    this.reset();
-  }
-
   onWorldGeometryChanged() {
-    this.syncInstances();
-    this.emitStats(0, 0);
+    this.reset();
   }
 
   onBoundaryModeChanged() {}
 
   step(dt) {
-    const resolution = this.getResolution();
-    if (resolution !== this.resolution || this.heights.length !== resolution * resolution) {
+    const { x: gridX, y: gridY } = this.getGridResolution();
+    if (gridX !== this.gridX || gridY !== this.gridY || this.heights.length !== gridX * gridY) {
       this.reset();
       return;
     }
@@ -331,17 +331,17 @@ export class DuneSimulation {
     this.transportHeights.set(this.heights);
     let transportSum = 0;
 
-    for (let y = 0; y < resolution; y += 1) {
-      for (let x = 0; x < resolution; x += 1) {
-        const index = y * resolution + x;
+    for (let y = 0; y < gridY; y += 1) {
+      for (let x = 0; x < gridX; x += 1) {
+        const index = y * gridX + x;
         const height = this.heights[index];
         if (height <= 0.001) {
           continue;
         }
 
-        const nextX = wrapIndex(x + windStep.x, resolution);
-        const nextY = wrapIndex(y + windStep.y, resolution);
-        const targetIndex = nextY * resolution + nextX;
+        const nextX = wrapIndex(x + windStep.x, gridX);
+        const nextY = wrapIndex(y + windStep.y, gridY);
+        const targetIndex = nextY * gridX + nextX;
         const transfer = Math.min(
           height * 0.08,
           (0.02 + windStrength * 0.06 + transportRate * 0.12) * dt * Math.max(0.3, height),
@@ -357,11 +357,11 @@ export class DuneSimulation {
     let avalancheEvents = 0;
     const relaxation = THREE.MathUtils.clamp(avalancheRate * dt * 0.8, 0, 1);
 
-    for (let y = 0; y < resolution; y += 1) {
-      for (let x = 0; x < resolution; x += 1) {
-        const index = y * resolution + x;
-        avalancheEvents += this.relaxPair(index, y * resolution + wrapIndex(x + 1, resolution), reposeSlope, relaxation);
-        avalancheEvents += this.relaxPair(index, wrapIndex(y + 1, resolution) * resolution + x, reposeSlope, relaxation);
+    for (let y = 0; y < gridY; y += 1) {
+      for (let x = 0; x < gridX; x += 1) {
+        const index = y * gridX + x;
+        avalancheEvents += this.relaxPair(index, y * gridX + wrapIndex(x + 1, gridX), reposeSlope, relaxation);
+        avalancheEvents += this.relaxPair(index, wrapIndex(y + 1, gridY) * gridX + x, reposeSlope, relaxation);
       }
     }
 
@@ -396,8 +396,10 @@ export class DuneSimulation {
   }
 
   rebuildField() {
-    this.resolution = this.getResolution();
-    const count = this.resolution * this.resolution;
+    const grid = this.getGridResolution();
+    this.gridX = grid.x;
+    this.gridY = grid.y;
+    const count = this.gridX * this.gridY;
     this.heights = new Float32Array(count);
     this.transportHeights = new Float32Array(count);
     this.nextHeights = new Float32Array(count);
@@ -405,10 +407,10 @@ export class DuneSimulation {
     const baseHeight = Math.max(0.05, this.params.baseHeight ?? 2.2);
     const noiseAmplitude = Math.max(0, this.params.noiseAmplitude ?? 0.0);
 
-    for (let y = 0; y < this.resolution; y += 1) {
-      for (let x = 0; x < this.resolution; x += 1) {
+    for (let y = 0; y < this.gridY; y += 1) {
+      for (let x = 0; x < this.gridX; x += 1) {
         const fluctuation = THREE.MathUtils.randFloatSpread(2);
-        this.heights[y * this.resolution + x] = Math.max(
+        this.heights[y * this.gridX + x] = Math.max(
           0.05,
           baseHeight + noiseAmplitude * fluctuation,
         );
@@ -417,7 +419,7 @@ export class DuneSimulation {
   }
 
   ensureMesh() {
-    const nextCapacity = Math.max(1, this.resolution * this.resolution);
+    const nextCapacity = Math.max(1, this.gridX * this.gridY);
     if (!this.mesh || this.capacity !== nextCapacity) {
       if (this.mesh) {
         this.scene.remove(this.mesh);
@@ -439,12 +441,16 @@ export class DuneSimulation {
       return;
     }
 
-    const resolution = this.resolution;
-    const cellWidth = this.params.worldSizeX / resolution;
-    const cellHeight = this.params.worldSizeY / resolution;
-    const cellArea = cellWidth * cellHeight;
+    const gridX = this.gridX;
+    const gridY = this.gridY;
+    const spacing = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const coverageX = gridX * spacing;
+    const coverageY = gridY * spacing;
+    const offsetX = (this.params.worldSizeX - coverageX) * 0.5;
+    const offsetY = (this.params.worldSizeY - coverageY) * 0.5;
+    const cellArea = spacing * spacing;
     const floorZ = -this.params.worldSizeZ * 0.5;
-    const footprintScale = THREE.MathUtils.clamp(this.params.columnSizeScale ?? 0.94, 0.05, 1);
+    const footprintSize = spacing;
     const renderScale = Math.max(0.4, this.params.heightScale ?? 1.8);
 
     let minMass = Infinity;
@@ -457,16 +463,16 @@ export class DuneSimulation {
     const span = Math.max(maxMass - minMass, 1e-6);
     const hasMeaningfulRange = (maxMass - minMass) > 1e-5;
 
-    for (let y = 0; y < resolution; y += 1) {
-      for (let x = 0; x < resolution; x += 1) {
-        const index = y * resolution + x;
+    for (let y = 0; y < gridY; y += 1) {
+      for (let x = 0; x < gridX; x += 1) {
+        const index = y * gridX + x;
         const height = Math.max(0.05, this.heights[index] * renderScale);
         this.tempObject.position.set(
-          -this.params.worldSizeX * 0.5 + cellWidth * (x + 0.5),
-          -this.params.worldSizeY * 0.5 + cellHeight * (y + 0.5),
+          -this.params.worldSizeX * 0.5 + offsetX + spacing * (x + 0.5),
+          -this.params.worldSizeY * 0.5 + offsetY + spacing * (y + 0.5),
           floorZ + height * 0.5,
         );
-        this.tempObject.scale.set(cellWidth * footprintScale, cellHeight * footprintScale, height);
+        this.tempObject.scale.set(footprintSize, footprintSize, height);
         this.tempObject.rotation.set(0, 0, 0);
         this.tempObject.updateMatrix();
         this.mesh.setMatrixAt(index, this.tempObject.matrix);
@@ -482,7 +488,8 @@ export class DuneSimulation {
           ? THREE.MathUtils.clamp((massProxy - minMass) / span, 0, 1)
           : 0.5;
         const liftedT = 0.08 + t * 0.84;
-        sampleColormap(this.params.colormap || "cividis", liftedT, duneColor);
+        const colorT = this.params.colormapInverted ? 1 - liftedT : liftedT;
+        sampleColormap(this.params.colormap || "cividis", colorT, duneColor);
         ensureVisibleColor(duneColor, 0.25);
         this.mesh.setColorAt(index, duneColor);
       }
@@ -519,15 +526,24 @@ export class DuneSimulation {
     });
   }
 
-  getResolution() {
-    return THREE.MathUtils.clamp(Math.round(this.params.resolution ?? 40), 16, 96);
+  getGridResolution() {
+    const objectSize = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const gridX = THREE.MathUtils.clamp(
+      Math.floor(this.params.worldSizeX / objectSize),
+      1,
+      160,
+    );
+    const gridY = THREE.MathUtils.clamp(
+      Math.floor(this.params.worldSizeY / objectSize),
+      1,
+      160,
+    );
+    return { x: gridX, y: gridY };
   }
 
   getColumnMassRange() {
-    const resolution = Math.max(1, this.resolution || this.getResolution());
-    const cellWidth = this.params.worldSizeX / resolution;
-    const cellHeight = this.params.worldSizeY / resolution;
-    const cellArea = cellWidth * cellHeight;
+    const spacing = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const cellArea = spacing * spacing;
     const fallbackMass = Math.max(0.05, this.params.baseHeight ?? 2.2) * cellArea;
 
     if (this.heights.length === 0) {

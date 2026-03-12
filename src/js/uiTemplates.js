@@ -196,24 +196,88 @@ function buildSimulationSection(simConfig, appletId, templates) {
     body.appendChild(hub);
   }
 
-  (simConfig.sliders || []).forEach((slider) => {
+  const sliders = Array.isArray(simConfig.sliders) ? simConfig.sliders : [];
+  const sliderRows = [];
+  const sliderList = document.createElement("div");
+  sliderList.className = "simulation-slider-list";
+  const hasGrouping = sliders.some((slider) => normalizeSliderGroup(slider.group));
+
+  sliders.forEach((slider, index) => {
     const fragment = templates.sliderRow.content.cloneNode(true);
+    const sliderInputId = getSimulationSliderInputId(appletId, slider);
+    const sliderValueId = getSimulationSliderValueId(appletId, slider);
     const label = fragment.querySelector("label.form-label");
-    label.setAttribute("for", slider.id);
+    label.setAttribute("for", sliderInputId);
     const labelName = label.querySelector(".label-name");
-    labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i>${slider.label}`;
+    labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i><span data-slider-label-text></span>`;
+    const labelTextNode = labelName.querySelector("[data-slider-label-text]");
+    if (labelTextNode) {
+      labelTextNode.textContent = slider.label;
+      renderInlineMathIfAvailable(labelTextNode);
+    }
     const value = label.querySelector(".label-value");
-    value.id = slider.valueId;
+    value.id = sliderValueId;
     value.textContent = slider.valueText;
 
     const input = fragment.querySelector("input.form-range");
-    input.id = slider.id;
+    input.id = sliderInputId;
     input.min = slider.min;
     input.max = slider.max;
     input.step = slider.step;
     input.value = slider.value;
-    body.appendChild(fragment);
+
+    const row = document.createElement("div");
+    row.className = "simulation-slider-row";
+    row.appendChild(fragment);
+    sliderRows.push({
+      row,
+      slider,
+      defaultIndex: index,
+      label: String(slider.label || slider.id || ""),
+      groupKey: normalizeSliderGroup(slider.group),
+      groupLabel: slider.groupLabel,
+    });
   });
+
+  if (hasGrouping) {
+    const controlsRow = document.createElement("div");
+    controlsRow.className = "d-flex justify-content-end mt-0 mb-1";
+    controlsRow.innerHTML = `
+      <div class="btn-group simulation-order-toggle" role="group" aria-label="Simulation parameter order">
+        <button type="button" class="btn btn-theme simulation-order-btn" data-order-mode="group" aria-pressed="true" aria-label="Group order" title="Group order">
+          <i class="bi bi-collection" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-outline-theme simulation-order-btn" data-order-mode="default" aria-pressed="false" aria-label="Default order" title="Default order">
+          <i class="bi bi-list-ol" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="btn btn-outline-theme simulation-order-btn" data-order-mode="alphabet" aria-pressed="false" aria-label="Alphabetical order" title="A-Z order">
+          <i class="bi bi-sort-alpha-down" aria-hidden="true"></i>
+        </button>
+      </div>
+    `;
+    body.appendChild(controlsRow);
+
+    let orderMode = "group";
+    const orderButtons = Array.from(controlsRow.querySelectorAll("[data-order-mode]"));
+    orderButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        orderMode = button.getAttribute("data-order-mode") || "group";
+        orderButtons.forEach((entry) => {
+          const active = entry === button;
+          entry.classList.toggle("btn-theme", active);
+          entry.classList.toggle("btn-outline-theme", !active);
+          entry.setAttribute("aria-pressed", String(active));
+        });
+        renderSliderRows(orderMode);
+      });
+    });
+
+    renderSliderRows(orderMode);
+  } else {
+    sliderRows.forEach(({ row }) => sliderList.appendChild(row));
+  }
+
+  body.appendChild(sliderList);
 
   const actions = document.createElement("div");
   actions.className = "d-flex gap-2 mt-3 simulation-action-row";
@@ -238,6 +302,107 @@ function buildSimulationSection(simConfig, appletId, templates) {
   body.appendChild(actions);
 
   return section;
+
+  function renderSliderRows(mode) {
+    sliderList.replaceChildren();
+
+    if (mode === "alphabet") {
+      sliderRows
+        .slice()
+        .sort((a, b) => a.label.localeCompare(b.label))
+        .forEach(({ row }) => sliderList.appendChild(row));
+      return;
+    }
+
+    if (mode === "default") {
+      sliderRows
+        .slice()
+        .sort((a, b) => a.defaultIndex - b.defaultIndex)
+        .forEach(({ row }) => sliderList.appendChild(row));
+      return;
+    }
+
+    const grouped = new Map();
+    sliderRows
+      .slice()
+      .sort((a, b) => a.defaultIndex - b.defaultIndex)
+      .forEach((entry) => {
+        const key = entry.groupKey || "ungrouped";
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key).push(entry);
+      });
+
+    const sortedGroups = Array.from(grouped.entries())
+      .map(([groupKey, rows]) => ({
+        groupKey,
+        rows,
+        label: deriveGroupLabel(groupKey, rows),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    sortedGroups.forEach(({ rows, label }) => {
+      const heading = document.createElement("div");
+      heading.className = "small text-uppercase fw-semibold opacity-75 mt-2 mb-1";
+      heading.textContent = label;
+      sliderList.appendChild(heading);
+      rows.forEach(({ row }) => sliderList.appendChild(row));
+    });
+  }
+}
+
+function normalizeSliderGroup(group) {
+  if (typeof group !== "string") {
+    return null;
+  }
+  const normalized = group.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getSimulationSliderInputId(appletId, slider) {
+  return `${appletId}-${slider.id}`;
+}
+
+function getSimulationSliderValueId(appletId, slider) {
+  return `${appletId}-${slider.valueId}`;
+}
+
+function deriveGroupLabel(groupKey, rows) {
+  const customLabel = rows.find((entry) => typeof entry.groupLabel === "string" && entry.groupLabel.trim().length > 0)?.groupLabel;
+  if (customLabel) {
+    return customLabel;
+  }
+  if (groupKey === "initial") {
+    return "Initialization";
+  }
+  if (groupKey === "dynamic") {
+    return "Dynamics";
+  }
+  if (groupKey === "ungrouped") {
+    return "Other";
+  }
+
+  return groupKey
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
+function renderInlineMathIfAvailable(node) {
+  if (!node || typeof window === "undefined") {
+    return;
+  }
+  if (typeof window.renderMathInElement !== "function") {
+    return;
+  }
+  window.renderMathInElement(node, {
+    delimiters: [
+      { left: "\\(", right: "\\)", display: false },
+    ],
+    throwOnError: false,
+  });
 }
 
 function buildInteractionSection(interactionConfig, appletId, templates) {

@@ -1,5 +1,5 @@
-// Overlay and modal behavior for help, model equations, about, share, and screenshot actions.
-import { APPLET_CONFIGS, APPLET_META } from "./app/appletConfigs.js";
+// Overlay and modal behavior for help, model equations, about, share, export, and screenshot actions.
+import { APPLET_CONFIGS } from "./app/appletConfigs.js";
 
 export function setupUiOverlays({
   dom,
@@ -12,12 +12,14 @@ export function setupUiOverlays({
   onPauseStateChange,
   getShowBounds,
   setShowBounds,
+  getExportData,
 }) {
   setupSupportPopup(dom);
   setupControlsInfoPopup(dom);
   setupModelInfoPopup(dom, getActiveApplet);
   setupAboutPopup(dom);
   setupSharePopup(dom);
+  setupExportPopup(dom, getActiveApplet, getExportData);
   setupScreenshotPopup({
     dom,
     renderer,
@@ -60,8 +62,7 @@ function setupModelInfoPopup(dom, getActiveApplet) {
 
   const renderModelContent = (appletId) => {
     const modelConfig = APPLET_CONFIGS[appletId]?.left?.model;
-    const appletLabel = APPLET_META[appletId]?.label ?? "Applet";
-    dom.modelInfoTitle.textContent = `${appletLabel} Model Equations`;
+    dom.modelInfoTitle.textContent = "Model Equations";
     dom.modelInfoBody.innerHTML = "";
 
     if (!modelConfig?.items?.length) {
@@ -252,6 +253,65 @@ function setupSharePopup(dom) {
   bindEscapeToOverlay(dom.shareInfoBackdrop, closePopup);
 }
 
+function setupExportPopup(dom, getActiveApplet, getExportData) {
+  if (
+    !dom.exportInfoOpen ||
+    !dom.exportInfoClose ||
+    !dom.exportInfoBackdrop ||
+    !dom.exportParamsJson
+  ) {
+    return;
+  }
+
+  const setStatus = (message) => {
+    if (dom.exportStatus) {
+      dom.exportStatus.textContent = message;
+    }
+  };
+
+  const openPopup = () => {
+    setStatus("Download current parameters as a JSON file.");
+    openOverlay(dom.exportInfoBackdrop);
+  };
+
+  const closePopup = () => closeOverlay(dom.exportInfoBackdrop);
+
+  dom.exportInfoOpen.addEventListener("click", openPopup);
+  dom.exportInfoClose.addEventListener("click", closePopup);
+
+  dom.exportInfoBackdrop.addEventListener("click", (event) => {
+    if (event.target === dom.exportInfoBackdrop) {
+      closePopup();
+    }
+  });
+
+  bindEscapeToOverlay(dom.exportInfoBackdrop, closePopup);
+
+  dom.exportParamsJson.addEventListener("click", async () => {
+    try {
+      const payload =
+        typeof getExportData === "function"
+          ? getExportData()
+          : {
+              app: "emergenverse",
+              exportedAt: new Date().toISOString(),
+              activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
+              params: {},
+            };
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `emergenverse-params-${payload.activeApplet || "applet"}-${stamp}.json`;
+      const result = await triggerJsonDownload(payload, filename);
+      if (result === "cancelled") {
+        setStatus("Export cancelled.");
+      } else {
+        setStatus("Exported parameters JSON.");
+      }
+    } catch (error) {
+      setStatus("Could not export parameters JSON.");
+    }
+  });
+}
+
 function bindDismissibleOverlay({ openButton, closeButton, backdrop }) {
   if (!closeButton || !backdrop) {
     return;
@@ -292,6 +352,46 @@ function closeOverlay(backdrop) {
   backdrop?.setAttribute("aria-hidden", "true");
 }
 
+async function triggerJsonDownload(payload, filename) {
+  const text = `${JSON.stringify(payload, null, 2)}\n`;
+  const blob = new Blob([text], {
+    type: "application/json",
+  });
+
+  if (typeof window.showSaveFilePicker === "function" && window.isSecureContext) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: "JSON File",
+            accept: { "application/json": [".json"] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return "saved";
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return "cancelled";
+      }
+      // Fall through to download fallback.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return "saved";
+}
+
 function setupScreenshotPopup({
   dom,
   renderer,
@@ -316,6 +416,21 @@ function setupScreenshotPopup({
   }
 
   let screenshotInProgress = false;
+  let previewScale = 1;
+  const previewMinScale = 1;
+  const previewMaxScale = 6;
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const applyPreviewTransform = () => {
+    dom.screenshotPreviewImage.style.transform = `scale(${previewScale})`;
+    dom.screenshotPreviewImage.style.cursor = previewScale > previewMinScale ? "zoom-out" : "zoom-in";
+  };
+
+  const resetPreviewTransform = () => {
+    previewScale = previewMinScale;
+    dom.screenshotPreviewImage.style.transformOrigin = "50% 50%";
+    applyPreviewTransform();
+  };
 
   const setStatus = (message) => {
     if (dom.screenshotStatus) {
@@ -371,11 +486,15 @@ function setupScreenshotPopup({
   const openPopup = () => {
     dom.screenshotTransparentBg.checked = false;
     setStatus("Transparent mode exports without the scene background or boundary box.");
+    resetPreviewTransform();
     updatePreview(false);
     openOverlay(dom.screenshotInfoBackdrop);
   };
 
-  const closePopup = () => closeOverlay(dom.screenshotInfoBackdrop);
+  const closePopup = () => {
+    closeOverlay(dom.screenshotInfoBackdrop);
+    resetPreviewTransform();
+  };
 
   const triggerDownload = (href, filename) => {
     const link = document.createElement("a");
@@ -433,6 +552,35 @@ function setupScreenshotPopup({
 
   dom.viewportScreenshotBtn.addEventListener("click", openPopup);
   dom.screenshotInfoClose.addEventListener("click", closePopup);
+  dom.screenshotPreviewImage.addEventListener("load", () => {
+    resetPreviewTransform();
+  });
+  dom.screenshotPreviewImage.addEventListener(
+    "wheel",
+    (event) => {
+      if (!dom.screenshotPreviewImage.src) {
+        return;
+      }
+      event.preventDefault();
+      const imageRect = dom.screenshotPreviewImage.getBoundingClientRect();
+      if (imageRect.width <= 1 || imageRect.height <= 1) {
+        return;
+      }
+
+      const originX = clamp(((event.clientX - imageRect.left) / imageRect.width) * 100, 0, 100);
+      const originY = clamp(((event.clientY - imageRect.top) / imageRect.height) * 100, 0, 100);
+      dom.screenshotPreviewImage.style.transformOrigin = `${originX}% ${originY}%`;
+
+      const zoomStep = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      previewScale = clamp(previewScale * zoomStep, previewMinScale, previewMaxScale);
+      applyPreviewTransform();
+    },
+    { passive: false },
+  );
+  dom.screenshotPreviewImage.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    resetPreviewTransform();
+  });
   dom.screenshotTransparentBg.addEventListener("change", () => {
     const enabled = dom.screenshotTransparentBg.checked;
     setStatus(
@@ -448,6 +596,7 @@ function setupScreenshotPopup({
     }
   });
   bindEscapeToOverlay(dom.screenshotInfoBackdrop, closePopup);
+  resetPreviewTransform();
 
   dom.screenshotCapture.addEventListener("click", async () => {
     if (screenshotInProgress) {

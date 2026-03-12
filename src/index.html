@@ -163,6 +163,15 @@
           </button>
           <button
             class="viewport-tool-btn"
+            id="export-info-open"
+            type="button"
+            title="Export"
+            aria-label="Export"
+          >
+            <i class="bi bi-box-arrow-up" aria-hidden="true"></i>
+          </button>
+          <button
+            class="viewport-tool-btn"
             id="viewport-screenshot-btn"
             type="button"
             title="Download viewport screenshot"
@@ -203,9 +212,24 @@
         </div>
 
         <div id="shared-colormap-panel" class="is-hidden">
-          <label class="form-label mt-2" for="colormap">
-            <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
-          </label>
+          <div class="colormap-label-row mt-2">
+            <label class="form-label" for="colormap">
+              <span class="label-name"><i class="bi bi-palette2" aria-hidden="true"></i>Colormap</span>
+            </label>
+            <div class="colormap-invert-wrap is-hidden" id="colormap-invert-wrap">
+              <span class="colormap-invert-title">Invert</span>
+              <div class="form-check form-switch m-0">
+                <input
+                  class="form-check-input mt-0"
+                  id="colormap-invert-toggle"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Invert colormap"
+                  title="Invert colormap"
+                />
+              </div>
+            </div>
+          </div>
           <select class="form-select form-select-sm theme-select" id="colormap">
             <option value="turbo" selected>Turbo</option>
             <option value="viridis">Viridis</option>
@@ -283,9 +307,13 @@
             <option value="lost">Lost (remove out-of-bounds)</option>
           </select>
 
-          <div class="form-check form-switch mt-2">
-            <input class="form-check-input" type="checkbox" role="switch" id="show-bounds" checked />
-            <label class="form-check-label" for="show-bounds">Show Bounds</label>
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <label class="form-label mb-0" for="show-bounds">
+              <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Show Bounds</span>
+            </label>
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input mt-0" type="checkbox" role="switch" id="show-bounds" checked />
+            </div>
           </div>
           </div>
         </div>
@@ -424,6 +452,29 @@
             <button class="btn btn-sm btn-theme" id="share-link-copy" type="button">Copy</button>
           </div>
           <p class="control-note mt-2 mb-0" id="share-copy-status">Copy link to share the current app and camera state URL.</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="controls-modal-backdrop is-hidden" id="export-info-backdrop" aria-hidden="true">
+      <section class="controls-modal controls-modal-compact" role="dialog" aria-modal="true" aria-labelledby="export-info-title">
+        <header class="controls-modal-head">
+          <h2 class="panel-title controls-modal-title" id="export-info-title">
+            <i class="bi bi-box-arrow-up panel-head-icon" aria-hidden="true"></i>
+            <span>Export</span>
+          </h2>
+          <button class="icon-btn" id="export-info-close" type="button" aria-label="Close export dialog">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="controls-modal-body">
+          <p class="controls-modal-subtitle mb-2">Export current application state.</p>
+          <div class="modal-actions">
+            <button class="btn btn-theme w-100" id="export-params-json" type="button">
+              Export Parameters (JSON)
+            </button>
+          </div>
+          <p class="control-note mt-2 mb-0" id="export-status">Download current parameters as a JSON file.</p>
         </div>
       </section>
     </div>
@@ -576,9 +627,13 @@
           </label>
           <input class="form-range" type="range" id="camera-fov" min="20" max="90" step="1" value="50" />
 
-          <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="camera-locked" />
-            <label class="form-check-label" for="camera-locked">Camera Lock</label>
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <label class="form-label mb-0" for="camera-locked">
+              <span class="label-name"><i class="bi bi-lock-fill" aria-hidden="true"></i>Camera Lock</span>
+            </label>
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input mt-0" type="checkbox" role="switch" id="camera-locked" />
+            </div>
           </div>
 
           <button class="btn btn-sm btn-outline-theme w-100 mt-3" id="camera-projection-toggle">

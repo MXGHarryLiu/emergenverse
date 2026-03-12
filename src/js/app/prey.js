@@ -23,6 +23,7 @@ export const PREY_DEFAULT_PARAMS = {
   predatorScale: 1.0,
   colorMode: "energy",
   colormap: "turbo",
+  colormapInverted: false,
   solidColor: "#ff8d5f",
 };
 
@@ -59,12 +60,12 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
           explanation: "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
           parameters: [
-            "<strong>Prey Count</strong> (<em>x</em>) sets the initial prey population.",
-            "<strong>Predator Count</strong> (<em>y</em>) sets the initial predator population.",
-            "<strong>Prey Birth Rate</strong> (<em>&alpha;</em>) sets the prey growth tendency.",
-            "<strong>Predation Rate</strong> (<em>&beta;</em>) scales encounter pressure.",
-            "<strong>Predator Gain</strong> (<em>&delta;</em>) controls how much predators benefit from captures.",
-            "<strong>Predator Energy Loss</strong> (<em>&gamma;</em>) sets background predator decline.",
+            "<strong>Prey Count</strong> (\\(x\\)) sets the initial prey population.",
+            "<strong>Predator Count</strong> (\\(y\\)) sets the initial predator population.",
+            "<strong>Prey Birth Rate</strong> (\\(\\alpha\\)) sets the prey growth tendency.",
+            "<strong>Predation Rate</strong> (\\(\\beta\\)) scales encounter pressure.",
+            "<strong>Predator Gain</strong> (\\(\\delta\\)) controls how much predators benefit from captures.",
+            "<strong>Predator Energy Loss</strong> (\\(\\gamma\\)) sets background predator decline.",
           ],
         },
         {
@@ -77,7 +78,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
           equation: "$$\\mathbf{v}_{k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}+\\mathbf{u}_{k}\\Delta t\\right)\\,s_k$$",
           explanation: "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
           parameters: [
-            "<strong>Prey Speed</strong> (<em>s<sub>prey</sub></em>) and <strong>Predator Speed</strong> (<em>s<sub>pred</sub></em>) set the travel rates.",
+            "<strong>Prey Speed</strong> (\\(s_{prey}\\)) and <strong>Predator Speed</strong> (\\(s_{pred}\\)) set the travel rates.",
           ],
         },
       ],
@@ -104,17 +105,17 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       className: "mt-2",
       sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
       sliders: [
-        slider("prey-sim-speed", "Simulation Speed", "bi-stopwatch", "prey-sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0"),
         slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260"),
         slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24"),
         slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5"),
         slider("predator-speed", "Predator Speed", "bi-lightning-charge-fill", "predator-speed-value", "6.2 m/s", "0.5", "24", "0.1", "6.2"),
         slider("predator-sense-radius", "Sense Radius", "bi-broadcast", "predator-sense-radius-value", "16.0 m", "1", "60", "0.5", "16.0"),
         slider("predation-radius", "Predation Radius", "bi-crosshair2", "predation-radius-value", "1.6 m", "0.2", "8", "0.1", "1.6"),
-        slider("prey-birth-rate", "Prey Birth Rate (α)", "bi-activity", "prey-birth-rate-value", "0.08 1/s", "0", "0.8", "0.01", "0.08"),
-        slider("predation-rate-beta", "Predation Rate (β)", "bi-graph-up-arrow", "predation-rate-beta-value", "1.00", "0", "3", "0.05", "1.00"),
-        slider("predator-energy-gain", "Predator Gain (δ)", "bi-plus-circle", "predator-energy-gain-value", "1.60", "0.1", "5", "0.05", "1.60"),
-        slider("predator-energy-loss", "Predator Energy Loss (γ)", "bi-dash-circle", "predator-energy-loss-value", "0.45 1/s", "0", "2", "0.01", "0.45"),
+        slider("prey-birth-rate", "Prey Birth Rate (\\(\\alpha\\))", "bi-activity", "prey-birth-rate-value", "0.08 1/s", "0", "0.8", "0.01", "0.08"),
+        slider("predation-rate-beta", "Predation Rate (\\(\\beta\\))", "bi-graph-up-arrow", "predation-rate-beta-value", "1.00", "0", "3", "0.05", "1.00"),
+        slider("predator-energy-gain", "Predator Gain (\\(\\delta\\))", "bi-plus-circle", "predator-energy-gain-value", "1.60", "0.1", "5", "0.05", "1.60"),
+        slider("predator-energy-loss", "Predator Energy Loss (\\(\\gamma\\))", "bi-dash-circle", "predator-energy-loss-value", "0.45 1/s", "0", "2", "0.01", "0.45"),
       ],
       pauseButtonId: "toggle-prey-pause",
       defaultButtonId: "default-prey-sim",
@@ -618,7 +619,8 @@ export class PreySimulation {
 
     const span = Math.max(range.max - range.min, 0.000001);
     const normalized = THREE.MathUtils.clamp(((predator.energy ?? 0) - range.min) / span, 0, 1);
-    sampleColormap(this.params.colormap || "turbo", normalized, outColor);
+    const colorT = this.params.colormapInverted ? 1 - normalized : normalized;
+    sampleColormap(this.params.colormap || "turbo", colorT, outColor);
     ensureVisibleColor(outColor, 0.2);
   }
 
