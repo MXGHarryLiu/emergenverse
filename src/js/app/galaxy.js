@@ -12,11 +12,13 @@ const GALAXY_UNITS = {
 const GALAXY_SPEED_UNIT = `${GALAXY_UNITS.length.label}/${GALAXY_UNITS.time.label}`;
 const GALAXY_SI_GRAVITATIONAL_CONSTANT = 6.6743e-11;
 const GALAXY_TIME_SCALE_MYR_PER_SECOND = 8;
-const GALAXY_PARTICLE_MASS_FRACTION = 0.2;
+const GALAXY_DEFAULT_OBJECT_MASS_FRACTION = 0.2;
 const GALAXY_GRAVITY_INTERNAL_SCALE =
   ((GALAXY_UNITS.time.toSI * GALAXY_UNITS.time.toSI) * GALAXY_UNITS.mass.toSI)
   / (GALAXY_UNITS.length.toSI ** 3);
 const GALAXY_GRAVITY_INTERNAL = GALAXY_SI_GRAVITATIONAL_CONSTANT * GALAXY_GRAVITY_INTERNAL_SCALE;
+const GALAXY_DEFAULT_CENTRAL_MASS = 2.2e12;
+const GALAXY_DEFAULT_OBJECT_TOTAL_MASS = GALAXY_DEFAULT_CENTRAL_MASS * GALAXY_DEFAULT_OBJECT_MASS_FRACTION;
 
 // Default applet parameters.
 export const GALAXY_DEFAULT_PARAMS = {
@@ -28,7 +30,8 @@ export const GALAXY_DEFAULT_PARAMS = {
   count: 500,
   particleSize: 900,
   spin: 1.35,
-  centralMass: 2.2e12,
+  centralMass: GALAXY_DEFAULT_CENTRAL_MASS,
+  objectTotalMass: GALAXY_DEFAULT_OBJECT_TOTAL_MASS,
   softening: 180,
   damping: 0.003,
 };
@@ -84,11 +87,12 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         },
         {
           title: "Softened Gravity",
-          equation: "$$\\mathbf{a}_i=G\\sum_{j\\ne i}\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}}$$",
+          equation: "$$\\mathbf{a}_i=G\\sum_{j\\ne i}m_p\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}},\\quad m_p=\\frac{M_{\\mathrm{obj}}}{N}$$",
           explanation: "Acceleration combines particle-particle attraction with a pull from the central mass, while softening prevents singular forces at very small separations. In this applet, G is fixed to the physical SI gravitational constant and converted internally into galaxy units.",
           parameters: [
             "<strong>Central Mass</strong> (\\(M_c\\)) controls how strongly the system stays bound to the center.",
-            "<strong>Particle Mass Model</strong>: all particles use the same effective mass (derived from a fixed fraction of \\(M_c\\) and current particle count).",
+            "<strong>Object Total Mass</strong> (\\(M_{\\mathrm{obj}}\\)) sets the total self-gravitating mass represented by particles.",
+            "<strong>Count</strong> (\\(N\\)) changes resolution; per-particle mass is \\(m_p=M_{\\mathrm{obj}}/N\\).",
             "<strong>Softening</strong> (\\(\\epsilon\\)) sets the short-range smoothing scale.",
           ],
         },
@@ -126,7 +130,8 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         slider("count", "Count", "bi-people-fill", "count-value", "500", "50", "2000", "10", "500", { group: "initial", resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", `900 ${GALAXY_UNITS.length.label}`, "80", "4000", "20", "900", { group: "dynamic", paramKey: "particleSize" }),
         slider("spin", "Initial Orbital Speed", "bi-arrow-clockwise", "spin-value", "1.35", "0.2", "2.5", "0.05", "1.35", { group: "initial" }),
-        slider("central-mass", "Central Mass (\\(M_c\\))", "bi-bullseye", "central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", "2.2e12", { group: "dynamic" }),
+        slider("central-mass", "Central Mass (\\(M_c\\))", "bi-bullseye", "central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", `${GALAXY_DEFAULT_CENTRAL_MASS}`, { group: "dynamic" }),
+        slider("object-total-mass", "Object Total Mass (\\(M_{\\mathrm{obj}}\\))", "bi-boxes", "object-total-mass-value", `4.40e+11 ${GALAXY_UNITS.mass.label}`, "1.0e10", "5.0e12", "1.0e10", `${GALAXY_DEFAULT_OBJECT_TOTAL_MASS}`, { group: "dynamic", paramKey: "objectTotalMass" }),
         slider("softening", "Softening (\\(\\epsilon\\))", "bi-dot", "softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180", { group: "dynamic" }),
         slider("damping", "Damping (\\(\\lambda\\))", "bi-sliders", "damping-value", `0.0030 1/${GALAXY_UNITS.time.label}`, "0.0", "0.020", "0.0005", "0.003", { group: "dynamic" }),
       ],
@@ -329,8 +334,9 @@ export class GalaxySimulation extends BaseSimulation {
     const soft = Math.max(1, lengthToInternalLightYears(this.params.softening ?? 180));
     const softSq = soft * soft;
     const G = GALAXY_GRAVITY_INTERNAL;
-    const centralMass = Math.max(0, massToInternalSolarMass(this.params.centralMass ?? 2.2e12));
-    const particleMass = Math.max(1e6, (centralMass * GALAXY_PARTICLE_MASS_FRACTION) / Math.max(count, 1));
+    const centralMass = Math.max(0, massToInternalSolarMass(this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS));
+    const objectTotalMass = Math.max(0, massToInternalSolarMass(this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS));
+    const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
     const damping = THREE.MathUtils.clamp(this.params.damping ?? 0.003, 0, 0.05);
 
     for (let i = 0; i < count; i += 1) {
@@ -480,7 +486,7 @@ export class GalaxySimulation extends BaseSimulation {
 
     const spin = Math.max(0, this.params.spin ?? 1.35);
     const gravityInternal = GALAXY_GRAVITY_INTERNAL;
-    const centralMassInternal = Math.max(1e8, massToInternalSolarMass(this.params.centralMass ?? 2.2e12));
+    const centralMassInternal = Math.max(1e8, massToInternalSolarMass(this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS));
     const baseSpeed = spin * Math.sqrt(
       Math.max(1e-12, gravityInternal) * centralMassInternal / radius,
     );

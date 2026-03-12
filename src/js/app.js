@@ -36,10 +36,13 @@ const params = {
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
+  spaceshipMode: false,
+  spaceshipSas: true,
   showBounds: true,
   cameraLocked: false,
   projectionMode: "perspective",
   keyboardMoveSpeed: 42,
+  keyboardRotationSpeed: 84,
   paused: false,
   ...Object.fromEntries(
     APPLET_ORDER.map((id) => [id, { ...APPLET_DEFINITIONS[id].defaultParams }]),
@@ -151,6 +154,7 @@ const dom = {
   resetCamera: document.getElementById("reset-camera"),
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
+  spaceshipMode: document.getElementById("spaceship-mode"),
   boundaryMode: document.getElementById("boundary-mode"),
   supportInfoOpen: document.getElementById("support-info-open"),
   supportInfoClose: document.getElementById("support-info-close"),
@@ -186,7 +190,6 @@ const dom = {
   screenshotPreviewZoom: document.getElementById("screenshot-preview-zoom"),
   screenshotMeta: document.getElementById("screenshot-meta"),
   screenshotCapture: document.getElementById("screenshot-capture"),
-  screenshotStatus: document.getElementById("screenshot-status"),
   aboutInfoOpen: document.getElementById("about-info-open"),
   aboutInfoClose: document.getElementById("about-info-close"),
   aboutInfoBackdrop: document.getElementById("about-info-backdrop"),
@@ -197,6 +200,12 @@ const dom = {
   cameraRoll: document.getElementById("camera-roll"),
   cameraPitch: document.getElementById("camera-pitch"),
   cameraYaw: document.getElementById("camera-yaw"),
+  spaceshipHud: document.getElementById("spaceship-hud"),
+  spaceshipHudScope: document.getElementById("spaceship-hud-scope"),
+  spaceshipSpeed: document.getElementById("spaceship-speed"),
+  spaceshipSasToggle: document.getElementById("spaceship-sas-toggle"),
+  spaceshipHaltRotation: document.getElementById("spaceship-halt-rotation"),
+  spaceshipHaltMotion: document.getElementById("spaceship-halt-motion"),
 };
 
 const elementCache = new Map();
@@ -364,6 +373,10 @@ function formatKeyboardMoveSpeed(value, appletId = activeApplet) {
   return `${formatDisplayNumber(value, { trailingDigits: 1 })} ${getWorldUnitLabel(appletId)}/s`;
 }
 
+function formatKeyboardRotationSpeed(value) {
+  return `${formatDisplayNumber(value, { trailingDigits: 1 })}°/s`;
+}
+
 function getViewportAppletLabel(appletId = activeApplet) {
   return APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? "Applet";
 }
@@ -493,6 +506,36 @@ const orientationIndicatorAxes = [
 ];
 const orientationIndicatorInvQuat = new THREE.Quaternion();
 const orientationIndicatorDir = new THREE.Vector3();
+const spaceshipHudInvQuat = new THREE.Quaternion();
+const spaceshipHudMarkerLocal = new THREE.Vector3();
+const spaceshipHudRadialWorld = new THREE.Vector3();
+const spaceshipHudProgradeWorld = new THREE.Vector3();
+const spaceshipHudViewWorld = new THREE.Vector3();
+const spaceshipHudNormalWorld = new THREE.Vector3();
+const spaceshipHudTmpWorld = new THREE.Vector3();
+const spaceshipHudRadialLocal = new THREE.Vector3();
+const spaceshipHudNorthLocal = new THREE.Vector3();
+const spaceshipHudGuideU = new THREE.Vector3();
+const spaceshipHudGuideV = new THREE.Vector3();
+const spaceshipHudGuidePoint = new THREE.Vector3();
+const spaceshipHudGuideRef = new THREE.Vector3();
+const spaceshipHudGuidePrevU = new THREE.Vector3(1, 0, 0);
+let spaceshipHudGuideBasisInitialized = false;
+const spaceshipHudWorldNorthAxis = new THREE.Vector3(0, 1, 0);
+const spaceshipHudWorldUpAxis = new THREE.Vector3(0, 0, 1);
+const spaceshipHudRasterCache = {
+  width: 0,
+  height: 0,
+  imageData: null,
+};
+const NAVBALL_MARKER_STYLE = {
+  prograde: { shape: "circle", filled: false, color: "#ccf700" },
+  retrograde: { shape: "circle", filled: true, color: "#ccf700" },
+  normal: { shape: "triangle-up", filled: false, color: "#db23e8" },
+  antinormal: { shape: "triangle-down", filled: true, color: "#db23e8" },
+  radialOut: { shape: "square", filled: false, color: "#22d6db" },
+  radialIn: { shape: "square", filled: true, color: "#22d6db" },
+};
 
 // Startup Wiring + App Initialization Sequence
 cameraController.setPerspectiveCameraFromParams(false);
@@ -567,6 +610,7 @@ function animate() {
 
   controls.update();
   cameraController.updateTelemetry();
+  updateSpaceshipHud();
   updateOrientationIndicator();
 
   renderer.render(scene, cameraController.getActiveCamera());
@@ -643,6 +687,11 @@ function setupControls() {
     return formatKeyboardMoveSpeed(params.keyboardMoveSpeed);
   });
 
+  bindRange("camera-rotation-speed", "camera-rotation-speed-value", (value) => {
+    params.keyboardRotationSpeed = Math.max(0.1, value);
+    return formatKeyboardRotationSpeed(params.keyboardRotationSpeed);
+  });
+
   const toggleCurrentSimulationPause = () => {
     params.paused = !params.paused;
     updateSimulationStateUI();
@@ -692,6 +741,19 @@ function setupControls() {
     cameraController.applyCameraInteractivity();
   });
 
+  dom.spaceshipMode?.addEventListener("change", () => {
+    const enabled = Boolean(dom.spaceshipMode.checked);
+    if (enabled && params.projectionMode !== "perspective") {
+      params.projectionMode = "perspective";
+      cameraController.switchToPerspective();
+      updateProjectionToggleUI();
+      updateViewportLabel();
+    }
+    params.spaceshipMode = enabled;
+    cameraController.setSpaceshipMode?.(enabled);
+    updateSpaceshipHud();
+  });
+
   dom.boundaryMode.addEventListener("change", () => {
     params.boundaryMode = normalizeBoundaryMode(dom.boundaryMode.value);
     if (worldStatePersistenceEnabled) {
@@ -704,6 +766,13 @@ function setupControls() {
     dom.cameraProjectionToggle.addEventListener("click", () => {
       if (params.projectionMode === "perspective") {
         params.projectionMode = "orthographic";
+        if (params.spaceshipMode) {
+          params.spaceshipMode = false;
+          if (dom.spaceshipMode) {
+            dom.spaceshipMode.checked = false;
+          }
+          cameraController.setSpaceshipMode?.(false);
+        }
         cameraController.switchToOrthographicTop();
       } else {
         params.projectionMode = "perspective";
@@ -711,6 +780,7 @@ function setupControls() {
       }
       updateProjectionToggleUI();
       updateViewportLabel();
+      updateSpaceshipHud();
     });
   }
 
@@ -739,11 +809,28 @@ function setupControls() {
       cameraController.updateTelemetry();
       updateProjectionToggleUI();
       updateViewportLabel();
+      updateSpaceshipHud();
     });
   }
 
   dom.showBounds.checked = params.showBounds;
   dom.cameraLocked.checked = params.cameraLocked;
+  if (dom.spaceshipMode) {
+    dom.spaceshipMode.checked = params.spaceshipMode;
+  }
+  cameraController.setSpaceshipMode?.(params.spaceshipMode);
+  dom.spaceshipSasToggle?.addEventListener("click", () => {
+    params.spaceshipSas = !params.spaceshipSas;
+    updateSpaceshipHud();
+  });
+  dom.spaceshipHaltRotation?.addEventListener("click", () => {
+    cameraController.haltSpaceshipRotation?.();
+    updateSpaceshipHud();
+  });
+  dom.spaceshipHaltMotion?.addEventListener("click", () => {
+    cameraController.haltAllSpaceshipMotion?.();
+    updateSpaceshipHud();
+  });
   dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
   APPLET_ORDER.forEach((appletId) => {
     APPLET_DEFINITIONS[appletId].runtime?.bindInteractionControls?.({
@@ -1433,7 +1520,14 @@ function applyAppletMode(appletId, options = {}) {
     "camera-move-speed-value",
     (value) => formatKeyboardMoveSpeed(value),
   );
+  setControlValue(
+    "camera-rotation-speed",
+    params.keyboardRotationSpeed,
+    "camera-rotation-speed-value",
+    (value) => formatKeyboardRotationSpeed(value),
+  );
   updateProjectionToggleUI();
+  updateSpaceshipHud();
   if (previousApplet && APPLET_IDS.has(previousApplet)) {
     appletPausedPreferences[previousApplet] = params.paused;
   }
@@ -2698,6 +2792,433 @@ function updateViewportLabel() {
     params.projectionMode === "orthographic" ? "Ortho Top (Z+)" : "Perspective";
   const gridText = formatDisplayNumber(displayGridSize, { trailingDigits: 2 });
   dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
+}
+
+function clamp01(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function getNavballRaster(context, width, height) {
+  if (
+    !spaceshipHudRasterCache.imageData ||
+    spaceshipHudRasterCache.width !== width ||
+    spaceshipHudRasterCache.height !== height
+  ) {
+    spaceshipHudRasterCache.width = width;
+    spaceshipHudRasterCache.height = height;
+    spaceshipHudRasterCache.imageData = context.createImageData(width, height);
+  }
+  return spaceshipHudRasterCache.imageData;
+}
+
+function drawNavballBackground(context, width, height, centerX, centerY, radius, radialLocal, theme) {
+  const imageData = getNavballRaster(context, width, height);
+  const data = imageData.data;
+  data.fill(0);
+
+  const horizonBand = 0.028;
+  const skyTop = theme === "light" ? [133, 170, 228] : [84, 123, 198];
+  const skyBottom = theme === "light" ? [94, 133, 195] : [48, 79, 136];
+  const groundTop = theme === "light" ? [168, 138, 98] : [122, 98, 69];
+  const groundBottom = theme === "light" ? [121, 95, 66] : [78, 57, 40];
+  const horizonColor = theme === "light" ? [244, 248, 255] : [210, 223, 247];
+
+  for (let py = 0; py < height; py += 1) {
+    const y = (centerY - (py + 0.5)) / radius;
+    const verticalLerp = clamp01((y + 1) * 0.5);
+
+    for (let px = 0; px < width; px += 1) {
+      const x = ((px + 0.5) - centerX) / radius;
+      const rr = x * x + y * y;
+      if (rr > 1) {
+        continue;
+      }
+
+      const z = -Math.sqrt(Math.max(0, 1 - rr));
+      const dot = x * radialLocal.x + y * radialLocal.y + z * radialLocal.z;
+      const i = ((py * width) + px) * 4;
+
+      let r;
+      let g;
+      let b;
+      if (Math.abs(dot) <= horizonBand) {
+        const t = 1 - clamp01(Math.abs(dot) / horizonBand);
+        const boost = 0.72 + (0.28 * t);
+        r = Math.round(horizonColor[0] * boost);
+        g = Math.round(horizonColor[1] * boost);
+        b = Math.round(horizonColor[2] * boost);
+      } else {
+        const top = dot >= 0 ? skyTop : groundTop;
+        const bottom = dot >= 0 ? skyBottom : groundBottom;
+        const baseR = bottom[0] + ((top[0] - bottom[0]) * verticalLerp);
+        const baseG = bottom[1] + ((top[1] - bottom[1]) * verticalLerp);
+        const baseB = bottom[2] + ((top[2] - bottom[2]) * verticalLerp);
+        const depthShade = 0.76 + (0.24 * clamp01(-z));
+        r = Math.round(baseR * depthShade);
+        g = Math.round(baseG * depthShade);
+        b = Math.round(baseB * depthShade);
+      }
+
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
+}
+
+function drawNavballPoleGuides(context, centerX, centerY, radius, dpr) {
+  if (spaceshipHudNorthLocal.lengthSq() < 1e-8) {
+    return;
+  }
+
+  // Lock guide frame to horizon normal so red/blue split is deterministic w.r.t sky/horizon.
+  // U points tangent to horizon along the north/south great circle.
+  spaceshipHudGuideU.copy(spaceshipHudNorthLocal).cross(spaceshipHudRadialLocal);
+  if (spaceshipHudGuideU.lengthSq() < 1e-8) {
+    // Degenerate only when north aligns with horizon normal; keep prior frame if available.
+    if (spaceshipHudGuideBasisInitialized && spaceshipHudGuidePrevU.lengthSq() > 1e-8) {
+      spaceshipHudGuideU.copy(spaceshipHudGuidePrevU);
+    } else {
+      spaceshipHudGuideRef.set(1, 0, 0);
+      spaceshipHudGuideU.copy(spaceshipHudNorthLocal).cross(spaceshipHudGuideRef);
+    }
+  }
+  if (spaceshipHudGuideU.lengthSq() < 1e-8) {
+    return;
+  }
+  spaceshipHudGuideU.normalize();
+  spaceshipHudGuideV.copy(spaceshipHudNorthLocal).cross(spaceshipHudGuideU).normalize();
+
+  // Keep continuity only for degenerate fallback reuse.
+  spaceshipHudGuidePrevU.copy(spaceshipHudGuideU);
+  spaceshipHudGuideBasisInitialized = true;
+
+  context.lineCap = "round";
+  context.lineWidth = Math.max(1.3, dpr * 1.55);
+  const steps = 192;
+  const redColor = "#e15454";
+  const blueColor = "#4f93ff";
+  const visibilityEpsilon = 0.004;
+  let activeSign = 0;
+  let pathOpen = false;
+
+  for (let i = 0; i <= steps; i += 1) {
+    const t = (Math.PI * 2 * i) / steps;
+    spaceshipHudGuidePoint
+      .copy(spaceshipHudGuideU)
+      .multiplyScalar(Math.cos(t))
+      .addScaledVector(spaceshipHudGuideV, Math.sin(t));
+
+    const x = centerX + (spaceshipHudGuidePoint.x * radius);
+    const y = centerY - (spaceshipHudGuidePoint.y * radius);
+    // Fix color to horizon side: one half in "sky", the opposite half in "ground".
+    const sign = spaceshipHudGuidePoint.dot(spaceshipHudRadialLocal) >= 0 ? 1 : -1;
+    const visible = spaceshipHudGuidePoint.z <= visibilityEpsilon;
+
+    if (!visible) {
+      if (pathOpen) {
+        context.stroke();
+        pathOpen = false;
+      }
+      continue;
+    }
+
+    if (!pathOpen) {
+      activeSign = sign;
+      context.strokeStyle = activeSign > 0 ? redColor : blueColor;
+      context.beginPath();
+      context.moveTo(x, y);
+      pathOpen = true;
+      continue;
+    }
+
+    if (sign !== activeSign) {
+      context.lineTo(x, y);
+      context.stroke();
+      activeSign = sign;
+      context.strokeStyle = activeSign > 0 ? redColor : blueColor;
+      context.beginPath();
+      context.moveTo(x, y);
+    }
+
+    context.lineTo(x, y);
+  }
+
+  if (pathOpen) {
+    context.stroke();
+  }
+}
+
+function projectNavballDirection(directionWorld, centerX, centerY, radius) {
+  spaceshipHudMarkerLocal.copy(directionWorld).applyQuaternion(spaceshipHudInvQuat);
+  const lengthSq = spaceshipHudMarkerLocal.lengthSq();
+  if (lengthSq < 1e-10) {
+    return null;
+  }
+
+  spaceshipHudMarkerLocal.multiplyScalar(1 / Math.sqrt(lengthSq));
+  if (spaceshipHudMarkerLocal.z > 0.04) {
+    return null;
+  }
+
+  const depth = clamp01(-spaceshipHudMarkerLocal.z);
+  return {
+    x: centerX + (spaceshipHudMarkerLocal.x * radius),
+    y: centerY - (spaceshipHudMarkerLocal.y * radius),
+    depth,
+  };
+}
+
+function drawNavballMarker(context, markerKey, directionWorld, centerX, centerY, radius, dpr) {
+  const style = NAVBALL_MARKER_STYLE[markerKey];
+  if (!style) {
+    return;
+  }
+
+  const projected = projectNavballDirection(directionWorld, centerX, centerY, radius);
+  if (!projected) {
+    return;
+  }
+
+  const alpha = 0.46 + (0.54 * projected.depth);
+  const markerSize = Math.max(7 * dpr, (9.6 * dpr) * (0.72 + (0.44 * projected.depth)));
+  const half = markerSize * 0.5;
+  const lineWidth = Math.max(1.2, dpr * 1.35);
+
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = style.color;
+  context.fillStyle = style.color;
+  context.lineWidth = lineWidth;
+  context.lineJoin = "round";
+  context.lineCap = "round";
+  context.translate(projected.x, projected.y);
+
+  if (style.shape === "circle") {
+    context.beginPath();
+    context.arc(0, 0, half * 0.9, 0, Math.PI * 2);
+  } else if (style.shape === "square") {
+    context.beginPath();
+    context.rect(-half * 0.86, -half * 0.86, half * 1.72, half * 1.72);
+  } else if (style.shape === "triangle-up") {
+    context.beginPath();
+    context.moveTo(0, -half * 1.05);
+    context.lineTo(half * 0.98, half * 0.88);
+    context.lineTo(-half * 0.98, half * 0.88);
+    context.closePath();
+  } else if (style.shape === "triangle-down") {
+    context.beginPath();
+    context.moveTo(0, half * 1.05);
+    context.lineTo(half * 0.98, -half * 0.88);
+    context.lineTo(-half * 0.98, -half * 0.88);
+    context.closePath();
+  }
+
+  if (style.filled) {
+    context.fill();
+  } else {
+    context.stroke();
+  }
+
+  context.restore();
+}
+
+function drawNavballCenterCross(context, centerX, centerY, radius, dpr, theme) {
+  const crossHalf = radius * 0.125;
+  const lineWidth = Math.max(1.4, dpr * 1.5);
+  const crossColor = theme === "light" ? "rgba(34, 59, 98, 0.95)" : "rgba(232, 241, 255, 0.95)";
+
+  context.strokeStyle = crossColor;
+  context.lineWidth = lineWidth;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(centerX - crossHalf, centerY);
+  context.lineTo(centerX + crossHalf, centerY);
+  context.moveTo(centerX, centerY - crossHalf);
+  context.lineTo(centerX, centerY + crossHalf);
+  context.stroke();
+
+  context.fillStyle = crossColor;
+  context.beginPath();
+  context.arc(centerX, centerY, Math.max(1.9, dpr * 2), 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawSpaceshipHudScope(telemetry) {
+  const canvas = dom.spaceshipHudScope;
+  if (!canvas) {
+    return;
+  }
+
+  const context = canvas.getContext("2d");
+  const activeCamera = cameraController.getActiveCamera?.();
+  if (!context || !activeCamera) {
+    return;
+  }
+
+  const cssWidth = Math.max(1, Math.floor(canvas.clientWidth || 128));
+  const cssHeight = Math.max(1, Math.floor(canvas.clientHeight || 128));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const pixelWidth = Math.max(1, Math.floor(cssWidth * dpr));
+  const pixelHeight = Math.max(1, Math.floor(cssHeight * dpr));
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+
+  const width = canvas.width;
+  const height = canvas.height;
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+  const radius = Math.min(width, height) * 0.42;
+  const theme = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
+
+  context.clearRect(0, 0, width, height);
+
+  spaceshipHudInvQuat.copy(activeCamera.quaternion).invert();
+  // Use world +Z as the fixed normal of the global XY plane for the navball horizon.
+  spaceshipHudRadialWorld.copy(spaceshipHudWorldUpAxis);
+
+  spaceshipHudRadialLocal.copy(spaceshipHudRadialWorld).applyQuaternion(spaceshipHudInvQuat).normalize();
+  spaceshipHudNorthLocal
+    .copy(spaceshipHudWorldNorthAxis)
+    .applyQuaternion(spaceshipHudInvQuat)
+    .normalize();
+
+  drawNavballBackground(context, width, height, centerX, centerY, radius, spaceshipHudRadialLocal, theme);
+
+  context.save();
+  context.beginPath();
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+  context.clip();
+
+  drawNavballPoleGuides(context, centerX, centerY, radius, dpr);
+
+  const speed = Number(telemetry.speed) || 0;
+  if (speed > 1e-6) {
+    spaceshipHudProgradeWorld
+      .set(telemetry.velocity?.x ?? 0, telemetry.velocity?.y ?? 0, telemetry.velocity?.z ?? 0)
+      .normalize();
+    spaceshipHudViewWorld
+      .set(telemetry.view?.x ?? 0, telemetry.view?.y ?? 0, telemetry.view?.z ?? 0)
+      .normalize();
+    drawNavballMarker(context, "prograde", spaceshipHudProgradeWorld, centerX, centerY, radius, dpr);
+
+    spaceshipHudTmpWorld.copy(spaceshipHudProgradeWorld).multiplyScalar(-1);
+    drawNavballMarker(context, "retrograde", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
+
+    // Build marker frame from ship motion first (velocity + view), then stable fallbacks.
+    spaceshipHudNormalWorld.copy(spaceshipHudProgradeWorld).cross(spaceshipHudViewWorld);
+    if (spaceshipHudNormalWorld.lengthSq() < 1e-9) {
+      spaceshipHudNormalWorld.copy(spaceshipHudWorldUpAxis).cross(spaceshipHudProgradeWorld);
+    }
+    if (spaceshipHudNormalWorld.lengthSq() < 1e-9) {
+      spaceshipHudNormalWorld.copy(spaceshipHudWorldNorthAxis).cross(spaceshipHudProgradeWorld);
+    }
+    if (spaceshipHudNormalWorld.lengthSq() >= 1e-9) {
+      spaceshipHudNormalWorld.normalize();
+      drawNavballMarker(context, "normal", spaceshipHudNormalWorld, centerX, centerY, radius, dpr);
+      spaceshipHudTmpWorld.copy(spaceshipHudNormalWorld).multiplyScalar(-1);
+      drawNavballMarker(context, "antinormal", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
+
+      spaceshipHudRadialWorld
+        .copy(spaceshipHudNormalWorld)
+        .cross(spaceshipHudProgradeWorld)
+        .normalize();
+      drawNavballMarker(context, "radialOut", spaceshipHudRadialWorld, centerX, centerY, radius, dpr);
+      spaceshipHudTmpWorld.copy(spaceshipHudRadialWorld).multiplyScalar(-1);
+      drawNavballMarker(context, "radialIn", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
+    }
+  }
+
+  context.restore();
+
+  drawNavballCenterCross(context, centerX, centerY, radius, dpr, theme);
+}
+
+function setSpaceshipHudButtonsDisabled(disabled) {
+  const nextDisabled = Boolean(disabled);
+  if (dom.spaceshipSasToggle) {
+    dom.spaceshipSasToggle.disabled = nextDisabled;
+    const sasOn = Boolean(params.spaceshipSas);
+    dom.spaceshipSasToggle.classList.toggle("is-active", sasOn);
+    dom.spaceshipSasToggle.classList.toggle("is-off", !sasOn);
+  }
+  if (dom.spaceshipHaltRotation) {
+    dom.spaceshipHaltRotation.disabled = nextDisabled;
+  }
+  if (dom.spaceshipHaltMotion) {
+    dom.spaceshipHaltMotion.disabled = nextDisabled;
+  }
+}
+
+function updateSpaceshipHud() {
+  if (!dom.spaceshipHud) {
+    return;
+  }
+
+  const enabled = Boolean(params.spaceshipMode && params.projectionMode === "perspective");
+  dom.spaceshipHud.classList.toggle("is-hidden", !enabled);
+  if (!enabled) {
+    setSpaceshipHudButtonsDisabled(true);
+    return;
+  }
+
+  const telemetry = cameraController.getSpaceshipTelemetry?.();
+  if (!telemetry) {
+    setSpaceshipHudButtonsDisabled(true);
+    return;
+  }
+
+  const unitLabel = getWorldUnitLabel(activeApplet);
+  if (dom.spaceshipSpeed) {
+    dom.spaceshipSpeed.textContent =
+      `${formatDisplayNumber(telemetry.speed, { trailingDigits: 2 })} ${unitLabel}/s`;
+  }
+  if (dom.spaceshipSasToggle) {
+    const sasOn = Boolean(params.spaceshipSas);
+    dom.spaceshipSasToggle.disabled = false;
+    dom.spaceshipSasToggle.classList.toggle("is-active", sasOn);
+    dom.spaceshipSasToggle.classList.toggle("is-off", !sasOn);
+    dom.spaceshipSasToggle.title = sasOn ? "SAS on" : "SAS off";
+    dom.spaceshipSasToggle.setAttribute("aria-label", sasOn ? "SAS on" : "SAS off");
+    dom.spaceshipSasToggle.setAttribute("aria-pressed", sasOn ? "true" : "false");
+    const sasIcon = dom.spaceshipSasToggle.querySelector("i");
+    if (sasIcon) {
+      sasIcon.className = `bi ${sasOn ? "bi-bullseye" : "bi-circle"}`;
+    }
+  }
+  const angular = telemetry.angular || {};
+
+  const linearSpeed = Number(telemetry.speed) || 0;
+  const angularRate = Math.hypot(
+    Number(angular.yaw) || 0,
+    Number(angular.pitch) || 0,
+    Number(angular.roll) || 0,
+  );
+  const rotationZero = angularRate <= 1e-4;
+  const motionZero = rotationZero && linearSpeed <= 1e-4;
+
+  if (dom.spaceshipHaltRotation) {
+    dom.spaceshipHaltRotation.disabled = rotationZero;
+    dom.spaceshipHaltRotation.title = rotationZero ? "Rotation already zero" : "Halt rotation";
+    dom.spaceshipHaltRotation.setAttribute(
+      "aria-label",
+      rotationZero ? "Rotation already zero" : "Halt rotation",
+    );
+  }
+  if (dom.spaceshipHaltMotion) {
+    dom.spaceshipHaltMotion.disabled = motionZero;
+    dom.spaceshipHaltMotion.title = motionZero ? "Motion already zero" : "Halt all motion";
+    dom.spaceshipHaltMotion.setAttribute(
+      "aria-label",
+      motionZero ? "Motion already zero" : "Halt all motion",
+    );
+  }
+  drawSpaceshipHudScope(telemetry);
 }
 
 function getActiveSimulationSpeed() {

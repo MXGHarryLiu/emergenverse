@@ -1,9 +1,21 @@
 // Overlay and modal behavior for help, model equations, about, share, export, and screenshot actions.
 import { APPLET_CONFIGS } from "./app/appletConfigs.js";
 
+// Module state
 const escapeOverlayBindings = [];
 let escapeOverlayListenerAttached = false;
 
+// Shared copy
+const SCREENSHOT_STATUS_TRANSPARENT =
+  "Transparent mode exports without the scene background or boundary box.";
+const SCREENSHOT_STATUS_STANDARD =
+  "Standard mode keeps the normal scene background and boundary box.";
+const SCREENSHOT_STATUS_OVERLAY =
+  "Overlay mode includes orientation marker and status label; viewport tool buttons remain hidden.";
+const SHARE_STATUS_DEFAULT = "Copy link to share the current app and URL state.";
+const EXPORT_STATUS_DEFAULT = "Download current parameters as a JSON file.";
+
+// Public API
 export function setupUiOverlays({
   dom,
   renderer,
@@ -33,300 +45,38 @@ export function setupUiOverlays({
   });
 }
 
-function setupSupportPopup(dom) {
-  bindDismissibleOverlay({
-    openButton: dom.supportInfoOpen,
-    closeButton: dom.supportInfoClose,
-    backdrop: dom.supportInfoBackdrop,
-  });
-}
-
-function setupModelInfoPopup(dom, getActiveApplet) {
-  if (!dom.modelInfoBackdrop || !dom.modelInfoClose || !dom.modelInfoTitle || !dom.modelInfoBody) {
-    return;
-  }
-
-  const renderMath = () => {
-    if (typeof window.renderMathInElement !== "function") {
-      return;
-    }
-    window.renderMathInElement(dom.modelInfoBody, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "\\(", right: "\\)", display: false },
-      ],
-      throwOnError: false,
-    });
-  };
-
-  const renderModelContent = (appletId) => {
-    const modelConfig = APPLET_CONFIGS[appletId]?.left?.model;
-    dom.modelInfoTitle.textContent = "Model Equations";
-    dom.modelInfoBody.innerHTML = "";
-
-    if (!modelConfig?.items?.length) {
-      const empty = document.createElement("p");
-      empty.className = "panel-copy mb-0";
-      empty.textContent = "No model equations are configured for this applet.";
-      dom.modelInfoBody.appendChild(empty);
-      return;
-    }
-
-    if (modelConfig.subtitle) {
-      const subtitle = document.createElement("p");
-      subtitle.className = "controls-modal-subtitle";
-      subtitle.textContent = modelConfig.subtitle;
-      dom.modelInfoBody.appendChild(subtitle);
-    }
-
-    modelConfig.items.forEach((item, index) => {
-      const card = document.createElement("section");
-      card.className = "equation-card";
-
-      const heading = document.createElement("div");
-      heading.className = "equation-card-head";
-
-      const indexLabel = document.createElement("span");
-      indexLabel.className = "equation-card-index";
-      indexLabel.textContent = `Eq. ${index + 1}`;
-      heading.appendChild(indexLabel);
-
-      const title = document.createElement("h3");
-      title.className = "equation-card-title";
-      title.textContent = item.title || `Equation ${index + 1}`;
-      heading.appendChild(title);
-      card.appendChild(heading);
-
-      if (item.equation) {
-        const equation = document.createElement("div");
-        equation.className = "equation-card-math";
-        equation.textContent = item.equation;
-        card.appendChild(equation);
-      }
-
-      if (item.explanation) {
-        const explanation = document.createElement("p");
-        explanation.className = "equation-card-copy";
-        explanation.textContent = item.explanation;
-        card.appendChild(explanation);
-      }
-
-      if (Array.isArray(item.parameters) && item.parameters.length > 0) {
-        const list = document.createElement("ul");
-        list.className = "equation-card-list";
-        item.parameters.forEach((entry) => {
-          const li = document.createElement("li");
-          li.innerHTML = entry;
-          list.appendChild(li);
-        });
-        card.appendChild(list);
-      }
-
-      dom.modelInfoBody.appendChild(card);
-    });
-
-    if (Array.isArray(modelConfig.references) && modelConfig.references.length > 0) {
-      const references = document.createElement("section");
-      references.className = "equation-card";
-
-      const heading = document.createElement("div");
-      heading.className = "equation-card-head";
-
-      const title = document.createElement("h3");
-      title.className = "equation-card-title";
-      title.textContent = "References";
-      heading.appendChild(title);
-      references.appendChild(heading);
-
-      const list = document.createElement("ul");
-      list.className = "equation-card-list";
-      modelConfig.references.forEach((entry) => {
-        const li = document.createElement("li");
-        const link = document.createElement("a");
-        link.href = entry.url;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = entry.label;
-        li.appendChild(link);
-        list.appendChild(li);
-      });
-      references.appendChild(list);
-      dom.modelInfoBody.appendChild(references);
-    }
-
-    renderMath();
-  };
-
-  document.querySelectorAll("[data-model-info-open]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const appletId = button.getAttribute("data-model-info-open") || getActiveApplet();
-      renderModelContent(appletId);
-      openOverlay(dom.modelInfoBackdrop);
-    });
-  });
-
-  bindDismissibleOverlay({
-    closeButton: dom.modelInfoClose,
-    backdrop: dom.modelInfoBackdrop,
-  });
-}
-
-function setupControlsInfoPopup(dom) {
-  bindDismissibleOverlay({
-    openButton: dom.controlsInfoOpen,
-    closeButton: dom.controlsInfoClose,
-    backdrop: dom.controlsInfoBackdrop,
-  });
-}
-
-function setupAboutPopup(dom) {
-  bindDismissibleOverlay({
-    openButton: dom.aboutInfoOpen,
-    closeButton: dom.aboutInfoClose,
-    backdrop: dom.aboutInfoBackdrop,
-  });
-}
-
-function setupSharePopup(dom) {
-  if (
-    !dom.shareInfoOpen ||
-    !dom.shareInfoClose ||
-    !dom.shareInfoBackdrop ||
-    !dom.shareLinkInput ||
-    !dom.shareLinkCopy
-  ) {
-    return;
-  }
-
-  const getShareUrl = () => window.location.href;
-
-  const setStatus = (message) => {
-    if (dom.shareCopyStatus) {
-      dom.shareCopyStatus.textContent = message;
-    }
-  };
-
-  const openPopup = () => {
-    dom.shareLinkInput.value = getShareUrl();
-    setStatus("Copy link to share the current app and URL state.");
-    openOverlay(dom.shareInfoBackdrop);
-  };
-
-  const closePopup = () => closeOverlay(dom.shareInfoBackdrop);
-
-  dom.shareInfoOpen.addEventListener("click", openPopup);
-  dom.shareInfoClose.addEventListener("click", closePopup);
-
-  dom.shareInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.shareInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  dom.shareLinkCopy.addEventListener("click", async () => {
-    const shareText = dom.shareLinkInput.value || getShareUrl();
-    let copied = false;
-
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(shareText);
-        copied = true;
-      } catch (error) {
-        copied = false;
-      }
-    }
-
-    if (!copied && typeof document.execCommand === "function") {
-      dom.shareLinkInput.focus();
-      dom.shareLinkInput.select();
-      copied = document.execCommand("copy");
-    }
-
-    if (copied) {
-      setStatus("Link copied.");
-    } else {
-      setStatus("Could not copy automatically. Select and copy the URL manually.");
-    }
-  });
-
-  bindEscapeToOverlay(dom.shareInfoBackdrop, closePopup);
-}
-
-function setupExportPopup(dom, getActiveApplet, getExportData) {
-  if (
-    !dom.exportInfoOpen ||
-    !dom.exportInfoClose ||
-    !dom.exportInfoBackdrop ||
-    !dom.exportParamsJson
-  ) {
-    return;
-  }
-
-  const setStatus = (message) => {
-    if (dom.exportStatus) {
-      dom.exportStatus.textContent = message;
-    }
-  };
-
-  const openPopup = () => {
-    setStatus("Download current parameters as a JSON file.");
-    openOverlay(dom.exportInfoBackdrop);
-  };
-
-  const closePopup = () => closeOverlay(dom.exportInfoBackdrop);
-
-  dom.exportInfoOpen.addEventListener("click", openPopup);
-  dom.exportInfoClose.addEventListener("click", closePopup);
-
-  dom.exportInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.exportInfoBackdrop) {
-      closePopup();
-    }
-  });
-
-  bindEscapeToOverlay(dom.exportInfoBackdrop, closePopup);
-
-  dom.exportParamsJson.addEventListener("click", async () => {
-    try {
-      const payload =
-        typeof getExportData === "function"
-          ? getExportData()
-          : {
-              app: "emergenverse",
-              exportedAt: new Date().toISOString(),
-              activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
-              params: {},
-            };
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `emergenverse-params-${payload.activeApplet || "applet"}-${stamp}.json`;
-      const result = await triggerJsonDownload(payload, filename);
-      if (result === "cancelled") {
-        setStatus("Export cancelled.");
-      } else {
-        setStatus("Exported parameters JSON.");
-      }
-    } catch (error) {
-      setStatus("Could not export parameters JSON.");
-    }
-  });
-}
-
-function bindDismissibleOverlay({ openButton, closeButton, backdrop }) {
+// Generic overlay helpers
+function bindDismissibleOverlay({ openButton, closeButton, backdrop, onOpen, onClose }) {
   if (!closeButton || !backdrop) {
     return;
   }
 
-  const open = () => openOverlay(backdrop);
-  const close = () => closeOverlay(backdrop);
+  const open = () => {
+    if (typeof onOpen === "function") {
+      onOpen();
+    }
+    openOverlay(backdrop);
+  };
+
+  const close = () => {
+    closeOverlay(backdrop);
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  };
 
   openButton?.addEventListener("click", open);
   closeButton.addEventListener("click", close);
-  backdrop.addEventListener("click", (event) => {
+  bindBackdropToClose(backdrop, close);
+  bindEscapeToOverlay(backdrop, close);
+}
+
+function bindBackdropToClose(backdrop, onClose) {
+  backdrop?.addEventListener("click", (event) => {
     if (event.target === backdrop) {
-      close();
+      onClose();
     }
   });
-  bindEscapeToOverlay(backdrop, close);
 }
 
 function bindEscapeToOverlay(backdrop, onClose) {
@@ -371,6 +121,291 @@ function closeOverlay(backdrop) {
   backdrop?.setAttribute("aria-hidden", "true");
 }
 
+// Basic popups
+function setupSupportPopup(dom) {
+  bindDismissibleOverlay({
+    openButton: dom.supportInfoOpen,
+    closeButton: dom.supportInfoClose,
+    backdrop: dom.supportInfoBackdrop,
+  });
+}
+
+function setupControlsInfoPopup(dom) {
+  bindDismissibleOverlay({
+    openButton: dom.controlsInfoOpen,
+    closeButton: dom.controlsInfoClose,
+    backdrop: dom.controlsInfoBackdrop,
+  });
+}
+
+function setupAboutPopup(dom) {
+  bindDismissibleOverlay({
+    openButton: dom.aboutInfoOpen,
+    closeButton: dom.aboutInfoClose,
+    backdrop: dom.aboutInfoBackdrop,
+  });
+}
+
+// Model equations popup
+function setupModelInfoPopup(dom, getActiveApplet) {
+  if (!dom.modelInfoBackdrop || !dom.modelInfoClose || !dom.modelInfoTitle || !dom.modelInfoBody) {
+    return;
+  }
+
+  const renderMath = () => {
+    if (typeof window.renderMathInElement !== "function") {
+      return;
+    }
+    window.renderMathInElement(dom.modelInfoBody, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\(", right: "\\)", display: false },
+      ],
+      throwOnError: false,
+    });
+  };
+
+  const renderEmptyMessage = () => {
+    const empty = document.createElement("p");
+    empty.className = "panel-copy mb-0";
+    empty.textContent = "No model equations are configured for this applet.";
+    dom.modelInfoBody.appendChild(empty);
+  };
+
+  const appendModelSubtitle = (modelConfig) => {
+    if (!modelConfig.subtitle) {
+      return;
+    }
+    const subtitle = document.createElement("p");
+    subtitle.className = "controls-modal-subtitle";
+    subtitle.textContent = modelConfig.subtitle;
+    dom.modelInfoBody.appendChild(subtitle);
+  };
+
+  const appendEquationCard = (item, index) => {
+    const card = document.createElement("section");
+    card.className = "equation-card";
+
+    const heading = document.createElement("div");
+    heading.className = "equation-card-head";
+
+    const indexLabel = document.createElement("span");
+    indexLabel.className = "equation-card-index";
+    indexLabel.textContent = `Eq. ${index + 1}`;
+    heading.appendChild(indexLabel);
+
+    const title = document.createElement("h3");
+    title.className = "equation-card-title";
+    title.textContent = item.title || `Equation ${index + 1}`;
+    heading.appendChild(title);
+    card.appendChild(heading);
+
+    if (item.equation) {
+      const equation = document.createElement("div");
+      equation.className = "equation-card-math";
+      equation.textContent = item.equation;
+      card.appendChild(equation);
+    }
+
+    if (item.explanation) {
+      const explanation = document.createElement("p");
+      explanation.className = "equation-card-copy";
+      explanation.textContent = item.explanation;
+      card.appendChild(explanation);
+    }
+
+    if (Array.isArray(item.parameters) && item.parameters.length > 0) {
+      const list = document.createElement("ul");
+      list.className = "equation-card-list";
+      item.parameters.forEach((entry) => {
+        const li = document.createElement("li");
+        li.innerHTML = entry;
+        list.appendChild(li);
+      });
+      card.appendChild(list);
+    }
+
+    dom.modelInfoBody.appendChild(card);
+  };
+
+  const appendReferenceCard = (modelConfig) => {
+    if (!Array.isArray(modelConfig.references) || modelConfig.references.length === 0) {
+      return;
+    }
+
+    const references = document.createElement("section");
+    references.className = "equation-card";
+
+    const heading = document.createElement("div");
+    heading.className = "equation-card-head";
+
+    const title = document.createElement("h3");
+    title.className = "equation-card-title";
+    title.textContent = "References";
+    heading.appendChild(title);
+    references.appendChild(heading);
+
+    const list = document.createElement("ul");
+    list.className = "equation-card-list";
+    modelConfig.references.forEach((entry) => {
+      const li = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = entry.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = entry.label;
+      li.appendChild(link);
+      list.appendChild(li);
+    });
+    references.appendChild(list);
+    dom.modelInfoBody.appendChild(references);
+  };
+
+  const renderModelContent = (appletId) => {
+    const modelConfig = APPLET_CONFIGS[appletId]?.left?.model;
+    dom.modelInfoTitle.textContent = "Model Equations";
+    dom.modelInfoBody.innerHTML = "";
+
+    if (!modelConfig?.items?.length) {
+      renderEmptyMessage();
+      return;
+    }
+
+    appendModelSubtitle(modelConfig);
+    modelConfig.items.forEach((item, index) => appendEquationCard(item, index));
+    appendReferenceCard(modelConfig);
+    renderMath();
+  };
+
+  document.querySelectorAll("[data-model-info-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const appletId = button.getAttribute("data-model-info-open") || getActiveApplet();
+      renderModelContent(appletId);
+      openOverlay(dom.modelInfoBackdrop);
+    });
+  });
+
+  bindDismissibleOverlay({
+    closeButton: dom.modelInfoClose,
+    backdrop: dom.modelInfoBackdrop,
+  });
+}
+
+// Share popup
+function setupSharePopup(dom) {
+  if (
+    !dom.shareInfoOpen ||
+    !dom.shareInfoClose ||
+    !dom.shareInfoBackdrop ||
+    !dom.shareLinkInput ||
+    !dom.shareLinkCopy
+  ) {
+    return;
+  }
+
+  const getShareUrl = () => window.location.href;
+
+  const setStatus = (message) => {
+    if (dom.shareCopyStatus) {
+      dom.shareCopyStatus.textContent = message;
+    }
+  };
+
+  const openPopup = () => {
+    dom.shareLinkInput.value = getShareUrl();
+    setStatus(SHARE_STATUS_DEFAULT);
+    openOverlay(dom.shareInfoBackdrop);
+  };
+
+  const closePopup = () => closeOverlay(dom.shareInfoBackdrop);
+
+  dom.shareInfoOpen.addEventListener("click", openPopup);
+  dom.shareInfoClose.addEventListener("click", closePopup);
+  bindBackdropToClose(dom.shareInfoBackdrop, closePopup);
+  bindEscapeToOverlay(dom.shareInfoBackdrop, closePopup);
+
+  dom.shareLinkCopy.addEventListener("click", async () => {
+    const shareText = dom.shareLinkInput.value || getShareUrl();
+    let copied = false;
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        copied = true;
+      } catch (_error) {
+        copied = false;
+      }
+    }
+
+    if (!copied && typeof document.execCommand === "function") {
+      dom.shareLinkInput.focus();
+      dom.shareLinkInput.select();
+      copied = document.execCommand("copy");
+    }
+
+    if (copied) {
+      setStatus("Link copied.");
+    } else {
+      setStatus("Could not copy automatically. Select and copy the URL manually.");
+    }
+  });
+}
+
+// Export popup
+function setupExportPopup(dom, getActiveApplet, getExportData) {
+  if (
+    !dom.exportInfoOpen ||
+    !dom.exportInfoClose ||
+    !dom.exportInfoBackdrop ||
+    !dom.exportParamsJson
+  ) {
+    return;
+  }
+
+  const setStatus = (message) => {
+    if (dom.exportStatus) {
+      dom.exportStatus.textContent = message;
+    }
+  };
+
+  const openPopup = () => {
+    setStatus(EXPORT_STATUS_DEFAULT);
+    openOverlay(dom.exportInfoBackdrop);
+  };
+
+  const closePopup = () => closeOverlay(dom.exportInfoBackdrop);
+
+  dom.exportInfoOpen.addEventListener("click", openPopup);
+  dom.exportInfoClose.addEventListener("click", closePopup);
+  bindBackdropToClose(dom.exportInfoBackdrop, closePopup);
+  bindEscapeToOverlay(dom.exportInfoBackdrop, closePopup);
+
+  dom.exportParamsJson.addEventListener("click", async () => {
+    try {
+      const payload =
+        typeof getExportData === "function"
+          ? getExportData()
+          : {
+              app: "emergenverse",
+              exportedAt: new Date().toISOString(),
+              activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
+              params: {},
+            };
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `emergenverse-params-${payload.activeApplet || "applet"}-${stamp}.json`;
+      const result = await triggerJsonDownload(payload, filename);
+      if (result === "cancelled") {
+        setStatus("Export cancelled.");
+      } else {
+        setStatus("Exported parameters JSON.");
+      }
+    } catch (_error) {
+      setStatus("Could not export parameters JSON.");
+    }
+  });
+}
+
+// File export helper
 async function triggerJsonDownload(payload, filename) {
   const text = `${JSON.stringify(payload, null, 2)}\n`;
   const blob = new Blob([text], {
@@ -396,7 +431,6 @@ async function triggerJsonDownload(payload, filename) {
       if (error?.name === "AbortError") {
         return "cancelled";
       }
-      // Fall through to download fallback.
     }
   }
 
@@ -411,6 +445,7 @@ async function triggerJsonDownload(payload, filename) {
   return "saved";
 }
 
+// Screenshot popup
 function setupScreenshotPopup({
   dom,
   renderer,
@@ -433,6 +468,7 @@ function setupScreenshotPopup({
     return;
   }
 
+  // Screenshot state
   let screenshotInProgress = false;
   let popupPausedByScreenshotDialog = false;
   let previewScale = 1;
@@ -443,15 +479,36 @@ function setupScreenshotPopup({
   let previewPanStartY = 0;
   let previewPanOriginX = 0;
   let previewPanOriginY = 0;
-  const previewTouchPointers = new Map();
   let previewTouchPinchActive = false;
   let previewTouchPinchStartDistance = 0;
   let previewTouchPinchStartScale = 1;
   let previewPixelScalePercent = 100;
+  const previewTouchPointers = new Map();
   const previewMinScale = 1;
   const previewMaxScale = 6;
-  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const previewCard = dom.screenshotPreviewImage.closest(".screenshot-preview-card");
+
+  // Screenshot utilities
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  const getScreenshotStatusForToggles = (transparentEnabled, includeOverlay) => {
+    if (includeOverlay) {
+      return SCREENSHOT_STATUS_OVERLAY;
+    }
+    return transparentEnabled ? SCREENSHOT_STATUS_TRANSPARENT : SCREENSHOT_STATUS_STANDARD;
+  };
+
+  const setStatus = (message) => {
+    if (dom.screenshotStatus) {
+      dom.screenshotStatus.textContent = message;
+    }
+  };
+
+  const setMeta = (message) => {
+    if (dom.screenshotMeta) {
+      dom.screenshotMeta.textContent = message;
+    }
+  };
 
   const getPreviewPanBounds = () => {
     const width = dom.screenshotPreviewImage.clientWidth || previewCard?.clientWidth || 0;
@@ -507,18 +564,6 @@ function setupScreenshotPopup({
     previewOffsetX = 0;
     previewOffsetY = 0;
     applyPreviewTransform();
-  };
-
-  const setStatus = (message) => {
-    if (dom.screenshotStatus) {
-      dom.screenshotStatus.textContent = message;
-    }
-  };
-
-  const setMeta = (message) => {
-    if (dom.screenshotMeta) {
-      dom.screenshotMeta.textContent = message;
-    }
   };
 
   const withScreenshotSceneState = async (transparentBackground, task) => {
@@ -660,30 +705,10 @@ function setupScreenshotPopup({
     });
   };
 
-  const openPopup = () => {
-    popupPausedByScreenshotDialog = false;
-    if (!getPaused()) {
-      setPaused(true);
-      onPauseStateChange();
-      popupPausedByScreenshotDialog = true;
-    }
-    dom.screenshotTransparentBg.checked = false;
-    dom.screenshotIncludeOverlay.checked = false;
-    setStatus("Transparent mode exports without the scene background or boundary box.");
-    resetPreviewTransform();
-    updatePreview(false, false);
-    openOverlay(dom.screenshotInfoBackdrop);
-  };
-
-  const closePopup = () => {
-    closeOverlay(dom.screenshotInfoBackdrop);
-    if (popupPausedByScreenshotDialog) {
-      setPaused(false);
-      onPauseStateChange();
-    }
-    popupPausedByScreenshotDialog = false;
-    resetPreviewTransform();
-  };
+  const waitNextFrame = () =>
+    new Promise((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
 
   const triggerDownload = (href, filename) => {
     const link = document.createElement("a");
@@ -706,11 +731,6 @@ function setupScreenshotPopup({
       } else {
         resolve(null);
       }
-    });
-
-  const waitNextFrame = () =>
-    new Promise((resolve) => {
-      window.requestAnimationFrame(() => resolve());
     });
 
   const saveWithPicker = async (blob, filename) => {
@@ -739,11 +759,37 @@ function setupScreenshotPopup({
     }
   };
 
-  dom.viewportScreenshotBtn.addEventListener("click", openPopup);
-  dom.screenshotInfoClose.addEventListener("click", closePopup);
+  // Screenshot popup open and close
+  const openPopup = () => {
+    popupPausedByScreenshotDialog = false;
+    if (!getPaused()) {
+      setPaused(true);
+      onPauseStateChange();
+      popupPausedByScreenshotDialog = true;
+    }
+    dom.screenshotTransparentBg.checked = false;
+    dom.screenshotIncludeOverlay.checked = false;
+    setStatus(SCREENSHOT_STATUS_TRANSPARENT);
+    resetPreviewTransform();
+    updatePreview(false, false);
+    openOverlay(dom.screenshotInfoBackdrop);
+  };
+
+  const closePopup = () => {
+    closeOverlay(dom.screenshotInfoBackdrop);
+    if (popupPausedByScreenshotDialog) {
+      setPaused(false);
+      onPauseStateChange();
+    }
+    popupPausedByScreenshotDialog = false;
+    resetPreviewTransform();
+  };
+
+  // Screenshot preview interactions
   dom.screenshotPreviewImage.addEventListener("load", () => {
     resetPreviewTransform();
   });
+
   dom.screenshotPreviewImage.addEventListener(
     "wheel",
     (event) => {
@@ -763,10 +809,12 @@ function setupScreenshotPopup({
     },
     { passive: false },
   );
+
   dom.screenshotPreviewImage.addEventListener("pointerdown", (event) => {
     if (!dom.screenshotPreviewImage.src) {
       return;
     }
+
     if (event.pointerType === "touch") {
       previewTouchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       dom.screenshotPreviewImage.setPointerCapture(event.pointerId);
@@ -805,6 +853,7 @@ function setupScreenshotPopup({
     dom.screenshotPreviewImage.setPointerCapture(event.pointerId);
     applyPreviewTransform();
   });
+
   dom.screenshotPreviewImage.addEventListener("pointermove", (event) => {
     if (event.pointerType === "touch") {
       if (previewTouchPointers.has(event.pointerId)) {
@@ -846,6 +895,7 @@ function setupScreenshotPopup({
     clampPreviewPan();
     applyPreviewTransform();
   });
+
   dom.screenshotPreviewImage.addEventListener("pointerup", (event) => {
     if (event.pointerType === "touch") {
       previewTouchPointers.delete(event.pointerId);
@@ -879,6 +929,7 @@ function setupScreenshotPopup({
       applyPreviewTransform();
     }
   });
+
   dom.screenshotPreviewImage.addEventListener("pointercancel", (event) => {
     if (event.pointerType === "touch") {
       previewTouchPointers.delete(event.pointerId);
@@ -899,46 +950,38 @@ function setupScreenshotPopup({
       applyPreviewTransform();
     }
   });
+
   dom.screenshotPreviewImage.addEventListener("pointerleave", () => {
     if (!previewPanning) {
       applyPreviewTransform();
     }
   });
+
   dom.screenshotPreviewImage.addEventListener("dblclick", (event) => {
     event.preventDefault();
     resetPreviewTransform();
   });
+
+  // Screenshot popup controls
+  dom.viewportScreenshotBtn.addEventListener("click", openPopup);
+  dom.screenshotInfoClose.addEventListener("click", closePopup);
+  bindBackdropToClose(dom.screenshotInfoBackdrop, closePopup);
+  bindEscapeToOverlay(dom.screenshotInfoBackdrop, closePopup);
+  resetPreviewTransform();
+
   dom.screenshotTransparentBg.addEventListener("change", () => {
     const transparentEnabled = dom.screenshotTransparentBg.checked;
     const includeOverlay = dom.screenshotIncludeOverlay.checked;
-    setStatus(
-      transparentEnabled
-        ? "Transparent mode exports without the scene background or boundary box."
-        : "Standard mode keeps the normal scene background and boundary box.",
-    );
+    setStatus(getScreenshotStatusForToggles(transparentEnabled, includeOverlay));
     updatePreview(transparentEnabled, includeOverlay);
   });
+
   dom.screenshotIncludeOverlay.addEventListener("change", () => {
     const transparentEnabled = dom.screenshotTransparentBg.checked;
     const includeOverlay = dom.screenshotIncludeOverlay.checked;
-    if (includeOverlay) {
-      setStatus("Overlay mode includes orientation marker and status label; viewport tool buttons remain hidden.");
-    } else {
-      setStatus(
-        transparentEnabled
-          ? "Transparent mode exports without the scene background or boundary box."
-          : "Standard mode keeps the normal scene background and boundary box.",
-      );
-    }
+    setStatus(getScreenshotStatusForToggles(transparentEnabled, includeOverlay));
     updatePreview(transparentEnabled, includeOverlay);
   });
-  dom.screenshotInfoBackdrop.addEventListener("click", (event) => {
-    if (event.target === dom.screenshotInfoBackdrop) {
-      closePopup();
-    }
-  });
-  bindEscapeToOverlay(dom.screenshotInfoBackdrop, closePopup);
-  resetPreviewTransform();
 
   dom.screenshotCapture.addEventListener("click", async () => {
     if (screenshotInProgress) {
@@ -964,7 +1007,8 @@ function setupScreenshotPopup({
       const filename = getFilename();
       await withScreenshotSceneState(transparentBackground, async (canvas) => {
         const exportCanvas = composeScreenshotCanvas(canvas, includeOverlay);
-        let blob = await canvasToBlob(exportCanvas);
+        const blob = await canvasToBlob(exportCanvas);
+
         if (!blob) {
           const dataUrl = exportCanvas.toDataURL("image/png");
           triggerDownload(dataUrl, filename);

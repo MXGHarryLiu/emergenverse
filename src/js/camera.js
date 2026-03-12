@@ -30,8 +30,6 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   const upMove = new THREE.Vector3();
   const upAxis = new THREE.Vector3();
   const moveDelta = new THREE.Vector3();
-  const preservedLook = new THREE.Vector3();
-  const homePosition = new THREE.Vector3(0, 0, 0);
   const lookOffset = new THREE.Vector3();
   const rotationQuat = new THREE.Quaternion();
   const cameraEuler = new THREE.Euler(0, 0, 0, "ZYX");
@@ -81,6 +79,16 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   const touchRollSensitivity = 1.0;
   const touchTranslateSensitivity = 0.22;
   const touchFovSensitivity = 0.045;
+  const spaceshipMaxAngularRate = 3.6;
+  const spaceshipSasAngularDampingPerSec = 5.0;
+  const spaceshipSpeedLimitFactor = 4.0;
+  const spaceshipSpeedFloor = 1;
+  const spaceshipClampEpsilon = 1e-6;
+
+  const spaceshipLinearVelocity = new THREE.Vector3();
+  let spaceshipYawRate = 0;
+  let spaceshipPitchRate = 0;
+  let spaceshipRollRate = 0;
 
   function getWorldSpan() {
     return Math.max(
@@ -208,6 +216,11 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   }
 
   function applyCameraInteractivity() {
+    if (params.spaceshipMode && params.projectionMode === "perspective") {
+      controls.enabled = false;
+      return;
+    }
+
     const unlocked = !params.cameraLocked;
     controls.enabled = true;
     controls.enableRotate = false;
@@ -216,6 +229,10 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   }
 
   function onPointerDown(event) {
+    if (params.spaceshipMode) {
+      return;
+    }
+
     if (event.pointerType === "touch") {
       return;
     }
@@ -357,6 +374,10 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
   }
 
   function onTouchPointerDown(event) {
+    if (params.spaceshipMode) {
+      return;
+    }
+
     if (event.pointerType !== "touch") {
       return;
     }
@@ -479,6 +500,19 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       applyFovDelta(fovInput * fovRateDegPerSec * dt);
     }
 
+    if (params.spaceshipMode && params.projectionMode === "perspective") {
+      updateSpaceshipKeyboardFlight(dt);
+      return;
+    }
+
+    if (params.spaceshipMode && params.projectionMode !== "perspective") {
+      haltAllSpaceshipMotion();
+    }
+
+    updateClassicKeyboardNavigation(dt);
+  }
+
+  function updateClassicKeyboardNavigation(dt) {
     const perspectiveMode = params.projectionMode === "perspective";
     const activeMoveCamera = perspectiveMode ? perspectiveCamera : orthographicCamera;
     moveDelta.set(0, 0, 0);
@@ -531,7 +565,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return;
     }
 
-    const rotationSpeed = 1.45;
+    const rotationSpeed = getKeyboardRotationSpeedRad();
     const yawInput = (keyState.ArrowLeft ? 1 : 0) - (keyState.ArrowRight ? 1 : 0);
     const pitchInput = (keyState.ArrowUp ? 1 : 0) - (keyState.ArrowDown ? 1 : 0);
     const rollInput = (keyState.BracketRight ? 1 : 0) - (keyState.BracketLeft ? 1 : 0);
@@ -570,6 +604,278 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
     perspectiveCamera.up.normalize();
     controls.target.copy(perspectiveCamera.position).add(lookOffset);
+  }
+
+  function updateSpaceshipKeyboardFlight(dt) {
+    const speedFactor = keyState.ShiftLeft || keyState.ShiftRight ? 2.0 : 1.0;
+    const acceleration = Math.max(0.01, params.keyboardMoveSpeed) * speedFactor;
+    const angularAccel = getKeyboardRotationSpeedRad();
+    const maxAngularRate = Math.max(spaceshipMaxAngularRate, angularAccel * 2.5);
+
+    moveDelta.set(0, 0, 0);
+    forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    upMove.set(0, 1, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+
+    if (keyState.KeyW) {
+      moveDelta.add(forwardMove);
+    }
+    if (keyState.KeyS) {
+      moveDelta.sub(forwardMove);
+    }
+    if (keyState.KeyD) {
+      moveDelta.add(rightMove);
+    }
+    if (keyState.KeyA) {
+      moveDelta.sub(rightMove);
+    }
+    if (keyState.KeyE) {
+      moveDelta.add(upMove);
+    }
+    if (keyState.KeyQ) {
+      moveDelta.sub(upMove);
+    }
+
+    if (moveDelta.lengthSq() > 0.000001) {
+      moveDelta.normalize().multiplyScalar(acceleration * dt);
+      spaceshipLinearVelocity.add(moveDelta);
+    }
+
+    const maxLinearSpeed = Math.max(spaceshipSpeedFloor, getWorldSpan() * spaceshipSpeedLimitFactor);
+    if (spaceshipLinearVelocity.lengthSq() > maxLinearSpeed * maxLinearSpeed) {
+      spaceshipLinearVelocity.setLength(maxLinearSpeed);
+    }
+
+    if (spaceshipLinearVelocity.lengthSq() > spaceshipClampEpsilon) {
+      moveDelta.copy(spaceshipLinearVelocity).multiplyScalar(dt);
+      perspectiveCamera.position.add(moveDelta);
+      controls.target.add(moveDelta);
+    }
+
+    const yawInput = (keyState.ArrowLeft ? 1 : 0) - (keyState.ArrowRight ? 1 : 0);
+    const pitchInput = (keyState.ArrowUp ? 1 : 0) - (keyState.ArrowDown ? 1 : 0);
+    const rollInput = (keyState.BracketRight ? 1 : 0) - (keyState.BracketLeft ? 1 : 0);
+    if (yawInput !== 0) {
+      spaceshipYawRate = THREE.MathUtils.clamp(
+        spaceshipYawRate + yawInput * angularAccel * dt,
+        -maxAngularRate,
+        maxAngularRate,
+      );
+    }
+    if (pitchInput !== 0) {
+      spaceshipPitchRate = THREE.MathUtils.clamp(
+        spaceshipPitchRate + pitchInput * angularAccel * dt,
+        -maxAngularRate,
+        maxAngularRate,
+      );
+    }
+    if (rollInput !== 0) {
+      spaceshipRollRate = THREE.MathUtils.clamp(
+        spaceshipRollRate + rollInput * angularAccel * dt,
+        -maxAngularRate,
+        maxAngularRate,
+      );
+    }
+
+    const sasEnabled = params.spaceshipSas !== false;
+    if (sasEnabled) {
+      const decay = Math.max(0, 1 - (spaceshipSasAngularDampingPerSec * dt));
+      if (yawInput === 0) {
+        spaceshipYawRate = Math.abs(spaceshipYawRate) < spaceshipClampEpsilon
+          ? 0
+          : spaceshipYawRate * decay;
+      }
+      if (pitchInput === 0) {
+        spaceshipPitchRate = Math.abs(spaceshipPitchRate) < spaceshipClampEpsilon
+          ? 0
+          : spaceshipPitchRate * decay;
+      }
+      if (rollInput === 0) {
+        spaceshipRollRate = Math.abs(spaceshipRollRate) < spaceshipClampEpsilon
+          ? 0
+          : spaceshipRollRate * decay;
+      }
+    }
+
+    applySpaceshipAngularVelocity(dt);
+    applySpaceshipBoundaryMode();
+  }
+
+  function applySpaceshipAngularVelocity(dt) {
+    if (
+      Math.abs(spaceshipYawRate) < spaceshipClampEpsilon &&
+      Math.abs(spaceshipPitchRate) < spaceshipClampEpsilon &&
+      Math.abs(spaceshipRollRate) < spaceshipClampEpsilon
+    ) {
+      return;
+    }
+
+    lookOffset.subVectors(controls.target, perspectiveCamera.position);
+    if (lookOffset.lengthSq() < 0.000001) {
+      forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
+      lookOffset.copy(forwardMove).multiplyScalar(40);
+    }
+
+    rightMove.set(1, 0, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    upMove.set(0, 1, 0).applyQuaternion(perspectiveCamera.quaternion).normalize();
+
+    if (Math.abs(spaceshipYawRate) >= spaceshipClampEpsilon) {
+      rotationQuat.setFromAxisAngle(upMove, spaceshipYawRate * dt);
+      lookOffset.applyQuaternion(rotationQuat);
+      perspectiveCamera.up.applyQuaternion(rotationQuat);
+    }
+    if (Math.abs(spaceshipPitchRate) >= spaceshipClampEpsilon) {
+      rotationQuat.setFromAxisAngle(rightMove, spaceshipPitchRate * dt);
+      lookOffset.applyQuaternion(rotationQuat);
+      perspectiveCamera.up.applyQuaternion(rotationQuat);
+    }
+    if (Math.abs(spaceshipRollRate) >= spaceshipClampEpsilon) {
+      forwardMove.copy(lookOffset).normalize();
+      rotationQuat.setFromAxisAngle(forwardMove, spaceshipRollRate * dt);
+      perspectiveCamera.up.applyQuaternion(rotationQuat);
+    }
+
+    perspectiveCamera.up.normalize();
+    controls.target.copy(perspectiveCamera.position).add(lookOffset);
+  }
+
+  function applySpaceshipBoundaryMode() {
+    if (params.projectionMode !== "perspective") {
+      return;
+    }
+
+    const mode = normalizeBoundaryMode(params.boundaryMode);
+    const halfX = Math.max(1e-6, (Number(params.worldSizeX) || 0) * 0.5);
+    const halfY = Math.max(1e-6, (Number(params.worldSizeY) || 0) * 0.5);
+    const halfZ = Math.max(1e-6, (Number(params.worldSizeZ) || 0) * 0.5);
+    const originalX = perspectiveCamera.position.x;
+    const originalY = perspectiveCamera.position.y;
+    const originalZ = perspectiveCamera.position.z;
+
+    let nextX = originalX;
+    let nextY = originalY;
+    let nextZ = originalZ;
+
+    if (mode === "cyclic-xyz") {
+      nextX = wrapAxis(originalX, halfX);
+      nextY = wrapAxis(originalY, halfY);
+      nextZ = wrapAxis(originalZ, halfZ);
+    } else if (mode === "cyclic-xy") {
+      nextX = wrapAxis(originalX, halfX);
+      nextY = wrapAxis(originalY, halfY);
+      nextZ = THREE.MathUtils.clamp(originalZ, -halfZ, halfZ);
+    } else {
+      nextX = THREE.MathUtils.clamp(originalX, -halfX, halfX);
+      nextY = THREE.MathUtils.clamp(originalY, -halfY, halfY);
+      nextZ = THREE.MathUtils.clamp(originalZ, -halfZ, halfZ);
+    }
+
+    const deltaX = nextX - originalX;
+    const deltaY = nextY - originalY;
+    const deltaZ = nextZ - originalZ;
+
+    perspectiveCamera.position.set(nextX, nextY, nextZ);
+    if (
+      Math.abs(deltaX) > spaceshipClampEpsilon ||
+      Math.abs(deltaY) > spaceshipClampEpsilon ||
+      Math.abs(deltaZ) > spaceshipClampEpsilon
+    ) {
+      controls.target.x += deltaX;
+      controls.target.y += deltaY;
+      controls.target.z += deltaZ;
+    }
+
+    const clampedX = mode === "lost" && Math.abs(deltaX) > spaceshipClampEpsilon;
+    const clampedY = mode === "lost" && Math.abs(deltaY) > spaceshipClampEpsilon;
+    const clampedZ = (mode === "lost" || mode === "cyclic-xy") && Math.abs(deltaZ) > spaceshipClampEpsilon;
+    if (clampedX) {
+      spaceshipLinearVelocity.x = 0;
+    }
+    if (clampedY) {
+      spaceshipLinearVelocity.y = 0;
+    }
+    if (clampedZ) {
+      spaceshipLinearVelocity.z = 0;
+    }
+  }
+
+  function haltSpaceshipRotation() {
+    spaceshipYawRate = 0;
+    spaceshipPitchRate = 0;
+    spaceshipRollRate = 0;
+  }
+
+  function haltAllSpaceshipMotion() {
+    spaceshipLinearVelocity.set(0, 0, 0);
+    haltSpaceshipRotation();
+  }
+
+  function setSpaceshipMode(enabled) {
+    const previousSnapshot = getCameraSnapshot();
+    params.spaceshipMode = Boolean(enabled);
+    if (!params.spaceshipMode) {
+      haltAllSpaceshipMotion();
+    } else if (params.projectionMode === "perspective") {
+      endPointerDrag();
+      touchState.pointers.clear();
+      touchState.singleDragActive = false;
+      touchState.singlePointerId = null;
+      endTouchGesture();
+      applySpaceshipBoundaryMode();
+    }
+
+    applyCameraInteractivity();
+    if (!params.spaceshipMode && previousSnapshot?.projectionMode === "perspective") {
+      applyCameraPose(perspectiveCamera, previousSnapshot.perspective);
+      if (Array.isArray(previousSnapshot.target) && previousSnapshot.target.length === 3) {
+        controls.target.fromArray(previousSnapshot.target);
+      }
+    }
+    controls.update();
+  }
+
+  function getSpaceshipTelemetry() {
+    forwardMove.set(0, 0, -1).applyQuaternion(perspectiveCamera.quaternion).normalize();
+    const speed = spaceshipLinearVelocity.length();
+    let alignment = 0;
+    if (speed > spaceshipClampEpsilon) {
+      moveDelta.copy(spaceshipLinearVelocity).normalize();
+      alignment = THREE.MathUtils.clamp(moveDelta.dot(forwardMove), -1, 1);
+    }
+
+    return {
+      speed,
+      velocity: { x: spaceshipLinearVelocity.x, y: spaceshipLinearVelocity.y, z: spaceshipLinearVelocity.z },
+      view: { x: forwardMove.x, y: forwardMove.y, z: forwardMove.z },
+      alignment,
+      angular: { yaw: spaceshipYawRate, pitch: spaceshipPitchRate, roll: spaceshipRollRate },
+    };
+  }
+
+  function normalizeBoundaryMode(mode) {
+    if (mode === "cyclic") {
+      return "cyclic-xyz";
+    }
+    if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
+      return mode;
+    }
+    return "cyclic-xyz";
+  }
+
+  function wrapAxis(value, halfExtent) {
+    const span = halfExtent * 2;
+    if (span <= 0) {
+      return 0;
+    }
+    if (value > halfExtent || value < -halfExtent) {
+      return ((((value + halfExtent) % span) + span) % span) - halfExtent;
+    }
+    return value;
+  }
+
+  function getKeyboardRotationSpeedRad() {
+    const degPerSec = Math.max(0, Number(params.keyboardRotationSpeed) || 0);
+    return THREE.MathUtils.degToRad(degPerSec);
   }
 
   function updateTelemetry() {
@@ -623,35 +929,6 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     }
 
     camera.position.copy(position);
-    camera.lookAt(controls.target);
-    controls.update();
-  }
-
-  function moveActiveCameraToOrigin() {
-    const camera = activeCamera;
-    if (camera === orthographicCamera) {
-      // In top-ortho, home should recenter X/Y without changing top-down orientation.
-      const lookDistance = Math.max(
-        1,
-        Math.abs(orthographicCamera.position.z - controls.target.z),
-        params.worldSizeZ * 0.6,
-      );
-      orthographicCamera.position.set(0, 0, orthographicCamera.position.z);
-      orthographicCamera.up.set(0, 1, 0);
-      controls.target.set(0, 0, orthographicCamera.position.z - lookDistance);
-      orthographicCamera.lookAt(controls.target);
-      controls.update();
-      return;
-    }
-
-    preservedLook.subVectors(controls.target, camera.position);
-
-    if (preservedLook.lengthSq() < 0.000001) {
-      preservedLook.set(0, 1, 0);
-    }
-
-    camera.position.copy(homePosition);
-    controls.target.copy(homePosition).add(preservedLook);
     camera.lookAt(controls.target);
     controls.update();
   }
@@ -849,6 +1126,9 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     touchState.singleDragActive = false;
     touchState.singlePointerId = null;
     endTouchGesture();
+    if (params.spaceshipMode) {
+      haltAllSpaceshipMotion();
+    }
   });
 
   return {
@@ -864,7 +1144,10 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     updateKeyboardTranslation,
     updateTelemetry,
     resetOrientationKeepPosition,
-    moveActiveCameraToOrigin,
+    setSpaceshipMode,
+    haltSpaceshipRotation,
+    haltAllSpaceshipMotion,
+    getSpaceshipTelemetry,
     getCameraSnapshot,
     restoreCameraSnapshot,
     onKeyDown,

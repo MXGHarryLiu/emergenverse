@@ -206,6 +206,37 @@ body[data-theme="light"] .overlay-corner {
   background: rgba(233, 240, 252, 0.87);
 }
 
+body[data-theme="light"] .spaceship-hud {
+  color: #234266;
+}
+
+body[data-theme="light"] .spaceship-hud-scope {
+  background: transparent;
+}
+
+body[data-theme="light"] .spaceship-hud-foot {
+  background: rgba(233, 241, 253, 0.9);
+  border-color: rgba(95, 122, 168, 0.34);
+}
+
+body[data-theme="light"] .spaceship-speed-chip {
+  color: #1f3e62;
+  background: rgba(220, 231, 248, 0.86);
+  border-color: rgba(95, 122, 168, 0.34);
+}
+
+body[data-theme="light"] .spaceship-hud-action-btn.is-active {
+  border-color: rgba(60, 131, 132, 0.74);
+  background: rgba(165, 218, 214, 0.62);
+  color: #1f4f57;
+}
+
+body[data-theme="light"] .spaceship-hud-action-btn.is-off {
+  border-color: rgba(95, 122, 168, 0.34);
+  background: rgba(220, 231, 248, 0.62);
+  color: #5a6b8b;
+}
+
 body[data-theme="light"] .viewport-tool-btn {
   background: rgba(235, 243, 255, 0.9);
   color: #2f476f;

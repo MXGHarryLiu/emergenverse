@@ -273,6 +273,44 @@
             height="84"
           ></canvas>
         </div>
+        <div class="spaceship-hud is-hidden" id="spaceship-hud" aria-live="polite">
+          <div class="spaceship-hud-main">
+            <canvas class="spaceship-hud-scope" id="spaceship-hud-scope" width="196" height="196"></canvas>
+          </div>
+          <div class="spaceship-hud-foot">
+            <div class="spaceship-hud-actions">
+              <button
+                class="btn btn-sm btn-outline-theme spaceship-hud-action-btn"
+                id="spaceship-sas-toggle"
+                type="button"
+                title="SAS on"
+                aria-label="SAS on"
+                aria-pressed="true"
+              >
+                <i class="bi bi-bullseye" aria-hidden="true"></i>
+              </button>
+              <button
+                class="btn btn-sm btn-outline-theme spaceship-hud-action-btn"
+                id="spaceship-halt-rotation"
+                type="button"
+                title="Halt rotation"
+                aria-label="Halt rotation"
+              >
+                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+              </button>
+              <button
+                class="btn btn-sm btn-outline-theme spaceship-hud-action-btn"
+                id="spaceship-halt-motion"
+                type="button"
+                title="Halt all motion"
+                aria-label="Halt all motion"
+              >
+                <i class="bi bi-stop-fill" aria-hidden="true"></i>
+              </button>
+            </div>
+            <div class="spaceship-speed-chip" id="spaceship-speed">0 m/s</div>
+          </div>
+        </div>
         <div class="overlay-corner" id="frame-size" data-app-visible="*">Grid size: -- m | -- | --</div>
       </section>
       <div
@@ -776,12 +814,27 @@
           </label>
           <input class="form-range" type="range" id="camera-move-speed" min="1" max="100000" step="1" value="42" />
 
+          <label class="form-label mt-1" for="camera-rotation-speed">
+            <span class="label-name"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Keyboard Rotation Speed</span>
+            <span class="label-value" id="camera-rotation-speed-value">84°/s</span>
+          </label>
+          <input class="form-range" type="range" id="camera-rotation-speed" min="1" max="720" step="1" value="84" />
+
           <div class="d-flex align-items-center justify-content-between mt-2">
             <label class="form-label mb-0" for="camera-locked">
               <span class="label-name"><i class="bi bi-lock-fill" aria-hidden="true"></i>Camera Lock</span>
             </label>
             <div class="form-check form-switch m-0">
               <input class="form-check-input mt-0" type="checkbox" role="switch" id="camera-locked" />
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <label class="form-label mb-0" for="spaceship-mode">
+              <span class="label-name"><i class="bi bi-rocket-takeoff-fill" aria-hidden="true"></i>Spaceship Mode</span>
+            </label>
+            <div class="form-check form-switch m-0">
+              <input class="form-check-input mt-0" type="checkbox" role="switch" id="spaceship-mode" />
             </div>
           </div>
 
