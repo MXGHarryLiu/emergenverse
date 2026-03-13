@@ -41,8 +41,25 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
     ],
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
+      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
+      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
+      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
+      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
+      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
+      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
+    ],
     params: [
-      { key: "colorMode", default: "speed" },
+      {
+        key: "colorMode",
+        default: "speed",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "speed", label: "Orbital Speed" },
+        ],
+      },
       { key: "colormap", default: "magma" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#c9ddff" },
@@ -135,7 +152,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const GALAXY_APPLET_RUNTIME = {
+const GALAXY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("galaxy-count", () => "0", {
@@ -189,65 +206,8 @@ export const GALAXY_APPLET_RUNTIME = {
   },
 };
 
-export const GALAXY_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "galaxy-color-mode",
-    solidColorId: "galaxy-solid-color",
-    solidColorValueId: "galaxy-solid-color-value",
-    singleColorWrapId: "galaxy-single-color-wrap",
-  },
-  section: {
-    colorModeLabel: "Color Mode",
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "speed", label: "Orbital Speed" },
-    ],
-    solidColorLabel: "Color",
-    solidColorDefault: "#C9DDFF",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "speed";
-    const colormap = params?.colormap || "magma";
-    if (colorMode === "none") {
-      return {
-        visible: false,
-        value: colormap,
-        options: continuousColormapOptions,
-        setValue() {},
-        legend: null,
-      };
-    }
-
-    const range = simulation?.getSpeedRange?.() ?? { min: 0, max: 1 };
-    return {
-      visible: true,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.magma,
-        minText: `cmin: ${Number(range.min).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
-        maxText: `cmax: ${Number(range.max).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
-      },
-    };
-  },
-};
-
 // File-local constants and helpers.
-const GALAXY_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-const GALAXY_COLORMAPS = buildColormapLUT(GALAXY_COLORMAP_STOPS);
+const GALAXY_COLORMAPS = buildColormapLUT(GALAXY_APPLET_CONFIG.visual?.colormap);
 const lerpA = new THREE.Color();
 const lerpB = new THREE.Color();
 
@@ -262,6 +222,15 @@ function lengthToInternalLightYears(value) {
 // Simulation implementation.
 export class GalaxySimulation extends BaseSimulation {
   static APPLET_ID = "galaxy";
+  static APPLET_RUNTIME = GALAXY_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildGalaxyColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -434,7 +403,7 @@ export class GalaxySimulation extends BaseSimulation {
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
-      if (this.params.colorMode === "none") {
+      if (this.params.colorMode === "solid") {
         this.solidColorValue.set(this.params.solidColor || "#c9ddff");
         this.tempColor.copy(this.solidColorValue);
       } else {
@@ -619,6 +588,41 @@ export class GalaxySimulation extends BaseSimulation {
   }
 }
 
+function buildGalaxyColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "speed";
+  const colormap = params?.colormap || "magma";
+  if (colorMode === "solid") {
+    return {
+      visible: false,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue() {},
+      legend: null,
+    };
+  }
+
+  const range = simulation?.getSpeedRange?.() ?? { min: 0, max: 1 };
+  return {
+    visible: true,
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.magma,
+      minText: `cmin: ${Number(range.min).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
+      maxText: `cmax: ${Number(range.max).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
+    },
+  };
+}
+
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   if (preset === "disk") {
     const maxR = Math.max(0.2, Math.min(spreadX, spreadY));
@@ -675,9 +679,16 @@ function sampleInitialVelocityDirection({ preset, position, radial }) {
   return tangentA.multiplyScalar(Math.cos(orbitAngle)).addScaledVector(tangentB, Math.sin(orbitAngle));
 }
 
-function buildColormapLUT(stopMap) {
+function buildColormapLUT(colormapEntries) {
   const lut = {};
-  for (const [name, stops] of Object.entries(stopMap)) {
+  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    const name = String(entry?.name || "").trim();
+    const stops = Array.isArray(entry?.value) ? entry.value : [];
+    if (!name || stops.length === 0) {
+      continue;
+    }
     lut[name] = stops.map((hex) => new THREE.Color(hex));
   }
   return lut;
@@ -708,8 +719,3 @@ function randomPointInUnitSphere() {
   }
   return randomDirection3D().multiplyScalar(Math.cbrt(Math.random()));
 }
-
-
-
-
-

@@ -16,8 +16,26 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
     ],
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
+      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
+      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
+      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
+      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
+      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
+      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
+    ],
     params: [
-      { key: "colorMode", default: "blink" },
+      {
+        key: "colorMode",
+        default: "blink",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "blink", label: "Blink State" },
+          { value: "frequency", label: "Frequency (Hz)" },
+        ],
+      },
       { key: "colormap", default: "blue-yellow" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#ffd86b" },
@@ -95,7 +113,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const FIREFLY_APPLET_RUNTIME = {
+const FIREFLY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("firefly-count", () => "0", {
@@ -139,76 +157,6 @@ export const FIREFLY_APPLET_RUNTIME = {
   },
 };
 
-export const FIREFLY_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "firefly-color-mode",
-    solidColorId: "firefly-solid-color",
-    solidColorValueId: "firefly-solid-color-value",
-    singleColorWrapId: "firefly-single-color-wrap",
-  },
-  section: {
-    colorModeLabel: "Color Mode",
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "blink", label: "Blink State" },
-      { value: "frequency", label: "Frequency (Hz)" },
-    ],
-    solidColorLabel: "Color",
-    solidColorDefault: "#FFD86B",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "blink";
-    const colormap = params?.colormap || "blue-yellow";
-    if (colorMode === "none") {
-      return {
-        visible: false,
-        value: colormap,
-        options: continuousColormapOptions,
-        setValue() {},
-        legend: null,
-      };
-    }
-
-    if (colorMode === "blink") {
-      return {
-        visible: true,
-        value: colormap,
-        options: FIREFLY_DISCRETE_COLORMAP_OPTIONS,
-        setValue(value) {
-          params.colormap = value;
-          simulation?.syncInstances?.();
-        },
-        legend: {
-          gradient:
-            FIREFLY_DISCRETE_LEGEND_GRADIENTS[colormap] ||
-            FIREFLY_DISCRETE_LEGEND_GRADIENTS["blue-yellow"],
-          minText: "idle",
-          maxText: "blink",
-        },
-      };
-    }
-
-    const range = simulation?.getFrequencyRange?.() ?? {
-      min: Math.max(0, (params?.frequencyHz ?? 1.8) - (params?.freqJitterHz ?? 0.2)),
-      max: (params?.frequencyHz ?? 1.8) + (params?.freqJitterHz ?? 0.2),
-    };
-    return {
-      visible: true,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-        minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
-        maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
-      },
-    };
-  },
-};
-
 // File-local constants and helpers.
 const TWO_PI = Math.PI * 2;
 export const FIREFLY_DISCRETE_COLORMAP_OPTIONS = [
@@ -229,17 +177,7 @@ export const FIREFLY_DISCRETE_LEGEND_GRADIENTS = {
   tableau10: "linear-gradient(90deg, #4e79a7 0%, #4e79a7 50%, #f28e2b 50%, #f28e2b 100%)",
 };
 
-const FIREFLY_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_COLORMAP_STOPS);
+const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_APPLET_CONFIG.visual?.colormap);
 const FIREFLY_DISCRETE_STATE_COLORMAPS = {
   "blue-yellow": [0x4f7dff, 0xffd74a],
   paired: [0xa6cee3, 0x1f78b4],
@@ -254,6 +192,15 @@ const fireflyLerpB = new THREE.Color();
 // Simulation implementation.
 export class FireflySimulation extends BaseSimulation {
   static APPLET_ID = "firefly";
+  static APPLET_RUNTIME = FIREFLY_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildFireflyColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -493,7 +440,7 @@ export class FireflySimulation extends BaseSimulation {
       const blinkBrightness = THREE.MathUtils.clamp(0.18 + pulse * 1.1, 0.18, 1);
       const isBlinking = pulse > 0.5;
 
-      if (this.params.colorMode === "none") {
+      if (this.params.colorMode === "solid") {
         this.solidColorValue.set(this.params.solidColor || "#ffd86b");
         this.tempColor.copy(this.solidColorValue);
       } else if (this.params.colorMode === "frequency") {
@@ -597,6 +544,63 @@ export class FireflySimulation extends BaseSimulation {
   }
 }
 
+function buildFireflyColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "blink";
+  const colormap = params?.colormap || "blue-yellow";
+  if (colorMode === "solid") {
+    return {
+      visible: false,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue() {},
+      legend: null,
+    };
+  }
+
+  if (colorMode === "blink") {
+    return {
+      visible: true,
+      value: colormap,
+      options: FIREFLY_DISCRETE_COLORMAP_OPTIONS,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient:
+          FIREFLY_DISCRETE_LEGEND_GRADIENTS[colormap] ||
+          FIREFLY_DISCRETE_LEGEND_GRADIENTS["blue-yellow"],
+        minText: "idle",
+        maxText: "blink",
+      },
+    };
+  }
+
+  const range = simulation?.getFrequencyRange?.() ?? {
+    min: Math.max(0, (params?.frequencyHz ?? 1.8) - (params?.freqJitterHz ?? 0.2)),
+    max: (params?.frequencyHz ?? 1.8) + (params?.freqJitterHz ?? 0.2),
+  };
+  return {
+    visible: true,
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+      minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
+      maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
+    },
+  };
+}
+
 function randomWorldPosition(params) {
   const x = THREE.MathUtils.randFloatSpread(params.worldSizeX * 0.9);
   const y = THREE.MathUtils.randFloatSpread(params.worldSizeY * 0.9);
@@ -637,10 +641,16 @@ function normalizeBoundaryMode(mode) {
   return "cyclic-xyz";
 }
 
-function buildColormapLUT(stopsByName) {
+function buildColormapLUT(colormapEntries) {
   const maps = {};
-  Object.keys(stopsByName).forEach((name) => {
-    maps[name] = stopsByName[name].map((hex) => new THREE.Color(hex));
+  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
+  entries.forEach((entry) => {
+    const name = String(entry?.name || "").trim();
+    const stops = Array.isArray(entry?.value) ? entry.value : [];
+    if (!name || stops.length === 0) {
+      return;
+    }
+    maps[name] = stops.map((hex) => new THREE.Color(hex));
   });
   return maps;
 }
@@ -679,8 +689,3 @@ function getFireflyStateColors(name) {
     blink: 0x1f78b4,
   };
 }
-
-
-
-
-

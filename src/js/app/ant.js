@@ -16,8 +16,26 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
     ],
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
+      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
+      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
+      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
+      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
+      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
+      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
+    ],
     params: [
-      { key: "colorMode", default: "state" },
+      {
+        key: "colorMode",
+        default: "state",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "state", label: "State (search/carry)" },
+          { value: "heading", label: "Heading" },
+        ],
+      },
       { key: "colormap", default: "turbo" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#62d6f9" },
@@ -135,7 +153,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const ANT_APPLET_RUNTIME = {
+const ANT_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("ant-count", () => "0", {
@@ -188,71 +206,6 @@ export const ANT_APPLET_RUNTIME = {
   },
 };
 
-export const ANT_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "ant-color-mode",
-    solidColorId: "ant-solid-color",
-    solidColorValueId: "ant-solid-color-value",
-    singleColorWrapId: "ant-single-color-wrap",
-  },
-  section: {
-    colorModeLabel: "Color Mode",
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "state", label: "State (search/carry)" },
-      { value: "heading", label: "Heading" },
-    ],
-    solidColorLabel: "Color",
-    solidColorDefault: "#62D6F9",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "state";
-    const colormap = params?.colormap || "turbo";
-
-    if (colorMode === "none") {
-      return {
-        visible: false,
-        value: colormap,
-        options: continuousColormapOptions,
-        setValue() {},
-        legend: null,
-      };
-    }
-
-    if (colorMode === "state") {
-      return {
-        visible: true,
-        value: colormap,
-        options: ANT_DISCRETE_COLORMAP_OPTIONS,
-        setValue(value) {
-          params.colormap = value;
-          simulation?.syncInstances?.();
-        },
-        legend: {
-          gradient: ANT_DISCRETE_LEGEND_GRADIENTS[colormap] || ANT_DISCRETE_LEGEND_GRADIENTS.paired,
-          minText: "searching",
-          maxText: "carrying",
-        },
-      };
-    }
-
-    return {
-      visible: true,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-        minText: "cmin: -180°",
-        maxText: "cmax: 180°",
-      },
-    };
-  },
-};
-
 // File-local constants and helpers.
 export const ANT_DISCRETE_COLORMAP_OPTIONS = [
   { value: "paired", label: "Paired" },
@@ -270,18 +223,7 @@ export const ANT_DISCRETE_LEGEND_GRADIENTS = {
   tableau10: "linear-gradient(90deg, #4e79a7 0%, #4e79a7 50%, #f28e2b 50%, #f28e2b 100%)",
 };
 
-const ANT_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-
-const ANT_COLORMAPS = buildColormapLUT(ANT_COLORMAP_STOPS);
+const ANT_COLORMAPS = buildColormapLUT(ANT_APPLET_CONFIG.visual?.colormap);
 const ANT_DISCRETE_STATE_COLORMAPS = {
   paired: [0xa6cee3, 0x1f78b4],
   set1: [0xe41a1c, 0x377eb8],
@@ -295,6 +237,15 @@ const antLerpB = new THREE.Color();
 // Simulation implementation.
 export class AntSimulation extends BaseSimulation {
   static APPLET_ID = "ants";
+  static APPLET_RUNTIME = ANT_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildAntColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -766,7 +717,7 @@ export class AntSimulation extends BaseSimulation {
 
   applyAntColor(ant, outColor) {
     const mode = this.params.colorMode ?? "state";
-    if (mode === "none") {
+    if (mode === "solid") {
       this.antSolidColor.set(this.params.solidColor || "#62d6f9");
       outColor.copy(this.antSolidColor);
       return;
@@ -1072,6 +1023,58 @@ export class AntSimulation extends BaseSimulation {
   }
 }
 
+function buildAntColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "state";
+  const colormap = params?.colormap || "turbo";
+
+  if (colorMode === "solid") {
+    return {
+      visible: false,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue() {},
+      legend: null,
+    };
+  }
+
+  if (colorMode === "state") {
+    return {
+      visible: true,
+      value: colormap,
+      options: ANT_DISCRETE_COLORMAP_OPTIONS,
+      setValue(value) {
+        params.colormap = value;
+        simulation?.syncInstances?.();
+      },
+      legend: {
+        gradient: ANT_DISCRETE_LEGEND_GRADIENTS[colormap] || ANT_DISCRETE_LEGEND_GRADIENTS.paired,
+        minText: "searching",
+        maxText: "carrying",
+      },
+    };
+  }
+
+  return {
+    visible: true,
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+      minText: "cmin: -180°",
+      maxText: "cmax: 180°",
+    },
+  };
+}
+
 function wrapAxisLocal(value, halfExtent) {
   const span = halfExtent * 2;
   if (span <= 0) {
@@ -1125,10 +1128,16 @@ function pointSegmentDistanceSq(ax, ay, bx, by, px, py) {
   return dx * dx + dy * dy;
 }
 
-function buildColormapLUT(stopsByName) {
+function buildColormapLUT(colormapEntries) {
   const maps = {};
-  Object.keys(stopsByName).forEach((name) => {
-    maps[name] = stopsByName[name].map((hex) => new THREE.Color(hex));
+  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
+  entries.forEach((entry) => {
+    const name = String(entry?.name || "").trim();
+    const stops = Array.isArray(entry?.value) ? entry.value : [];
+    if (!name || stops.length === 0) {
+      return;
+    }
+    maps[name] = stops.map((hex) => new THREE.Color(hex));
   });
   return maps;
 }
@@ -1167,8 +1176,3 @@ function getAntStateColors(name) {
     carrying: 0xfaad42,
   };
 }
-
-
-
-
-

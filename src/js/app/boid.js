@@ -16,8 +16,28 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
     ],
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
+      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
+      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
+      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
+      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
+      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
+      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
+    ],
     params: [
-      { key: "colorMode", default: "speed" },
+      {
+        key: "colorMode",
+        default: "speed",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "speed", label: "Speed (m/s)" },
+          { value: "altitude", label: "Altitude (z, m)" },
+          { value: "neighbors", label: "Neighbor Count" },
+          { value: "heading", label: "Heading (z component)" },
+        ],
+      },
       { key: "colormap", default: "turbo" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#4cd3b6" },
@@ -94,7 +114,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const BOID_APPLET_RUNTIME = {
+const BOID_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("count", () => "0", {
@@ -150,74 +170,18 @@ export const BOID_APPLET_RUNTIME = {
   },
 };
 
-export const BOID_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "color-mode",
-    solidColorId: "solid-color",
-    solidColorValueId: "solid-color-value",
-    singleColorWrapId: "single-color-wrap",
-  },
-  section: {
-    colorModeLabel: "Color Mode",
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "speed", label: "Speed (m/s)" },
-      { value: "altitude", label: "Altitude (z, m)" },
-      { value: "neighbors", label: "Neighbor Count" },
-      { value: "heading", label: "Heading (z component)" },
-    ],
-    solidColorLabel: "Color",
-    solidColorDefault: "#4CD3B6",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "none";
-    const colormap = params?.colormap || "turbo";
-    let range = { min: -1, max: 1, unit: "", digits: 2 };
-
-    if (colorMode === "speed") {
-      range = {
-        min: 0,
-        max: params?.maxSpeed ?? 1,
-        unit: "m/s",
-        digits: 1,
-      };
-    } else if (colorMode === "altitude") {
-      const halfZ = (params?.worldSizeZ ?? 100) * 0.5;
-      range = {
-        min: -halfZ,
-        max: halfZ,
-        unit: "m",
-        digits: 1,
-      };
-    } else if (colorMode === "neighbors") {
-      range = {
-        min: 0,
-        max: 16,
-        unit: "",
-        digits: 0,
-      };
-    }
-
-    return {
-      visible: colorMode !== "none",
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-        minText: `cmin: ${Number(range.min).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
-        maxText: `cmax: ${Number(range.max).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
-      },
-    };
-  },
-};
-
 // Simulation implementation.
 export class BoidSimulation extends BaseSimulation {
   static APPLET_ID = "boid";
+  static APPLET_RUNTIME = BOID_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildBoidColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -249,16 +213,7 @@ export class BoidSimulation extends BaseSimulation {
     this.colormapLerpB = new THREE.Color();
     this.solidColorValue = new THREE.Color(this.params.solidColor);
 
-    this.colormaps = buildColormapLUT({
-      turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-      viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-      plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-      magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-      inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-      cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-      coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-      greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-    });
+    this.colormaps = buildColormapLUT(BOID_APPLET_CONFIG.visual?.colormap);
   }
 
   init() {
@@ -323,7 +278,7 @@ export class BoidSimulation extends BaseSimulation {
 
     const halfZ = this.params.worldSizeZ * 0.5;
     const colorBounds =
-      this.params.colorMode === "none" ? null : this.getColorScalarBounds(halfZ);
+      this.params.colorMode === "solid" ? null : this.getColorScalarBounds(halfZ);
 
     for (let i = 0; i < this.boids.length; i += 1) {
       const boid = this.boids[i];
@@ -341,7 +296,7 @@ export class BoidSimulation extends BaseSimulation {
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
-      if (this.params.colorMode === "none") {
+      if (this.params.colorMode === "solid") {
         this.solidColorValue.set(this.params.solidColor);
         this.instanceColor.copy(this.solidColorValue);
       } else {
@@ -637,9 +592,71 @@ export class BoidSimulation extends BaseSimulation {
 }
 
 // File-local helper functions.
-function buildColormapLUT(stopMap) {
+function buildBoidColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "solid";
+  const colormap = params?.colormap || "turbo";
+  const range = getBoidColormapRange(colorMode, params);
+
+  return {
+    visible: colorMode !== "solid",
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+      minText: `cmin: ${Number(range.min).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
+      maxText: `cmax: ${Number(range.max).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
+    },
+  };
+}
+
+function getBoidColormapRange(colorMode, params) {
+  if (colorMode === "speed") {
+    return {
+      min: 0,
+      max: params?.maxSpeed ?? 1,
+      unit: "m/s",
+      digits: 1,
+    };
+  }
+  if (colorMode === "altitude") {
+    const halfZ = (params?.worldSizeZ ?? 100) * 0.5;
+    return {
+      min: -halfZ,
+      max: halfZ,
+      unit: "m",
+      digits: 1,
+    };
+  }
+  if (colorMode === "neighbors") {
+    return {
+      min: 0,
+      max: 16,
+      unit: "",
+      digits: 0,
+    };
+  }
+  return { min: -1, max: 1, unit: "", digits: 2 };
+}
+
+function buildColormapLUT(colormapEntries) {
   const lut = {};
-  for (const [name, stops] of Object.entries(stopMap)) {
+  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    const name = String(entry?.name || "").trim();
+    const stops = Array.isArray(entry?.value) ? entry.value : [];
+    if (!name || stops.length === 0) {
+      continue;
+    }
     lut[name] = stops.map((hex) => new THREE.Color(hex));
   }
   return lut;
@@ -701,8 +718,3 @@ function randomDirection() {
 
   return direction.normalize();
 }
-
-
-
-
-

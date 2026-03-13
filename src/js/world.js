@@ -166,4 +166,3 @@ function wrapAxis(value, halfExtent) {
 
   return value;
 }
-

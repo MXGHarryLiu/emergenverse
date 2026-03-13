@@ -56,4 +56,3 @@ export class BaseSimulation {
     throw new Error(`[${appletId}] Simulation.step(dt) must be implemented.`);
   }
 }
-

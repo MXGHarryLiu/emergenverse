@@ -64,7 +64,7 @@ export function renderAppletSectionsFromConfig() {
     }
 
     const visualAdapter = APPLET_VISUALS[appletId];
-    if (visualAdapter?.section) {
+    if (visualAdapter?.getColormapConfig) {
       rightFragment.appendChild(buildVisualSection(appletId, visualAdapter, templates));
     }
   });
@@ -701,16 +701,18 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     toggleAriaLabel: `Toggle ${appletId} visual controls`,
   });
   const body = getSectionBody(section);
-  const controls = visualAdapter?.controls || {};
-  const meta = visualAdapter?.section || {};
-  const colorModeId = controls.colorModeId;
-  if (!colorModeId) {
-    return section;
-  }
+  const appletConfig = APPLET_CONFIGS[appletId] || {};
+  const visualParams = Array.isArray(appletConfig.visual?.params)
+    ? appletConfig.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const solidColorParam = visualParams.find((entry) => entry?.key === "solidColor");
+  const controlIds = deriveVisualControlIds(appletId);
+  const colorModeId = controlIds.colorModeId;
 
   const colorModeLabel = "Color Mode";
-  const colorModeOptions = Array.isArray(meta.colorModeOptions)
-    ? meta.colorModeOptions
+  const colorModeOptions = Array.isArray(colorModeParam?.options)
+    ? colorModeParam.options
     : [];
 
   const colorLabel = document.createElement("label");
@@ -735,24 +737,24 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   colormapHost.setAttribute("data-shared-colormap-host", appletId);
   body.appendChild(colormapHost);
 
-  if (controls.solidColorId && controls.solidColorValueId && controls.singleColorWrapId) {
+  if (controlIds.solidColorId && controlIds.solidColorValueId && controlIds.singleColorWrapId) {
     const wrap = document.createElement("div");
-    wrap.id = controls.singleColorWrapId;
+    wrap.id = controlIds.singleColorWrapId;
     wrap.className = "is-hidden";
 
     const solidColorLabel = "Color";
-    const defaultColor = String(meta.solidColorDefault || "#ffffff");
+    const defaultColor = String(solidColorParam?.default || "#ffffff");
     const normalizedColor = defaultColor.startsWith("#") ? defaultColor : `#${defaultColor}`;
 
     wrap.innerHTML = `
-      <label class="form-label mt-2" for="${controls.solidColorId}">
+      <label class="form-label mt-2" for="${controlIds.solidColorId}">
         <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>${solidColorLabel}</span>
-        <span class="label-value" id="${controls.solidColorValueId}">${normalizedColor.toUpperCase()}</span>
+        <span class="label-value" id="${controlIds.solidColorValueId}">${normalizedColor.toUpperCase()}</span>
       </label>
       <input
         type="color"
         class="form-control form-control-color theme-color-input"
-        id="${controls.solidColorId}"
+        id="${controlIds.solidColorId}"
         value="${normalizedColor.toLowerCase()}"
       />
     `;
@@ -809,6 +811,16 @@ function getSimulationSliderValueId(appletId, slider) {
 
 function getSimulationSelectInputId(appletId, selectConfig) {
   return `${appletId}-${selectConfig.id}`;
+}
+
+function deriveVisualControlIds(appletId) {
+  const prefix = String(appletId || "").trim();
+  return {
+    colorModeId: `${prefix}-color-mode`,
+    solidColorId: `${prefix}-solid-color`,
+    solidColorValueId: `${prefix}-solid-color-value`,
+    singleColorWrapId: `${prefix}-single-color-wrap`,
+  };
 }
 
 function deriveGroupLabel(groupKey, rows) {

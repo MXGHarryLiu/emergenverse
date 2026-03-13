@@ -18,8 +18,18 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
     ],
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+    ],
     params: [
-      { key: "colorMode", default: "none" },
+      {
+        key: "colorMode",
+        default: "solid",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "speed", label: "Speed" },
+        ],
+      },
       { key: "colormap", default: "turbo" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#4cd3b6" },
@@ -79,7 +89,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const EXAMPLE_APPLET_RUNTIME = {
+const EXAMPLE_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("example-count", () => "0", {
@@ -105,61 +115,20 @@ export const EXAMPLE_APPLET_RUNTIME = {
   bindInteractionControls() {},
 };
 
-export const EXAMPLE_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "example-color-mode",
-    solidColorId: "example-solid-color",
-    solidColorValueId: "example-solid-color-value",
-    singleColorWrapId: "example-single-color-wrap",
-  },
-  section: {
-    colorModeLabel: "Color Mode",
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "speed", label: "Speed" },
-    ],
-    solidColorLabel: "Color",
-    solidColorDefault: "#4CD3B6",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "none";
-    const colormap = params?.colormap || "turbo";
-    if (colorMode === "none") {
-      return {
-        visible: false,
-        value: colormap,
-        options: continuousColormapOptions,
-        setValue() {},
-        legend: null,
-      };
-    }
-
-    return {
-      visible: true,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-        minText: "cmin: 0.0",
-        maxText: "cmax: 1.0",
-      },
-    };
-  },
-};
-
 // File-local constants and helpers.
-const EXAMPLE_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-};
-
 // Simulation implementation.
 // Extend BaseSimulation to get shared params/app context wiring.
 export class ExampleSimulation extends BaseSimulation {
   static APPLET_ID = "example";
+  static APPLET_RUNTIME = EXAMPLE_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildExampleColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -181,6 +150,40 @@ export class ExampleSimulation extends BaseSimulation {
 }
 
 // File-local helper functions.
+function buildExampleColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "solid";
+  const colormap = params?.colormap || "turbo";
+  if (colorMode === "solid") {
+    return {
+      visible: false,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue() {},
+      legend: null,
+    };
+  }
+
+  return {
+    visible: true,
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+      minText: "cmin: 0.0",
+      maxText: "cmax: 1.0",
+    },
+  };
+}
+
 function createExampleAgent() {
   return new THREE.Vector3(0, 0, 0);
 }
@@ -189,11 +192,6 @@ function createExampleAgent() {
 Required exports for registry auto-discovery in appletConfigs.js:
 - exactly one `*Simulation` class
 - exactly one `*_APPLET_CONFIG` object
-- exactly one `*_APPLET_RUNTIME` object
-- exactly one `*_APPLET_VISUAL` object
+- static `Simulation.APPLET_RUNTIME` object
+- static `Simulation.getColormapConfig`
 */
-
-
-
-
-

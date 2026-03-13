@@ -10,9 +10,8 @@ import * as duneApplet from "./dune.js";
 // 1) Import the applet module above (e.g., `import * as fooApplet from "./foo.js";`).
 // 2) Add that module into APPLET_MODULES below in the desired navigation order.
 // 3) Ensure the module exports exactly one `*Simulation` class with static APPLET_ID.
-// 4) Ensure the module exports exactly one each of:
-//    `*_APPLET_CONFIG`, `*_APPLET_RUNTIME`, `*_APPLET_VISUAL`.
-//    Optional legacy export: `*_DEFAULT_PARAMS` (prefer `*_APPLET_CONFIG.params`).
+// 4) Ensure the module exports exactly one `*_APPLET_CONFIG`.
+// 5) Define static `APPLET_RUNTIME` and static `getColormapConfig` on the Simulation class.
 const APPLET_MODULES = [
   boidApplet,
   antApplet,
@@ -45,18 +44,28 @@ function pickModuleExport(module, contextId, suffix, label, predicate = () => tr
   return matches[0];
 }
 
-function pickOptionalModuleExport(module, contextId, suffix, label, predicate = () => true) {
-  const matches = Object.entries(module)
-    .filter(([key, value]) => key.endsWith(suffix) && predicate(value))
-    .map(([, value]) => value);
+function resolveRuntimeHooks(module, appletId, SimulationClass) {
+  const classRuntime = SimulationClass?.APPLET_RUNTIME;
+  if (classRuntime && typeof classRuntime === "object") {
+    return classRuntime;
+  }
 
-  if (matches.length > 1) {
+  // Backward-compatible fallback for modules that still export `*_APPLET_RUNTIME`.
+  const exportMatches = Object.entries(module)
+    .filter(([key, value]) => key.endsWith("_APPLET_RUNTIME") && value && typeof value === "object")
+    .map(([, value]) => value);
+  if (exportMatches.length === 1) {
+    return exportMatches[0];
+  }
+  if (exportMatches.length > 1) {
     throw new Error(
-      `[appletConfigs] Expected at most one ${label} export ending in "${suffix}" for "${contextId}", found ${matches.length}.`,
+      `[appletConfigs] Expected at most one runtime export ending in "_APPLET_RUNTIME" for "${appletId}", found ${exportMatches.length}.`,
     );
   }
 
-  return matches[0] ?? null;
+  throw new Error(
+    `[appletConfigs] "${appletId}" must provide runtime hooks via static SimulationClass.APPLET_RUNTIME.`,
+  );
 }
 
 function resolveAppletDescriptors() {
@@ -106,7 +115,6 @@ function collectSectionParamDefaults(sectionConfig) {
 function buildAppletDefinition(id, module, SimulationClass) {
   validateSimulationContract(id, SimulationClass);
   const config = pickModuleExport(module, id, "_APPLET_CONFIG", "applet config");
-  const legacyDefaultParams = pickOptionalModuleExport(module, id, "_DEFAULT_PARAMS", "default params");
   const simulationParamDefaults = collectSectionParamDefaults(config?.simulation);
   const interactionParamDefaults = collectSectionParamDefaults(config?.interaction);
   const visualParamDefaults = collectSectionParamDefaults(config?.visual);
@@ -115,10 +123,22 @@ function buildAppletDefinition(id, module, SimulationClass) {
     ...interactionParamDefaults,
     ...visualParamDefaults,
     ...(config?.params ?? {}),
-    ...(legacyDefaultParams ?? {}),
   };
-  const runtime = pickModuleExport(module, id, "_APPLET_RUNTIME", "runtime hooks");
-  const visual = pickModuleExport(module, id, "_APPLET_VISUAL", "visual hooks");
+  const runtime = resolveRuntimeHooks(module, id, SimulationClass);
+  const hasClassVisualHook = typeof SimulationClass?.getColormapConfig === "function";
+  const visual = hasClassVisualHook
+    ? {
+      getColormapConfig(args) {
+        return SimulationClass.getColormapConfig(args);
+      },
+    }
+    : null;
+
+  if (!visual?.getColormapConfig) {
+    throw new Error(
+      `[appletConfigs] "${id}" must provide visual hooks via static SimulationClass.getColormapConfig.`,
+    );
+  }
 
   return {
     config,

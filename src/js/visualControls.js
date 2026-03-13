@@ -202,7 +202,7 @@ export function createVisualControls({
       return;
     }
 
-    controls.singleColorWrap.classList.toggle("is-hidden", appletParams.colorMode !== "none");
+    controls.singleColorWrap.classList.toggle("is-hidden", appletParams.colorMode !== "solid");
   }
 
   function bindColorModeControls() {
@@ -298,19 +298,14 @@ function getVisualControlsDom() {
   const hosts = {};
   const appletControls = {};
 
-  Object.entries(APPLET_VISUALS).forEach(([id, adapter]) => {
+  Object.entries(APPLET_VISUALS).forEach(([id]) => {
     hosts[id] = document.querySelector(`[data-shared-colormap-host="${id}"]`);
-
-    const controlsConfig = adapter?.controls || {};
+    const controlIds = deriveVisualControlIds(id);
     appletControls[id] = {
-      colorMode: controlsConfig.colorModeId ? document.getElementById(controlsConfig.colorModeId) : null,
-      solidColor: controlsConfig.solidColorId ? document.getElementById(controlsConfig.solidColorId) : null,
-      solidColorValue: controlsConfig.solidColorValueId
-        ? document.getElementById(controlsConfig.solidColorValueId)
-        : null,
-      singleColorWrap: controlsConfig.singleColorWrapId
-        ? document.getElementById(controlsConfig.singleColorWrapId)
-        : null,
+      colorMode: document.getElementById(controlIds.colorModeId),
+      solidColor: document.getElementById(controlIds.solidColorId),
+      solidColorValue: document.getElementById(controlIds.solidColorValueId),
+      singleColorWrap: document.getElementById(controlIds.singleColorWrapId),
     };
   });
 
@@ -329,6 +324,16 @@ function getVisualControlsDom() {
       },
       hosts,
     },
+  };
+}
+
+function deriveVisualControlIds(appletId) {
+  const prefix = String(appletId || "").trim();
+  return {
+    colorModeId: `${prefix}-color-mode`,
+    solidColorId: `${prefix}-solid-color`,
+    solidColorValueId: `${prefix}-solid-color-value`,
+    singleColorWrapId: `${prefix}-single-color-wrap`,
   };
 }
 

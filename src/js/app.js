@@ -63,7 +63,6 @@ const cameraDefaults = {
   cameraHeight: 80,
   cameraFov: 50,
   cameraLocked: false,
-  projectionMode: "perspective",
 };
 
 function applySiteVersionTag() {
@@ -380,88 +379,50 @@ function initializeSimulationsWithAppletWorldState() {
 }
 
 // World Unit + Display Formatting Helpers
-function getAppletWorldConfig(appletId) {
-  const fallback = {
-    params: [
-      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
-      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
-    ],
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
-    lengthUnit: { name: "m", toSI: 1 },
-    unitLabel: "m",
-  };
-  const config = APPLET_CONFIGS[appletId]?.world;
-  return config || fallback;
-}
+const DEFAULT_WORLD_PARAM_DEFINITIONS = Object.freeze({
+  x: Object.freeze({ key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 }),
+  y: Object.freeze({ key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 }),
+  z: Object.freeze({ key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 }),
+  gridSize: Object.freeze({ key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 }),
+  boundaryMode: Object.freeze({ key: "boundaryMode", default: "cyclic-xyz" }),
+});
+const DEFAULT_WORLD_LENGTH_UNIT = Object.freeze({ name: "m", toSI: 1 });
 
 function getWorldParamDefinition(appletId, key) {
-  const config = getAppletWorldConfig(appletId);
-  const paramsList = Array.isArray(config?.params) ? config.params : [];
+  const normalizedKey = String(key || "").trim();
+  const paramsList = Array.isArray(APPLET_CONFIGS[appletId]?.world?.params)
+    ? APPLET_CONFIGS[appletId].world.params
+    : [];
   const paramEntry = paramsList.find((entry) => entry?.key === key);
   if (paramEntry) {
     return paramEntry;
   }
 
-  if (key === "boundaryMode") {
+  if (normalizedKey === "boundaryMode") {
     return {
-      key,
-      default: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+      key: "boundaryMode",
+      default: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? DEFAULT_WORLD_PARAM_DEFINITIONS.boundaryMode.default,
     };
   }
 
-  const legacyStep = Number(config?.range?.step ?? 2);
-  const safeStep = Number.isFinite(legacyStep) && legacyStep > 0 ? legacyStep : 2;
-  if (key === "x") {
-    return {
-      key,
-      default: Number(config?.defaults?.x ?? 100),
-      uiMin: Number(config?.range?.minX ?? 40),
-      uiMax: Number(config?.range?.maxX ?? 320),
-      step: safeStep,
-    };
-  }
-  if (key === "y") {
-    return {
-      key,
-      default: Number(config?.defaults?.y ?? 100),
-      uiMin: Number(config?.range?.minY ?? 40),
-      uiMax: Number(config?.range?.maxY ?? 320),
-      step: safeStep,
-    };
-  }
-  if (key === "z") {
-    return {
-      key,
-      default: Number(config?.defaults?.z ?? 100),
-      uiMin: Number(config?.range?.minZ ?? 30),
-      uiMax: Number(config?.range?.maxZ ?? 260),
-      step: safeStep,
-    };
-  }
-
-  return {
-    key: "gridSize",
-    default: Number(config?.gridSize ?? 5),
-    uiMin: safeStep,
-    uiMax: Number(config?.range?.maxX ?? 320),
-    step: safeStep,
-  };
+  return DEFAULT_WORLD_PARAM_DEFINITIONS[normalizedKey] ?? DEFAULT_WORLD_PARAM_DEFINITIONS.gridSize;
 }
 
 function getWorldBoundaryModeDefault(appletId) {
-  const boundaryParam = getWorldParamDefinition(appletId, "boundaryMode");
-  return normalizeBoundaryMode(
-    boundaryParam?.default ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
-  );
+  return normalizeBoundaryMode(getWorldParamDefinition(appletId, "boundaryMode")?.default);
 }
 
 function getAppletLengthUnit(appletId = activeApplet) {
-  const worldConfig = getAppletWorldConfig(appletId);
-  return worldConfig.lengthUnit ?? { name: worldConfig.unitLabel ?? "m", toSI: 1 };
+  const unit = APPLET_CONFIGS[appletId]?.world?.lengthUnit;
+  if (!unit || typeof unit !== "object") {
+    return DEFAULT_WORLD_LENGTH_UNIT;
+  }
+  const name = String(unit.name || "").trim() || DEFAULT_WORLD_LENGTH_UNIT.name;
+  const toSI = Number(unit.toSI);
+  return {
+    name,
+    toSI: Number.isFinite(toSI) && toSI > 0 ? toSI : DEFAULT_WORLD_LENGTH_UNIT.toSI,
+  };
 }
 
 function worldValuesUseAppletLengthUnit(appletId = activeApplet) {
@@ -524,6 +485,24 @@ function formatWorldDistance(value, appletId = activeApplet, options = {}) {
 
 function formatWorldDisplayValue(displayValue, appletId = activeApplet, options = {}) {
   return `${formatDisplayNumber(displayValue, options)} ${getWorldUnitLabel(appletId)}`;
+}
+
+function getWorldDimensionParams(appletId) {
+  return {
+    x: getWorldParamDefinition(appletId, "x"),
+    y: getWorldParamDefinition(appletId, "y"),
+    z: getWorldParamDefinition(appletId, "z"),
+    gridSize: getWorldParamDefinition(appletId, "gridSize"),
+  };
+}
+
+function applyRangeToInput(input, param) {
+  if (!input || !param) {
+    return;
+  }
+  input.min = String(Number(param.uiMin));
+  input.max = String(Number(param.uiMax));
+  input.step = String(Number(param.step));
 }
 
 function formatKeyboardMoveSpeed(value, appletId = activeApplet) {
@@ -730,14 +709,15 @@ window.addEventListener("load", handleViewportResize, { once: true });
 window.addEventListener("keydown", onKeyDown);
 window.addEventListener("keyup", onKeyUp);
 
-const clock = new THREE.Clock();
+const frameTimer = new THREE.Timer();
 animate();
 
 // Main Loop + Frame Updates
 function animate() {
   requestAnimationFrame(animate);
 
-  const dt = Math.min(clock.getDelta(), 0.05);
+  frameTimer.update();
+  const dt = Math.min(frameTimer.getDelta(), 0.05);
   if (simulationManager.activeId !== activeApplet) {
     simulationManager.setActive(activeApplet);
   }
@@ -1589,10 +1569,7 @@ function setupAppRouting() {
 }
 
 function createDefaultWorldState(appletId) {
-  const xParam = getWorldParamDefinition(appletId, "x");
-  const yParam = getWorldParamDefinition(appletId, "y");
-  const zParam = getWorldParamDefinition(appletId, "z");
-  const gridParam = getWorldParamDefinition(appletId, "gridSize");
+  const { x: xParam, y: yParam, z: zParam, gridSize: gridParam } = getWorldDimensionParams(appletId);
   return {
     x: convertLengthFromDisplay(Number(xParam.default ?? 100), appletId),
     y: convertLengthFromDisplay(Number(yParam.default ?? 100), appletId),
@@ -1617,32 +1594,18 @@ function persistActiveAppletWorldState() {
 }
 
 function applyWorldSliderConstraints(appletId) {
-  const xParam = getWorldParamDefinition(appletId, "x");
-  const yParam = getWorldParamDefinition(appletId, "y");
-  const zParam = getWorldParamDefinition(appletId, "z");
+  const { x: xParam, y: yParam, z: zParam } = getWorldDimensionParams(appletId);
   const xInput = document.getElementById("world-size-x");
   const yInput = document.getElementById("world-size-y");
   const zInput = document.getElementById("world-size-z");
 
-  if (xInput) {
-    xInput.min = String(Number(xParam.uiMin));
-    xInput.max = String(Number(xParam.uiMax));
-    xInput.step = String(Number(xParam.step));
-  }
-  if (yInput) {
-    yInput.min = String(Number(yParam.uiMin));
-    yInput.max = String(Number(yParam.uiMax));
-    yInput.step = String(Number(yParam.step));
-  }
-  if (zInput) {
-    zInput.min = String(Number(zParam.uiMin));
-    zInput.max = String(Number(zParam.uiMax));
-    zInput.step = String(Number(zParam.step));
-  }
+  applyRangeToInput(xInput, xParam);
+  applyRangeToInput(yInput, yParam);
+  applyRangeToInput(zInput, zParam);
 }
 
 function applyAppletWorldState(appletId) {
-  const gridParam = getWorldParamDefinition(appletId, "gridSize");
+  const { gridSize: gridParam } = getWorldDimensionParams(appletId);
   const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
   appletWorldState[appletId] = state;
 

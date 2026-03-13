@@ -24,8 +24,25 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
     predatorScale: 1.0,
   },
   visual: {
+    colormap: [
+      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
+      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
+      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
+      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
+      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
+      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
+      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
+      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
+    ],
     params: [
-      { key: "colorMode", default: "energy" },
+      {
+        key: "colorMode",
+        default: "energy",
+        options: [
+          { value: "solid", label: "Single color" },
+          { value: "energy", label: "Predator Energy" },
+        ],
+      },
       { key: "colormap", default: "turbo" },
       { key: "colormapInverted", default: false },
       { key: "solidColor", default: "#ff8d5f" },
@@ -112,7 +129,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
 });
 
 // Shell runtime hooks.
-export const PREY_APPLET_RUNTIME = {
+const PREY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
       createChartMetricsEntry("prey-count", () => "0", {
@@ -156,73 +173,23 @@ export const PREY_APPLET_RUNTIME = {
   },
 };
 
-export const PREY_APPLET_VISUAL = {
-  controls: {
-    colorModeId: "prey-color-mode",
-    solidColorId: "prey-solid-color",
-    solidColorValueId: "prey-solid-color-value",
-    singleColorWrapId: "prey-single-color-wrap",
-  },
-  section: {
-    colorModeOptions: [
-      { value: "none", label: "None (single color)" },
-      { value: "energy", label: "Predator Energy" },
-    ],
-    solidColorDefault: "#FF8D5F",
-  },
-  getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
-    const colorMode = params?.colorMode || "energy";
-    const colormap = params?.colormap || "turbo";
-    if (colorMode === "none") {
-      return {
-        visible: false,
-        value: colormap,
-        options: continuousColormapOptions,
-        setValue() {},
-        legend: null,
-      };
-    }
-
-    const range = simulation?.getPredatorEnergyRange?.() ?? {
-      min: 0,
-      max: Math.max(0.1, (params?.predatorSpawnEnergy ?? 2.8) * 2.4),
-    };
-    return {
-      visible: true,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-        minText: `cmin: ${Number(range.min).toFixed(2)}`,
-        maxText: `cmax: ${Number(range.max).toFixed(2)}`,
-      },
-    };
-  },
-};
-
 // File-local constants and helpers.
-const PREY_COLORMAP_STOPS = {
-  turbo: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16],
-  viridis: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825],
-  plasma: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921],
-  magma: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf],
-  inferno: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4],
-  cividis: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f],
-  coolwarm: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426],
-  greys: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2],
-};
-
-const PREY_COLORMAPS = buildColormapLUT(PREY_COLORMAP_STOPS);
+const PREY_COLORMAPS = buildColormapLUT(PREY_APPLET_CONFIG.visual?.colormap);
 const preyColormapLerpA = new THREE.Color();
 const preyColormapLerpB = new THREE.Color();
 
 // Simulation implementation.
 export class PreySimulation extends BaseSimulation {
   static APPLET_ID = "prey";
+  static APPLET_RUNTIME = PREY_APPLET_RUNTIME;
+  static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
+    return buildPreyColormapConfig({
+      params,
+      simulation,
+      continuousColormapOptions,
+      continuousColormapGradients,
+    });
+  }
 
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
@@ -594,7 +561,7 @@ export class PreySimulation extends BaseSimulation {
 
   applyPredatorColor(predator, range, outColor) {
     const mode = this.params.colorMode ?? "energy";
-    if (mode === "none") {
+    if (mode === "solid") {
       this.predatorSolidColor.set(this.params.solidColor || "#ff8d5f");
       outColor.copy(this.predatorSolidColor);
       ensureVisibleColor(outColor, 0.2);
@@ -721,6 +688,44 @@ export class PreySimulation extends BaseSimulation {
   }
 }
 
+function buildPreyColormapConfig({
+  params,
+  simulation,
+  continuousColormapOptions,
+  continuousColormapGradients,
+}) {
+  const colorMode = params?.colorMode || "energy";
+  const colormap = params?.colormap || "turbo";
+  if (colorMode === "solid") {
+    return {
+      visible: false,
+      value: colormap,
+      options: continuousColormapOptions,
+      setValue() {},
+      legend: null,
+    };
+  }
+
+  const range = simulation?.getPredatorEnergyRange?.() ?? {
+    min: 0,
+    max: Math.max(0.1, (params?.predatorSpawnEnergy ?? 2.8) * 2.4),
+  };
+  return {
+    visible: true,
+    value: colormap,
+    options: continuousColormapOptions,
+    setValue(value) {
+      params.colormap = value;
+      simulation?.syncInstances?.();
+    },
+    legend: {
+      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
+      minText: `cmin: ${Number(range.min).toFixed(2)}`,
+      maxText: `cmax: ${Number(range.max).toFixed(2)}`,
+    },
+  };
+}
+
 function randomWorldPosition(params) {
   const x = THREE.MathUtils.randFloatSpread(params.worldSizeX * 0.9);
   const y = THREE.MathUtils.randFloatSpread(params.worldSizeY * 0.9);
@@ -766,10 +771,16 @@ function enforce2DSpeed(vector, minSpeed, maxSpeed) {
   return vector;
 }
 
-function buildColormapLUT(stopsByName) {
+function buildColormapLUT(colormapEntries) {
   const maps = {};
-  Object.keys(stopsByName).forEach((name) => {
-    maps[name] = stopsByName[name].map((hex) => new THREE.Color(hex));
+  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
+  entries.forEach((entry) => {
+    const name = String(entry?.name || "").trim();
+    const stops = Array.isArray(entry?.value) ? entry.value : [];
+    if (!name || stops.length === 0) {
+      return;
+    }
+    maps[name] = stops.map((hex) => new THREE.Color(hex));
   });
   return maps;
 }
@@ -807,8 +818,3 @@ function ensureVisibleColor(color, minLuminance) {
   );
   return color.lerp(new THREE.Color(1, 1, 1), deficiency * 0.55);
 }
-
-
-
-
-
