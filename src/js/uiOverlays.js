@@ -1,5 +1,6 @@
 // Overlay and modal behavior for help, model equations, about, share, export, and screenshot actions.
 import { APPLET_CONFIGS } from "./app/appletConfigs.js";
+import { SITE_VERSION } from "./versionConfig.js";
 
 // Module state
 const escapeOverlayBindings = [];
@@ -139,6 +140,11 @@ function setupControlsInfoPopup(dom) {
 }
 
 function setupAboutPopup(dom) {
+  const aboutVersionValue = document.getElementById("about-version-value");
+  if (aboutVersionValue) {
+    aboutVersionValue.textContent = String(SITE_VERSION || "--");
+  }
+
   bindDismissibleOverlay({
     openButton: dom.aboutInfoOpen,
     closeButton: dom.aboutInfoClose,

@@ -1,5 +1,6 @@
 // Config-driven sidebar template renderer for applet information and controls.
 import { APPLET_CONFIGS, APPLET_ORDER, APPLET_VISUALS } from "./app/appletConfigs.js";
+import { getSectionInputControls } from "./app/appletConfigUtils.js";
 
 // Section title mapping
 const SUPPORTED_SECTION_TITLES = Object.freeze({
@@ -161,7 +162,8 @@ function buildStatsSection(statsConfig, appletId, templates) {
 
   const statGrid = document.createElement("div");
   statGrid.className = "stat-grid mb-3";
-  (statsConfig.stats || []).forEach((stat) => {
+  const { statEntries, chartEntries } = getStatsEntries(statsConfig);
+  statEntries.forEach((stat) => {
     const card = templates.statCard.content.firstElementChild.cloneNode(true);
     const label = card.querySelector(".stat-inline-label");
     label.textContent = stat.label;
@@ -169,7 +171,7 @@ function buildStatsSection(statsConfig, appletId, templates) {
       label.classList.add(stat.labelClass);
     }
     const value = card.querySelector(".stat-inline-value");
-    value.id = stat.valueId;
+    value.id = resolveStatValueId(stat);
     value.textContent = stat.initial ?? "0";
     statGrid.appendChild(card);
   });
@@ -177,25 +179,85 @@ function buildStatsSection(statsConfig, appletId, templates) {
 
   const chartStack = document.createElement("div");
   chartStack.className = "chart-stack mt-3";
-  (statsConfig.charts || []).forEach((chart, index) => {
+  chartEntries.forEach((chart, index) => {
+    const chartLabel = String(chart?.label ?? "").trim();
+    const chartKey = String(chart?.key ?? "").trim();
+    if (!chartLabel || !chartKey) {
+      throw new Error(
+        `[uiTemplates] Stats chart config for "${appletId}" requires non-empty "key" and "label".`,
+      );
+    }
     const card = templates.chartCard.content.firstElementChild.cloneNode(true);
     if (index > 0) {
       card.classList.add("mt-2");
     }
     const head = card.querySelector("[data-chart-toggle]");
-    head.setAttribute("aria-label", `Toggle ${chart.title.toLowerCase()} chart`);
-    card.querySelector(".chart-title").textContent = chart.title;
+    head.setAttribute("aria-label", `Toggle ${chartLabel.toLowerCase()} chart`);
+    card.querySelector(".chart-title").textContent = chartLabel;
     const live = card.querySelector(".chart-live");
-    live.id = chart.liveId;
-    live.textContent = chart.liveInitial ?? "0";
+    live.id = deriveChartLiveId(chartKey);
+    live.textContent = resolveChartLiveInitial(chart);
     const canvas = card.querySelector("canvas");
-    canvas.id = chart.canvasId;
-    canvas.setAttribute("aria-label", chart.aria || `${chart.title} trend chart`);
+    canvas.id = deriveChartCanvasId(chartKey);
+    canvas.setAttribute("aria-label", `${appletId} ${chartLabel} trend chart`);
     chartStack.appendChild(card);
   });
   body.appendChild(chartStack);
 
   return section;
+}
+
+function getStatsEntries(statsConfig = {}) {
+  const params = Array.isArray(statsConfig?.params) ? statsConfig.params : null;
+  if (!params) {
+    return {
+      statEntries: Array.isArray(statsConfig?.stats) ? statsConfig.stats : [],
+      chartEntries: Array.isArray(statsConfig?.charts) ? statsConfig.charts : [],
+    };
+  }
+
+  const statEntries = [];
+  const chartEntries = [];
+  params.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const type = String(entry.type || "stat").trim().toLowerCase();
+    if (type === "chart") {
+      chartEntries.push(entry);
+      return;
+    }
+    statEntries.push(entry);
+  });
+
+  return { statEntries, chartEntries };
+}
+
+function resolveStatValueId(stat) {
+  if (typeof stat?.valueId === "string" && stat.valueId.trim().length > 0) {
+    return stat.valueId.trim();
+  }
+  const key = String(stat?.key || "").trim();
+  if (!key) {
+    throw new Error("[uiTemplates] Stats stat entry requires non-empty \"key\" when valueId is omitted.");
+  }
+  return `${key}-live`;
+}
+
+function deriveChartCanvasId(chartKey) {
+  return `chart-${chartKey}`;
+}
+
+function deriveChartLiveId(chartKey) {
+  return `${deriveChartCanvasId(chartKey)}-live`;
+}
+
+function resolveChartLiveInitial(chart) {
+  if (chart?.liveInitial !== undefined) {
+    return String(chart.liveInitial);
+  }
+  const unit = typeof chart?.unit === "string" ? chart.unit.trim() : "";
+  return unit ? `0 ${unit}` : "0";
 }
 
 // Simulation section
@@ -206,19 +268,19 @@ function buildSimulationSection(simConfig, appletId, templates) {
     toggleAriaLabel: `Toggle ${appletId} simulation controls`,
   });
   const body = getSectionBody(section);
+  const { sliders, selects } = getSectionInputControls(simConfig);
+  const sliderHubConfig = simConfig.sliderHub ?? deriveSliderHubConfigFromSlider(sliders[0]);
 
-  if (simConfig.sliderHub) {
+  if (sliderHubConfig) {
     body.appendChild(
       createSliderHub(
-        simConfig.sliderHub,
+        sliderHubConfig,
         getScopedSectionKey(appletId, simulationSectionKey),
         `Active ${appletId} slider`,
       ),
     );
   }
 
-  const sliders = Array.isArray(simConfig.sliders) ? simConfig.sliders : [];
-  const selects = Array.isArray(simConfig.selects) ? simConfig.selects : [];
   const controlRows = [];
   selects.forEach((select, index) => {
     controlRows.push({
@@ -372,7 +434,7 @@ function buildSimulationSection(simConfig, appletId, templates) {
   }
 
   body.appendChild(sliderList);
-  body.appendChild(createSimulationActionRow(simConfig));
+  body.appendChild(createSimulationActionRow(simConfig, appletId));
 
   return section;
 }
@@ -438,6 +500,32 @@ function createSliderHub(hubConfig, hubKey, ariaLabel) {
   return hub;
 }
 
+function deriveSliderHubConfigFromSlider(sliderConfig) {
+  if (!sliderConfig || typeof sliderConfig !== "object") {
+    return null;
+  }
+
+  const title = String(sliderConfig.label || sliderConfig.id || "Parameter");
+  const valueText = String(
+    sliderConfig.valueText ??
+    sliderConfig.value ??
+    "",
+  );
+  const minValue = sliderConfig.uiMin ?? sliderConfig.min;
+  const maxValue = sliderConfig.uiMax ?? sliderConfig.max;
+  const stepValue = sliderConfig.step ?? 1;
+  const numericValue = sliderConfig.value ?? sliderConfig.default ?? minValue ?? 0;
+
+  return {
+    title,
+    value: valueText,
+    min: String(minValue ?? 0),
+    max: String(maxValue ?? 1),
+    step: String(stepValue),
+    valueNum: String(numericValue),
+  };
+}
+
 function createSliderRow(templates, appletId, slider, options = {}) {
   const fragment = templates.sliderRow.content.cloneNode(true);
   const sliderInputId = options.inputId || getSimulationSliderInputId(appletId, slider);
@@ -465,8 +553,8 @@ function createSliderRow(templates, appletId, slider, options = {}) {
 
   const input = fragment.querySelector("input.form-range");
   input.id = sliderInputId;
-  input.min = slider.min;
-  input.max = slider.max;
+  input.min = slider.uiMin ?? slider.min;
+  input.max = slider.uiMax ?? slider.max;
   input.step = slider.step;
   input.value = slider.value;
 
@@ -481,23 +569,33 @@ function createSliderRow(templates, appletId, slider, options = {}) {
   return fragment;
 }
 
-function createSimulationActionRow(simConfig) {
+function deriveSimulationActionButtonIds(appletId, simConfig = {}) {
+  const normalizedAppletId = String(appletId || "applet").trim() || "applet";
+  return {
+    pauseButtonId: simConfig.pauseButtonId || `${normalizedAppletId}-toggle-pause`,
+    defaultButtonId: simConfig.defaultButtonId || `${normalizedAppletId}-default-sim`,
+    resetButtonId: simConfig.resetButtonId || `${normalizedAppletId}-reset-sim`,
+  };
+}
+
+function createSimulationActionRow(simConfig, appletId) {
+  const buttonIds = deriveSimulationActionButtonIds(appletId, simConfig);
   const actions = document.createElement("div");
   actions.className = "d-flex gap-2 mt-3 simulation-action-row";
   actions.innerHTML = `
     <button
       class="btn btn-sm btn-theme btn-icon-only"
-      id="${simConfig.pauseButtonId}"
+      id="${buttonIds.pauseButtonId}"
       title="Pause simulation"
       aria-label="Pause simulation"
     >
       <i class="bi bi-pause-fill" aria-hidden="true"></i>
     </button>
-    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.defaultButtonId}">
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${buttonIds.defaultButtonId}">
       <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
       <span>Default</span>
     </button>
-    <button class="btn btn-sm btn-outline-theme action-fill" id="${simConfig.resetButtonId}">
+    <button class="btn btn-sm btn-outline-theme action-fill" id="${buttonIds.resetButtonId}">
       <i class="bi bi-bootstrap-reboot" aria-hidden="true"></i>
       <span>Reset</span>
     </button>
@@ -513,25 +611,27 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
     toggleAriaLabel: `Toggle ${appletId} interaction controls`,
   });
   const body = getSectionBody(section);
+  const { switches, sliders } = getSectionInputControls(interactionConfig);
+  const sliderHubConfig = interactionConfig.sliderHub ?? deriveSliderHubConfigFromSlider(sliders[0]);
 
-  if (interactionConfig.sliderHub) {
+  if (sliderHubConfig) {
     body.appendChild(
       createSliderHub(
-        interactionConfig.sliderHub,
+        sliderHubConfig,
         getScopedSectionKey(appletId, interactionSectionKey),
         `Active ${appletId} interaction slider`,
       ),
     );
   }
 
-  (interactionConfig.switches || []).forEach((switchConfig, index) => {
+  switches.forEach((switchConfig, index) => {
     body.appendChild(createInteractionSwitchRow(switchConfig, index));
   });
 
-  (interactionConfig.sliders || []).forEach((slider) => {
+  sliders.forEach((slider) => {
     body.appendChild(createSliderRow(templates, appletId, slider, {
       inputId: slider.id,
-      valueId: slider.valueId,
+      valueId: slider.valueId || `${slider.id}-value`,
       renderMath: true,
       wrapSimulationRow: false,
     }));
@@ -594,7 +694,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     return section;
   }
 
-  const colorModeLabel = meta.colorModeLabel || "Color Mode";
+  const colorModeLabel = "Color Mode";
   const colorModeOptions = Array.isArray(meta.colorModeOptions)
     ? meta.colorModeOptions
     : [];
@@ -626,7 +726,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     wrap.id = controls.singleColorWrapId;
     wrap.className = "is-hidden";
 
-    const solidColorLabel = meta.solidColorLabel || "Color";
+    const solidColorLabel = "Color";
     const defaultColor = String(meta.solidColorDefault || "#ffffff");
     const normalizedColor = defaultColor.startsWith("#") ? defaultColor : `#${defaultColor}`;
 
@@ -684,7 +784,13 @@ function getSimulationSliderInputId(appletId, slider) {
 }
 
 function getSimulationSliderValueId(appletId, slider) {
-  return `${appletId}-${slider.valueId}`;
+  const paramKey = String(slider?.paramKey || "").trim();
+  if (!paramKey) {
+    throw new Error(
+      `[uiTemplates] Simulation slider "${slider?.id ?? "unknown"}" is missing paramKey.`,
+    );
+  }
+  return `${appletId}-${paramKey}-value`;
 }
 
 function getSimulationSelectInputId(appletId, selectConfig) {

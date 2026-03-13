@@ -12,6 +12,7 @@ import {
   setAppletInUrl as setAppletInUrlParam,
   setupAppRouting as setupUrlRouting,
 } from "./routing.js";
+import { getSectionInputControls } from "./app/appletConfigUtils.js";
 import {
   APPLET_CONFIGS,
   APPLET_DEFINITIONS,
@@ -19,6 +20,7 @@ import {
   APPLET_ORDER,
 } from "./app/appletConfigs.js";
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
+import { SITE_VERSION } from "./versionConfig.js";
 import {
   drawTrendChart as renderTrendChart,
   pushTrendValue as appendTrendValue,
@@ -53,6 +55,7 @@ const params = {
 renderAppletSectionsFromConfig();
 renderAppletNavigationFromConfig();
 scheduleMathRendering();
+applySiteVersionTag();
 
 // Applet Defaults + Navigation Rendering
 const cameraDefaults = {
@@ -62,6 +65,15 @@ const cameraDefaults = {
   cameraLocked: false,
   projectionMode: "perspective",
 };
+
+function applySiteVersionTag() {
+  const version = String(SITE_VERSION || "").trim();
+  if (!version) {
+    return;
+  }
+  document.documentElement.setAttribute("data-site-version", version);
+  document.body?.setAttribute("data-site-version", version);
+}
 
 const cameraControlDefaults = Object.freeze({
   fov: Object.freeze({ min: 20, max: 90, step: 1 }),
@@ -82,12 +94,19 @@ function getAppletCameraDefaults(appletId = activeApplet) {
 function getAppletCameraControlConfig(appletId = activeApplet) {
   const camera = APPLET_CONFIGS[appletId]?.camera || {};
   const controls = camera.controls || {};
+  const cameraKeyboardMoveSpeedDefault = Number(camera.keyboardMoveSpeedDefault);
+  const moveSpeedFallback = {
+    ...cameraControlDefaults.moveSpeed,
+    defaultValue: Number.isFinite(cameraKeyboardMoveSpeedDefault)
+      ? cameraKeyboardMoveSpeedDefault
+      : cameraControlDefaults.moveSpeed.defaultValue,
+  };
   return {
     fov: resolveCameraControlConfig(controls.fov, {
       ...cameraControlDefaults.fov,
       defaultValue: Number(camera.fov ?? cameraDefaults.cameraFov),
     }),
-    moveSpeed: resolveCameraControlConfig(controls.moveSpeed, cameraControlDefaults.moveSpeed),
+    moveSpeed: resolveCameraControlConfig(controls.moveSpeed, moveSpeedFallback),
     rotationSpeed: resolveCameraControlConfig(controls.rotationSpeed, cameraControlDefaults.rotationSpeed),
   };
 }
@@ -226,6 +245,7 @@ const dom = {
   cameraLocked: document.getElementById("camera-locked"),
   spaceshipMode: document.getElementById("spaceship-mode"),
   boundaryMode: document.getElementById("boundary-mode"),
+  boundaryModeValue: document.getElementById("boundary-mode-value"),
   supportInfoOpen: document.getElementById("support-info-open"),
   supportInfoClose: document.getElementById("support-info-close"),
   supportInfoBackdrop: document.getElementById("support-info-backdrop"),
@@ -347,7 +367,7 @@ function initializeSimulationsWithAppletWorldState() {
       ? state.gridSize
       : snapshot.worldGridSize;
     params.boundaryMode = normalizeBoundaryMode(
-      state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+      state.boundaryMode ?? getWorldBoundaryModeDefault(appletId),
     );
     simulations[appletId]?.init?.();
   });
@@ -362,6 +382,12 @@ function initializeSimulationsWithAppletWorldState() {
 // World Unit + Display Formatting Helpers
 function getAppletWorldConfig(appletId) {
   const fallback = {
+    params: [
+      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
+      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
+    ],
     defaults: { x: 100, y: 100, z: 100 },
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
@@ -370,6 +396,67 @@ function getAppletWorldConfig(appletId) {
   };
   const config = APPLET_CONFIGS[appletId]?.world;
   return config || fallback;
+}
+
+function getWorldParamDefinition(appletId, key) {
+  const config = getAppletWorldConfig(appletId);
+  const paramsList = Array.isArray(config?.params) ? config.params : [];
+  const paramEntry = paramsList.find((entry) => entry?.key === key);
+  if (paramEntry) {
+    return paramEntry;
+  }
+
+  if (key === "boundaryMode") {
+    return {
+      key,
+      default: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+    };
+  }
+
+  const legacyStep = Number(config?.range?.step ?? 2);
+  const safeStep = Number.isFinite(legacyStep) && legacyStep > 0 ? legacyStep : 2;
+  if (key === "x") {
+    return {
+      key,
+      default: Number(config?.defaults?.x ?? 100),
+      uiMin: Number(config?.range?.minX ?? 40),
+      uiMax: Number(config?.range?.maxX ?? 320),
+      step: safeStep,
+    };
+  }
+  if (key === "y") {
+    return {
+      key,
+      default: Number(config?.defaults?.y ?? 100),
+      uiMin: Number(config?.range?.minY ?? 40),
+      uiMax: Number(config?.range?.maxY ?? 320),
+      step: safeStep,
+    };
+  }
+  if (key === "z") {
+    return {
+      key,
+      default: Number(config?.defaults?.z ?? 100),
+      uiMin: Number(config?.range?.minZ ?? 30),
+      uiMax: Number(config?.range?.maxZ ?? 260),
+      step: safeStep,
+    };
+  }
+
+  return {
+    key: "gridSize",
+    default: Number(config?.gridSize ?? 5),
+    uiMin: safeStep,
+    uiMax: Number(config?.range?.maxX ?? 320),
+    step: safeStep,
+  };
+}
+
+function getWorldBoundaryModeDefault(appletId) {
+  const boundaryParam = getWorldParamDefinition(appletId, "boundaryMode");
+  return normalizeBoundaryMode(
+    boundaryParam?.default ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+  );
 }
 
 function getAppletLengthUnit(appletId = activeApplet) {
@@ -456,8 +543,10 @@ function refreshAppletLegend(appletId = activeApplet) {
 }
 
 const compactRangeRegistry = new Map();
+const compactSelectRegistry = new Map();
 const compactSectionState = {};
 let isClearingCompactControls = false;
+let activeCompactSelectId = null;
 const APPLET_IDS = new Set(APPLET_ORDER);
 const ROUTING_OPTIONS = {
   validAppletIds: APPLET_IDS,
@@ -562,7 +651,9 @@ const chartState = Object.fromEntries(
     id,
     {
       frameCounter: 0,
-      metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(createChartMetricsEntry) ?? [],
+      metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(
+        (key, initialText, options) => createChartMetricsEntry(id, key, initialText, options),
+      ) ?? [],
     },
   ]),
 );
@@ -806,6 +897,7 @@ function setupControls() {
 
   dom.boundaryMode.addEventListener("change", () => {
     params.boundaryMode = normalizeBoundaryMode(dom.boundaryMode.value);
+    syncBoundaryModeDisplayText();
     if (worldStatePersistenceEnabled) {
       persistActiveAppletWorldState();
     }
@@ -895,6 +987,8 @@ function setupControls() {
     spaceshipHud.update();
   });
   dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
+  syncBoundaryModeDisplayText();
+  registerCompactSelectControl("boundary-mode", "boundary-mode-value");
   APPLET_ORDER.forEach((appletId) => {
     APPLET_DEFINITIONS[appletId].runtime?.bindInteractionControls?.({
       appletId,
@@ -925,8 +1019,7 @@ function setupControls() {
 function bindAppletSimulationControls() {
   APPLET_ORDER.forEach((appletId) => {
     const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
-    const sliders = simulationConfig?.sliders;
-    const selects = simulationConfig?.selects;
+    const { sliders, selects } = getSectionInputControls(simulationConfig);
 
     if (Array.isArray(sliders) && sliders.length > 0) {
       sliders.forEach((slider) => {
@@ -1193,7 +1286,13 @@ function getSimulationSliderInputId(appletId, slider) {
 }
 
 function getSimulationSliderValueId(appletId, slider) {
-  return `${appletId}-${slider.valueId}`;
+  const paramKey = String(slider?.paramKey || "").trim();
+  if (!paramKey) {
+    throw new Error(
+      `[app] Simulation slider "${slider?.id ?? "unknown"}" is missing paramKey.`,
+    );
+  }
+  return `${appletId}-${paramKey}-value`;
 }
 
 function getSimulationSelectInputId(appletId, selectConfig) {
@@ -1310,6 +1409,15 @@ function normalizeSliderInputValue(slider, rawValue) {
     value = 0;
   }
 
+  const uiMin = Number(slider?.uiMin);
+  const uiMax = Number(slider?.uiMax);
+  if (Number.isFinite(uiMin)) {
+    value = Math.max(uiMin, value);
+  }
+  if (Number.isFinite(uiMax)) {
+    value = Math.min(uiMax, value);
+  }
+
   const step = String(slider?.step ?? "").trim();
   const integerStep = step.length > 0 && !/[.eE]/.test(step);
   return integerStep ? Math.round(value) : value;
@@ -1336,6 +1444,14 @@ function applySliderChangeToSimulation({ slider, paramKey, value, simulation }) 
     return;
   }
 
+  const group = typeof slider?.group === "string"
+    ? slider.group.trim().toLowerCase()
+    : "";
+  if (action === "auto" && group === "initial") {
+    simulation.reset?.();
+    return;
+  }
+
   const explicitSetter = typeof slider?.simulationSetter === "string" && slider.simulationSetter.length > 0
     ? slider.simulationSetter
     : null;
@@ -1353,7 +1469,18 @@ function applySliderChangeToSimulation({ slider, paramKey, value, simulation }) 
 function formatSliderDisplayValue(slider, value) {
   const template = slider?.valueText;
   if (typeof template !== "string" || template.length === 0) {
-    return String(value);
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return String(value);
+    }
+    const precision = getNumericPrecision(slider?.step);
+    const numericText = precision > 0
+      ? numeric.toFixed(precision)
+      : Math.abs(numeric) >= 1e6
+      ? numeric.toExponential(2)
+      : String(Math.round(numeric));
+    const unit = typeof slider?.unit === "string" ? slider.unit.trim() : "";
+    return unit ? `${numericText} ${unit}` : numericText;
   }
 
   const trimmed = template.trimStart();
@@ -1392,6 +1519,21 @@ function formatNumberLikeTemplate(value, numericTemplate, stepValue) {
 }
 
 function getNumericPrecision(value) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+    if (Number.isInteger(value)) {
+      return 0;
+    }
+    const asText = value.toString();
+    if (/e/i.test(asText)) {
+      return 0;
+    }
+    const dotIndex = asText.indexOf(".");
+    return dotIndex >= 0 ? Math.max(0, asText.length - dotIndex - 1) : 0;
+  }
+
   if (typeof value !== "string") {
     return 0;
   }
@@ -1407,8 +1549,7 @@ function getNumericPrecision(value) {
 
 function applySimulationDefaultsForApplet(appletId) {
   const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
-  const sliders = simulationConfig?.sliders;
-  const selects = simulationConfig?.selects;
+  const { sliders, selects } = getSectionInputControls(simulationConfig);
 
   if (Array.isArray(sliders) && sliders.length > 0) {
     sliders.forEach((slider) => {
@@ -1442,13 +1583,16 @@ function setupAppRouting() {
 }
 
 function createDefaultWorldState(appletId) {
-  const config = getAppletWorldConfig(appletId);
+  const xParam = getWorldParamDefinition(appletId, "x");
+  const yParam = getWorldParamDefinition(appletId, "y");
+  const zParam = getWorldParamDefinition(appletId, "z");
+  const gridParam = getWorldParamDefinition(appletId, "gridSize");
   return {
-    x: convertLengthFromDisplay(Number(config.defaults?.x ?? 100), appletId),
-    y: convertLengthFromDisplay(Number(config.defaults?.y ?? 100), appletId),
-    z: convertLengthFromDisplay(Number(config.defaults?.z ?? 100), appletId),
-    gridSize: convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId),
-    boundaryMode: normalizeBoundaryMode(APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz"),
+    x: convertLengthFromDisplay(Number(xParam.default ?? 100), appletId),
+    y: convertLengthFromDisplay(Number(yParam.default ?? 100), appletId),
+    z: convertLengthFromDisplay(Number(zParam.default ?? 100), appletId),
+    gridSize: convertLengthFromDisplay(Number(gridParam.default ?? 5), appletId),
+    boundaryMode: getWorldBoundaryModeDefault(appletId),
   };
 }
 
@@ -1467,30 +1611,32 @@ function persistActiveAppletWorldState() {
 }
 
 function applyWorldSliderConstraints(appletId) {
-  const range = getAppletWorldConfig(appletId).range;
+  const xParam = getWorldParamDefinition(appletId, "x");
+  const yParam = getWorldParamDefinition(appletId, "y");
+  const zParam = getWorldParamDefinition(appletId, "z");
   const xInput = document.getElementById("world-size-x");
   const yInput = document.getElementById("world-size-y");
   const zInput = document.getElementById("world-size-z");
 
   if (xInput) {
-    xInput.min = String(Number(range.minX));
-    xInput.max = String(Number(range.maxX));
-    xInput.step = String(Number(range.step));
+    xInput.min = String(Number(xParam.uiMin));
+    xInput.max = String(Number(xParam.uiMax));
+    xInput.step = String(Number(xParam.step));
   }
   if (yInput) {
-    yInput.min = String(Number(range.minY));
-    yInput.max = String(Number(range.maxY));
-    yInput.step = String(Number(range.step));
+    yInput.min = String(Number(yParam.uiMin));
+    yInput.max = String(Number(yParam.uiMax));
+    yInput.step = String(Number(yParam.step));
   }
   if (zInput) {
-    zInput.min = String(Number(range.minZ));
-    zInput.max = String(Number(range.maxZ));
-    zInput.step = String(Number(range.step));
+    zInput.min = String(Number(zParam.uiMin));
+    zInput.max = String(Number(zParam.uiMax));
+    zInput.step = String(Number(zParam.step));
   }
 }
 
 function applyAppletWorldState(appletId) {
-  const config = getAppletWorldConfig(appletId);
+  const gridParam = getWorldParamDefinition(appletId, "gridSize");
   const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
   appletWorldState[appletId] = state;
 
@@ -1501,9 +1647,9 @@ function applyAppletWorldState(appletId) {
   params.worldSizeZ = state.z;
   params.worldGridSize = Number.isFinite(state.gridSize)
     ? state.gridSize
-    : convertLengthFromDisplay(Number(config.gridSize ?? 5), appletId);
+    : convertLengthFromDisplay(Number(gridParam.default ?? 5), appletId);
   params.boundaryMode = normalizeBoundaryMode(
-    state.boundaryMode ?? APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? "cyclic-xyz",
+    state.boundaryMode ?? getWorldBoundaryModeDefault(appletId),
   );
 
   setControlValue(
@@ -1526,6 +1672,7 @@ function applyAppletWorldState(appletId) {
   );
   if (dom.boundaryMode) {
     dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
+    syncBoundaryModeDisplayText();
   }
 
   rebuildBoundsAndGrid();
@@ -2311,12 +2458,26 @@ function drawTrendCharts() {
   });
 }
 
-function createChartMetricsEntry(canvasId, liveId, initialText, options) {
+function getTrendChartCanvasId(appletId, key) {
+  return `chart-${key}`;
+}
+
+function getTrendChartLiveId(appletId, key) {
+  return `${getTrendChartCanvasId(appletId, key)}-live`;
+}
+
+function createChartMetricsEntry(appletId, key, initialText, options) {
+  const normalizedAppletId = String(appletId ?? "").trim();
+  const normalizedKey = String(key ?? "").trim();
+  if (!normalizedAppletId || !normalizedKey) {
+    throw new Error("[app] Chart metric entry requires non-empty applet id and key.");
+  }
   const sanitizedOptions = { ...(options || {}) };
   delete sanitizedOptions.axisLabel;
   return {
-    canvasId,
-    liveId,
+    key: normalizedKey,
+    canvasId: getTrendChartCanvasId(normalizedAppletId, normalizedKey),
+    liveId: getTrendChartLiveId(normalizedAppletId, normalizedKey),
     initialText,
     options: sanitizedOptions,
     history: [],
@@ -2440,7 +2601,13 @@ function setupRangeFocusEscape() {
       return;
     }
 
-    if (target.closest('input[type="range"]')) {
+    const isRangeInteraction = Boolean(
+      target.closest('input[type="range"]') ||
+      target.closest("select.compact-source-select") ||
+      target.closest(".section-slider-hub") ||
+      target.closest(".compact-value-trigger"),
+    );
+    if (isRangeInteraction) {
       return;
     }
 
@@ -2457,6 +2624,123 @@ function getFirstCompactRangeInputId(sectionKey) {
   const section = document.querySelector(`[data-control-section="${sectionKey}"]`);
   const firstInput = section?.querySelector("input.compact-source-slider[id]");
   return firstInput?.id || null;
+}
+
+function getSelectDisplayText(select) {
+  if (!(select instanceof HTMLSelectElement)) {
+    return "";
+  }
+  const option = select.options?.[select.selectedIndex];
+  return option?.textContent?.trim() || String(select.value || "");
+}
+
+function getBoundaryModeDisplayText(value = dom.boundaryMode?.value) {
+  if (!dom.boundaryMode) {
+    return String(value ?? "");
+  }
+  const normalized = normalizeBoundaryMode(value);
+  const option = Array.from(dom.boundaryMode.options || []).find((item) => item.value === normalized);
+  const shortText = option?.getAttribute("data-short")?.trim();
+  if (shortText) {
+    return shortText;
+  }
+  return option?.textContent?.trim() || normalized;
+}
+
+function syncBoundaryModeDisplayText() {
+  if (!dom.boundaryModeValue) {
+    return;
+  }
+  const display = getBoundaryModeDisplayText(dom.boundaryMode?.value);
+  dom.boundaryModeValue.textContent = display;
+  dom.boundaryModeValue.dataset.formattedValue = display;
+}
+
+function registerCompactSelectControl(selectRef, outputRef) {
+  const select = typeof selectRef === "string" ? document.getElementById(selectRef) : selectRef;
+  const output = typeof outputRef === "string" ? document.getElementById(outputRef) : outputRef;
+  if (!(select instanceof HTMLSelectElement) || !(output instanceof HTMLElement) || !select.id) {
+    return;
+  }
+
+  const section = select.closest("[data-control-section]");
+  const sectionKey = section?.getAttribute("data-control-section") || "";
+  const labelEl = section?.querySelector(`label[for="${select.id}"]`);
+  const labelNameEl = labelEl?.querySelector(".label-name");
+  const labelText = labelNameEl ? labelNameEl.textContent.trim() : select.id;
+
+  const binding = {
+    select,
+    output,
+    sectionKey,
+    labelText,
+  };
+  compactSelectRegistry.set(select.id, binding);
+
+  select.classList.add("compact-source-select");
+  output.classList.add("compact-value-trigger");
+  output.setAttribute("role", "button");
+  output.setAttribute("tabindex", "0");
+  output.setAttribute("aria-label", `Edit ${labelText}`);
+
+  const syncOutput = () => {
+    const display = select.id === "boundary-mode"
+      ? getBoundaryModeDisplayText(select.value)
+      : getSelectDisplayText(select);
+    output.textContent = display;
+    output.dataset.formattedValue = display;
+  };
+
+  const activate = (event) => {
+    if (
+      event.type === "keydown" &&
+      event.key !== "Enter" &&
+      event.key !== " " &&
+      event.key !== "F2"
+    ) {
+      return;
+    }
+    if (event.type === "keydown") {
+      event.preventDefault();
+    }
+    activateCompactSelectControl(select.id);
+  };
+
+  output.addEventListener("click", activate);
+  output.addEventListener("keydown", activate);
+  select.addEventListener("change", syncOutput);
+  select.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (activeCompactSelectId === select.id) {
+        clearActiveCompactRangeControls();
+      }
+    }, 0);
+  });
+
+  syncOutput();
+}
+
+function activateCompactSelectControl(selectId) {
+  const binding = compactSelectRegistry.get(selectId);
+  if (!binding) {
+    return;
+  }
+
+  if (activeCompactSelectId === selectId) {
+    binding.select.focus();
+    return;
+  }
+
+  clearActiveCompactRangeControls();
+  activeCompactSelectId = selectId;
+
+  for (const item of compactSelectRegistry.values()) {
+    const isActive = item.select.id === selectId;
+    item.output.classList.toggle("is-active-control", isActive);
+    item.select.classList.toggle("is-active-select", isActive);
+  }
+
+  binding.select.focus();
 }
 
 function registerCompactRangeControl(inputRef, outputRef) {
@@ -2557,9 +2841,22 @@ function registerCompactRangeControl(inputRef, outputRef) {
       return;
     }
     commitCompactValueEdit(binding);
-    if (binding.input.id === compactSectionState[binding.sectionKey]?.activeInputId) {
-      clearActiveCompactRangeControls();
-    }
+    // Defer close check so focus can settle on the compact slider input.
+    setTimeout(() => {
+      const sectionState = compactSectionState[binding.sectionKey];
+      const activeElement = document.activeElement;
+      const focusInsideHub = Boolean(
+        sectionState?.hub &&
+        activeElement instanceof Element &&
+        sectionState.hub.contains(activeElement),
+      );
+      if (focusInsideHub) {
+        return;
+      }
+      if (binding.input.id === sectionState?.activeInputId) {
+        clearActiveCompactRangeControls();
+      }
+    }, 0);
   });
   output.addEventListener("keydown", (event) => {
     const binding = compactRangeRegistry.get(input.id);
@@ -2667,6 +2964,18 @@ function clearActiveCompactRangeControls(options = {}) {
       }
       sectionState.hub.classList.add("is-hidden");
     });
+
+    const keepSelectId = options.keepSelectId || null;
+    for (const item of compactSelectRegistry.values()) {
+      const shouldKeep = keepSelectId && item.select.id === keepSelectId;
+      if (!shouldKeep) {
+        item.select.classList.remove("is-active-select");
+        item.output.classList.remove("is-active-control");
+      }
+    }
+    if (!keepSelectId) {
+      activeCompactSelectId = null;
+    }
   } finally {
     isClearingCompactControls = false;
   }

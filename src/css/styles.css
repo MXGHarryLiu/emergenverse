@@ -1223,6 +1223,14 @@ body {
   display: none !important;
 }
 
+.compact-source-select {
+  display: none !important;
+}
+
+.compact-source-select.is-active-select {
+  display: block !important;
+}
+
 .section-slider-hub {
   margin: 0.15rem 0 0.85rem;
   padding: 0.5rem 0.58rem 0.32rem;
@@ -1298,6 +1306,20 @@ body {
 .right-panel .form-label .label-value.compact-value-trigger[contenteditable="true"] {
   cursor: text;
   user-select: text;
+}
+
+.right-panel .compact-toggle-row {
+  margin-top: 0.28rem !important;
+}
+
+.right-panel .compact-toggle-row .form-check {
+  min-height: 0;
+}
+
+.right-panel .compact-toggle-row .form-switch .form-check-input {
+  width: 1.95rem;
+  height: 1.05rem;
+  margin-top: 0;
 }
 
 /* Shared Form Inputs + Switches + Colormap Legend */

@@ -1,33 +1,36 @@
 // Firefly synchronization applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
-
-// Default applet parameters.
-export const FIREFLY_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
-  count: 180,
-  size: 0.8,
-  speed: 1.2,
-  coupling: 2.2,
-  radius: 18.0,
-  frequencyHz: 1.8,
-  freqJitterHz: 0.2,
-  phaseNoise: 0.4,
-  colorMode: "blink",
-  colormap: "blue-yellow",
-  colormapInverted: false,
-  solidColor: "#ffd86b",
-};
 
 // Applet UI and metadata configuration.
 export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   label: "Firefly Sync",
-  defaultProjection: "perspective",
+  camera: {
+    params: [
+      { key: "projection", default: "perspective" },
+      { key: "locked", default: false },
+      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
+      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
+      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
+    ],
+  },
+  visual: {
+    params: [
+      { key: "colorMode", default: "blink" },
+      { key: "colormap", default: "blue-yellow" },
+      { key: "colormapInverted", default: false },
+      { key: "solidColor", default: "#ffd86b" },
+    ],
+  },
   world: {
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
+    params: [
+      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
+      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
+      { key: "boundaryMode", default: "cyclic-xyz" },
+    ],
   },
   intro: {
       paragraphs: [
@@ -66,27 +69,23 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
   stats: {
       stats: [{ label: "FPS", valueId: "firefly-fps-live", initial: "--" }],
       charts: [
-        { title: "Count", liveId: "chart-firefly-count-live", liveInitial: "0", canvasId: "chart-firefly-count", aria: "firefly count trend chart" },
-        { title: "Order (R)", liveId: "chart-firefly-order-live", liveInitial: "0.000", canvasId: "chart-firefly-order", aria: "firefly synchronization order trend chart" },
-        { title: "Blink Rate", liveId: "chart-firefly-blink-live", liveInitial: "0.0 /s", canvasId: "chart-firefly-blink", aria: "firefly blink rate trend chart" },
+        { key: "firefly-count", label: "Count", liveInitial: "0" },
+        { key: "firefly-order", label: "Order (R)", liveInitial: "0.000" },
+        { key: "firefly-blink", label: "Blink Rate", liveInitial: "0.0 /s" },
       ],
     },
   simulation: {
-      sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
-      sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180", { group: "initial", resetTrendCharts: true }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { group: "dynamic", paramKey: "size" }),
-        slider("speed", "Speed", "bi-arrow-repeat", "speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2", { group: "dynamic" }),
-        slider("coupling", "Coupling (\\(K\\))", "bi-diagram-2", "coupling-value", "2.20", "0", "8", "0.05", "2.2", { group: "dynamic" }),
-        slider("radius", "Interaction Radius", "bi-broadcast", "radius-value", "18.0 m", "1", "60", "0.5", "18.0", { group: "dynamic" }),
-        slider("frequency", "Base Frequency", "bi-speedometer2", "frequency-value", "1.80 Hz", "0.2", "6.0", "0.05", "1.8", { group: "dynamic", paramKey: "frequencyHz" }),
-        slider("jitter", "Frequency Jitter", "bi-slash-circle", "jitter-value", "0.20 Hz", "0", "2.0", "0.02", "0.2", { group: "dynamic", paramKey: "freqJitterHz" }),
-        slider("noise", "Phase Noise", "bi-shuffle", "noise-value", "0.40 rad/s", "0", "3.0", "0.02", "0.4", { group: "dynamic", paramKey: "phaseNoise" }),
+      params: [
+        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
+        { key: "count", label: "Count", default: 180, group: "initial", uiMin: 20, uiMax: 900, control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
+        { key: "size", label: "Object Visual Size", default: 0.8, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 2.5, control: { type: "slider", icon: "bi-rulers", step: 0.05 } },
+        { key: "speed", label: "Speed", default: 1.2, unit: "m/s", group: "dynamic", uiMin: 0.1, uiMax: 4.0, control: { type: "slider", icon: "bi-arrow-repeat", step: 0.1 } },
+        { key: "coupling", label: "Coupling (\\(K\\))", default: 2.2, group: "dynamic", uiMin: 0, uiMax: 8, control: { type: "slider", icon: "bi-diagram-2", step: 0.05 } },
+        { key: "radius", label: "Interaction Radius", default: 18.0, unit: "m", group: "dynamic", uiMin: 1, uiMax: 60, control: { type: "slider", icon: "bi-broadcast", step: 0.5 } },
+        { key: "frequencyHz", label: "Base Frequency", default: 1.8, unit: "Hz", group: "dynamic", uiMin: 0.2, uiMax: 6.0, control: { type: "slider", icon: "bi-speedometer2", step: 0.05 } },
+        { key: "freqJitterHz", label: "Frequency Jitter", default: 0.2, unit: "Hz", group: "dynamic", uiMin: 0, uiMax: 2.0, control: { type: "slider", icon: "bi-slash-circle", step: 0.02 } },
+        { key: "phaseNoise", label: "Phase Noise", default: 0.4, unit: "rad/s", group: "dynamic", uiMin: 0, uiMax: 3.0, control: { type: "slider", icon: "bi-shuffle", step: 0.02 } },
       ],
-      pauseButtonId: "toggle-firefly-pause",
-      defaultButtonId: "default-firefly-sim",
-      resetButtonId: "reset-firefly-sim",
     },
 });
 
@@ -94,14 +93,14 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
 export const FIREFLY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("chart-firefly-count", "chart-firefly-count-live", () => "0", {
+      createChartMetricsEntry("firefly-count", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-firefly-order", "chart-firefly-order-live", () => "0.000", {
+      createChartMetricsEntry("firefly-order", () => "0.000", {
         stroke: "#ffe38d",
         fill: "rgba(255, 227, 141, 0.18)",
         axisLabel: "R",
@@ -109,7 +108,7 @@ export const FIREFLY_APPLET_RUNTIME = {
         minValue: 0,
         maxValue: 1,
       }),
-      createChartMetricsEntry("chart-firefly-blink", "chart-firefly-blink-live", () => "0.0 /s", {
+      createChartMetricsEntry("firefly-blink", () => "0.0 /s", {
         stroke: "#ffd26e",
         fill: "rgba(255, 210, 110, 0.16)",
         axisLabel: "/s",

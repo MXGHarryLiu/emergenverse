@@ -1,41 +1,38 @@
 // Sand dune applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
-
-// Default applet parameters.
-export const DUNE_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
-  colorMode: "mass",
-  colormap: "cividis",
-  colormapInverted: false,
-  solidColor: "#D8B36A",
-  objectSizeM: 5.0,
-  heightScale: 1.8,
-  windDirectionDeg: 20,
-  windStrength: 0.9,
-  transportRate: 0.28,
-  reposeSlope: 1.4,
-  avalancheRate: 0.7,
-  baseHeight: 2.2,
-  noiseAmplitude: 0.25,
-};
 
 // Applet UI and metadata configuration.
 export const DUNE_APPLET_CONFIG = defineAppletConfig({
   label: "Dune Dynamics",
-  defaultProjection: "perspective",
-  defaultBoundaryMode: "cyclic-xy",
   camera: {
     distance: 222,
     height: 96,
-    fov: 50,
-    locked: false,
+    params: [
+      { key: "projection", default: "perspective" },
+      { key: "locked", default: false },
+      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
+      { key: "moveSpeed", default: 160, uiMin: 1, uiMax: 100000, step: 1 },
+      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
+    ],
+  },
+  visual: {
+    params: [
+      { key: "colorMode", default: "mass" },
+      { key: "colormap", default: "cividis" },
+      { key: "colormapInverted", default: false },
+      { key: "solidColor", default: "#D8B36A" },
+    ],
   },
   world: {
-    defaults: { x: 120, y: 120, z: 120 },
-    range: { minX: 60, maxX: 220, minY: 60, maxY: 220, minZ: 60, maxZ: 220, step: 2 },
-    gridSize: 10,
+    params: [
+      { key: "x", default: 120, uiMin: 60, uiMax: 220, step: 2 },
+      { key: "y", default: 120, uiMin: 60, uiMax: 220, step: 2 },
+      { key: "z", default: 120, uiMin: 60, uiMax: 220, step: 2 },
+      { key: "gridSize", default: 10, uiMin: 2, uiMax: 220, step: 2 },
+      { key: "boundaryMode", default: "cyclic-xy" },
+    ],
   },
   intro: {
       paragraphs: [
@@ -89,33 +86,27 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [
-        { label: "FPS", valueId: "dune-fps-live", initial: "--" },
-        { label: "Avalanches", valueId: "dune-avalanche-live", initial: "0" },
-      ],
-      charts: [
-        { title: "Mean Height", liveId: "chart-dune-height-live", liveInitial: "0.00 m", canvasId: "chart-dune-height", aria: "dune mean height trend chart" },
-        { title: "Relief", liveId: "chart-dune-relief-live", liveInitial: "0.00 m", canvasId: "chart-dune-relief", aria: "dune relief trend chart" },
-        { title: "Transport", liveId: "chart-dune-transport-live", liveInitial: "0.00 m/s", canvasId: "chart-dune-transport", aria: "dune transport trend chart" },
+      params: [
+        { type: "stat", key: "dune-fps", label: "FPS" },
+        { type: "stat", key: "dune-avalanche", label: "Avalanches" },
+        { type: "chart", key: "dune-height", label: "Mean Height", unit: "m" },
+        { type: "chart", key: "dune-relief", label: "Relief", unit: "m" },
+        { type: "chart", key: "dune-transport", label: "Transport", unit: "m/s" },
       ],
     },
   simulation: {
-      sliderHub: { title: "Object Visual Size", value: "5.0 m", min: "0.5", max: "20.0", step: "0.1", valueNum: "5.0" },
-      sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "5.0 m", "0.5", "20.0", "0.1", "5.0", { group: "initial", paramKey: "objectSizeM", simulationAction: "reset", resetTrendCharts: true }),
-        slider("height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "height-scale-value", "1.80", "0.5", "4.0", "0.05", "1.8", { group: "dynamic" }),
-        slider("wind-direction", "Wind Direction", "bi-compass", "wind-direction-value", "20°", "-180", "180", "1", "20", { group: "dynamic", paramKey: "windDirectionDeg" }),
-        slider("wind-strength", "Wind Strength", "bi-wind", "wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9", { group: "dynamic" }),
-        slider("transport-rate", "Transport Rate", "bi-arrow-left-right", "transport-rate-value", "0.28", "0.0", "1.5", "0.02", "0.28", { group: "dynamic" }),
-        slider("repose-slope", "Repose Slope", "bi-triangle-half", "repose-slope-value", "1.40 m", "0.2", "4.0", "0.05", "1.4", { group: "dynamic" }),
-        slider("avalanche-rate", "Avalanche Rate", "bi-chevron-down", "avalanche-rate-value", "0.70", "0.0", "2.0", "0.05", "0.7", { group: "dynamic" }),
-        slider("base-height", "Base Height", "bi-box-fill", "base-height-value", "2.20 m", "0.2", "6.0", "0.05", "2.2", { group: "initial", simulationAction: "reset", resetTrendCharts: true }),
-        slider("noise-amplitude", "Noise Amplitude", "bi-stars", "noise-amplitude-value", "0.25 m", "0.0", "3.0", "0.05", "0.25", { group: "initial", simulationAction: "reset", resetTrendCharts: true }),
+      params: [
+        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
+        { key: "objectSizeM", label: "Object Visual Size (\\(s_{obj}\\))", default: 5.0, unit: "m", group: "initial", uiMin: 0.5, uiMax: 20.0, control: { type: "slider", icon: "bi-rulers", step: 0.1, simulationAction: "reset", resetTrendCharts: true } },
+        { key: "heightScale", label: "Vertical Exaggeration (\\(S_h\\))", default: 1.8, group: "dynamic", uiMin: 0.5, uiMax: 4.0, control: { type: "slider", icon: "bi-bar-chart-steps", step: 0.05 } },
+        { key: "windDirectionDeg", label: "Wind Direction (\\(\\theta_w\\))", default: 20, unit: "deg", group: "dynamic", uiMin: -180, uiMax: 180, control: { type: "slider", icon: "bi-compass", step: 1 } },
+        { key: "windStrength", label: "Wind Strength (\\(W\\))", default: 0.9, group: "dynamic", uiMin: 0.0, uiMax: 3.0, control: { type: "slider", icon: "bi-wind", step: 0.05 } },
+        { key: "transportRate", label: "Transport Rate (\\(\\tau\\))", default: 0.28, group: "dynamic", uiMin: 0.0, uiMax: 1.5, control: { type: "slider", icon: "bi-arrow-left-right", step: 0.02 } },
+        { key: "reposeSlope", label: "Repose Slope (\\(s_r\\))", default: 1.4, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 4.0, control: { type: "slider", icon: "bi-triangle-half", step: 0.05 } },
+        { key: "avalancheRate", label: "Avalanche Rate (\\(A\\))", default: 0.7, group: "dynamic", uiMin: 0.0, uiMax: 2.0, control: { type: "slider", icon: "bi-chevron-down", step: 0.05 } },
+        { key: "baseHeight", label: "Base Height (\\(h_0\\))", default: 2.2, unit: "m", group: "initial", uiMin: 0.2, uiMax: 6.0, control: { type: "slider", icon: "bi-box-fill", step: 0.05, simulationAction: "reset", resetTrendCharts: true } },
+        { key: "noiseAmplitude", label: "Noise Amplitude (\\(\\Delta h\\))", default: 0.25, unit: "m", group: "initial", uiMin: 0.0, uiMax: 3.0, control: { type: "slider", icon: "bi-stars", step: 0.05, simulationAction: "reset", resetTrendCharts: true } },
       ],
-      pauseButtonId: "toggle-dune-pause",
-      defaultButtonId: "default-dune-sim",
-      resetButtonId: "reset-dune-sim",
     },
 });
 
@@ -123,21 +114,21 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
 export const DUNE_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("chart-dune-height", "chart-dune-height-live", () => "0.00 m", {
+      createChartMetricsEntry("dune-height", () => "0.00 m", {
         stroke: "#f6d17b",
         fill: "rgba(246, 209, 123, 0.16)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-dune-relief", "chart-dune-relief-live", () => "0.00 m", {
+      createChartMetricsEntry("dune-relief", () => "0.00 m", {
         stroke: "#ef9d5d",
         fill: "rgba(239, 157, 93, 0.15)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-dune-transport", "chart-dune-transport-live", () => "0.00 m/s", {
+      createChartMetricsEntry("dune-transport", () => "0.00 m/s", {
         stroke: "#8fded4",
         fill: "rgba(143, 222, 212, 0.14)",
         axisLabel: "m/s",

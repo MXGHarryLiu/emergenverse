@@ -1,35 +1,36 @@
 // Boids applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
-
-// Default applet parameters.
-export const BOID_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
-  count: 220,
-  scale: 0.5,
-  perceptionRadius: 18,
-  separationDistance: 8,
-  maxSpeed: 8,
-  minSpeed: 2.5,
-  maxAccel: 6,
-  alignmentWeight: 1.0,
-  cohesionWeight: 0.9,
-  separationWeight: 1.35,
-  colorMode: "speed",
-  colormap: "turbo",
-  colormapInverted: false,
-  solidColor: "#4cd3b6",
-};
 
 // Applet UI and metadata configuration.
 export const BOID_APPLET_CONFIG = defineAppletConfig({
   label: "Boids",
-  defaultProjection: "perspective",
+  camera: {
+    params: [
+      { key: "projection", default: "perspective" },
+      { key: "locked", default: false },
+      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
+      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
+      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
+    ],
+  },
+  visual: {
+    params: [
+      { key: "colorMode", default: "speed" },
+      { key: "colormap", default: "turbo" },
+      { key: "colormapInverted", default: false },
+      { key: "solidColor", default: "#4cd3b6" },
+    ],
+  },
   world: {
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
+    params: [
+      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
+      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
+      { key: "boundaryMode", default: "cyclic-xyz" },
+    ],
   },
   intro: {
       paragraphs: [
@@ -65,35 +66,25 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
   stats: {
       stats: [{ label: "FPS", valueId: "fps-live", initial: "--" }],
       charts: [
-        { title: "Counts", liveId: "chart-count-live", liveInitial: "0", canvasId: "chart-count", aria: "count trend chart" },
-        { title: "Speed", liveId: "chart-speed-live", liveInitial: "0.00 m/s", canvasId: "chart-speed", aria: "speed trend chart" },
-        { title: "Neighbors", liveId: "chart-neighbors-live", liveInitial: "0.00", canvasId: "chart-neighbors", aria: "neighbor trend chart" },
+        { key: "count", label: "Counts", liveInitial: "0" },
+        { key: "speed", label: "Speed", liveInitial: "0.00 m/s" },
+        { key: "neighbors", label: "Neighbors", liveInitial: "0.00" },
       ],
     },
   simulation: {
-      sliderHub: {
-        title: "Count",
-        value: "220",
-        min: "30",
-        max: "650",
-        step: "10",
-        valueNum: "220",
-      },
-      sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("count", "Count", "bi-people-fill", "count-value", "220", "30", "650", "10", "220", { group: "initial", resetTrendCharts: true }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5", { group: "dynamic" }),
-        slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18", { group: "dynamic" }),
-        slider("separation-distance", "Separation Distance", "bi-arrows-angle-contract", "separation-distance-value", "8.0 m", "2", "40", "0.5", "8", { group: "dynamic" }),
-        slider("max-speed", "Max Speed", "bi-speedometer2", "max-speed-value", "8.0 m/s", "1", "25", "0.25", "8", { group: "dynamic" }),
-        slider("max-accel", "Max Acceleration", "bi-lightning-charge-fill", "max-accel-value", "6.0 m/s²", "0.5", "30", "0.25", "6", { group: "dynamic" }),
-        slider("alignment-weight", "Alignment Weight (\\(w_a\\))", "bi-layout-three-columns", "alignment-weight-value", "1.00", "0", "3", "0.05", "1", { group: "dynamic" }),
-        slider("cohesion-weight", "Cohesion Weight (\\(w_c\\))", "bi-diagram-3-fill", "cohesion-weight-value", "0.90", "0", "3", "0.05", "0.9", { group: "dynamic" }),
-        slider("separation-weight", "Separation Weight (\\(w_s\\))", "bi-arrow-left-right", "separation-weight-value", "1.35", "0", "4", "0.05", "1.35", { group: "dynamic" }),
+      params: [
+        { key: "simSpeed", label: "Simulation Speed", default: 1.0, uiMin: 0.1, uiMax: 10, group: "dynamic", control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
+        { key: "count", label: "Count", default: 220, uiMin: 30, uiMax: 650, group: "initial", control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
+        { key: "scale", label: "Object Visual Size", default: 0.5, unit: "m", group: "dynamic", uiMin: 0.1, uiMax: 1.0, control: { type: "slider", icon: "bi-rulers", step: 0.1 } },
+        { key: "perceptionRadius", label: "Perception Radius", default: 18, unit: "m", group: "dynamic", uiMin: 2, uiMax: 60, control: { type: "slider", icon: "bi-eye-fill", step: 0.5 } },
+        { key: "separationDistance", label: "Separation Distance", default: 8, unit: "m", group: "dynamic", uiMin: 2, uiMax: 40, control: { type: "slider", icon: "bi-arrows-angle-contract", step: 0.5 } },
+        { key: "maxSpeed", label: "Max Speed", default: 8, unit: "m/s", group: "dynamic", uiMin: 1, uiMax: 25, control: { type: "slider", icon: "bi-speedometer2", step: 0.25 } },
+        { key: "maxAccel", label: "Max Acceleration", default: 6, unit: "m/s²", group: "dynamic", uiMin: 0.5, uiMax: 30, control: { type: "slider", icon: "bi-lightning-charge-fill", step: 0.25 } },
+        { key: "alignmentWeight", label: "Alignment Weight (\\(w_a\\))", default: 1.0, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-layout-three-columns", step: 0.05 } },
+        { key: "cohesionWeight", label: "Cohesion Weight (\\(w_c\\))", default: 0.9, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-diagram-3-fill", step: 0.05 } },
+        { key: "separationWeight", label: "Separation Weight (\\(w_s\\))", default: 1.35, group: "dynamic", uiMin: 0, uiMax: 4, control: { type: "slider", icon: "bi-arrow-left-right", step: 0.05 } },
+        { key: "minSpeed", default: 2.5 },
       ],
-      pauseButtonId: "toggle-pause",
-      defaultButtonId: "default-sim",
-      resetButtonId: "reset-sim",
     },
 });
 
@@ -101,21 +92,21 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
 export const BOID_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("chart-count", "chart-count-live", () => "0", {
+      createChartMetricsEntry("count", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-speed", "chart-speed-live", () => "0.00 m/s", {
+      createChartMetricsEntry("speed", () => "0.00 m/s", {
         stroke: "#4cd3b6",
         fill: "rgba(76, 211, 182, 0.14)",
         axisLabel: "m/s",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-neighbors", "chart-neighbors-live", () => "0.00", {
+      createChartMetricsEntry("neighbors", () => "0.00", {
         stroke: "#5aa4ff",
         fill: "rgba(90, 164, 255, 0.14)",
         axisLabel: "count",

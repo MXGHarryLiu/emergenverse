@@ -11,7 +11,8 @@ import * as duneApplet from "./dune.js";
 // 2) Add that module into APPLET_MODULES below in the desired navigation order.
 // 3) Ensure the module exports exactly one `*Simulation` class with static APPLET_ID.
 // 4) Ensure the module exports exactly one each of:
-//    `*_APPLET_CONFIG`, `*_DEFAULT_PARAMS`, `*_APPLET_RUNTIME`, `*_APPLET_VISUAL`.
+//    `*_APPLET_CONFIG`, `*_APPLET_RUNTIME`, `*_APPLET_VISUAL`.
+//    Optional legacy export: `*_DEFAULT_PARAMS` (prefer `*_APPLET_CONFIG.params`).
 const APPLET_MODULES = [
   boidApplet,
   antApplet,
@@ -20,6 +21,15 @@ const APPLET_MODULES = [
   galaxyApplet,
   duneApplet,
 ];
+
+function deriveSimulationActionButtonIds(appletId, simulationConfig = {}) {
+  const normalizedAppletId = String(appletId || "applet").trim() || "applet";
+  return {
+    pauseButtonId: simulationConfig.pauseButtonId || `${normalizedAppletId}-toggle-pause`,
+    defaultButtonId: simulationConfig.defaultButtonId || `${normalizedAppletId}-default-sim`,
+    resetButtonId: simulationConfig.resetButtonId || `${normalizedAppletId}-reset-sim`,
+  };
+}
 
 function pickModuleExport(module, contextId, suffix, label, predicate = () => true) {
   const matches = Object.entries(module)
@@ -33,6 +43,20 @@ function pickModuleExport(module, contextId, suffix, label, predicate = () => tr
   }
 
   return matches[0];
+}
+
+function pickOptionalModuleExport(module, contextId, suffix, label, predicate = () => true) {
+  const matches = Object.entries(module)
+    .filter(([key, value]) => key.endsWith(suffix) && predicate(value))
+    .map(([, value]) => value);
+
+  if (matches.length > 1) {
+    throw new Error(
+      `[appletConfigs] Expected at most one ${label} export ending in "${suffix}" for "${contextId}", found ${matches.length}.`,
+    );
+  }
+
+  return matches[0] ?? null;
 }
 
 function resolveAppletDescriptors() {
@@ -60,10 +84,39 @@ function resolveAppletDescriptors() {
   });
 }
 
+function collectSectionParamDefaults(sectionConfig) {
+  const defaults = {};
+  const params = Array.isArray(sectionConfig?.params) ? sectionConfig.params : [];
+  params.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const key = String(entry.paramKey ?? entry.key ?? "").trim();
+    if (!key) {
+      return;
+    }
+    if (entry.default === undefined) {
+      return;
+    }
+    defaults[key] = entry.default;
+  });
+  return defaults;
+}
+
 function buildAppletDefinition(id, module, SimulationClass) {
   validateSimulationContract(id, SimulationClass);
   const config = pickModuleExport(module, id, "_APPLET_CONFIG", "applet config");
-  const defaultParams = pickModuleExport(module, id, "_DEFAULT_PARAMS", "default params");
+  const legacyDefaultParams = pickOptionalModuleExport(module, id, "_DEFAULT_PARAMS", "default params");
+  const simulationParamDefaults = collectSectionParamDefaults(config?.simulation);
+  const interactionParamDefaults = collectSectionParamDefaults(config?.interaction);
+  const visualParamDefaults = collectSectionParamDefaults(config?.visual);
+  const defaultParams = {
+    ...simulationParamDefaults,
+    ...interactionParamDefaults,
+    ...visualParamDefaults,
+    ...(config?.params ?? {}),
+    ...(legacyDefaultParams ?? {}),
+  };
   const runtime = pickModuleExport(module, id, "_APPLET_RUNTIME", "runtime hooks");
   const visual = pickModuleExport(module, id, "_APPLET_VISUAL", "visual hooks");
 
@@ -75,6 +128,39 @@ function buildAppletDefinition(id, module, SimulationClass) {
     createSimulation: ({ scene, params, world, onStats }) =>
       new SimulationClass({ scene, params, world, onStats }),
   };
+}
+
+function getStatsEntries(statsConfig = {}) {
+  const params = Array.isArray(statsConfig?.params) ? statsConfig.params : null;
+  if (!params) {
+    return {
+      statEntries: Array.isArray(statsConfig?.stats) ? statsConfig.stats : [],
+      chartEntries: Array.isArray(statsConfig?.charts) ? statsConfig.charts : [],
+    };
+  }
+
+  const statEntries = [];
+  const chartEntries = [];
+  params.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const type = String(entry.type || "stat").trim().toLowerCase();
+    if (type === "chart") {
+      chartEntries.push(entry);
+      return;
+    }
+    statEntries.push(entry);
+  });
+  return { statEntries, chartEntries };
+}
+
+function deriveStatValueId(statEntry) {
+  if (typeof statEntry?.valueId === "string" && statEntry.valueId.trim().length > 0) {
+    return statEntry.valueId.trim();
+  }
+  const key = String(statEntry?.key || "").trim();
+  return key ? `${key}-live` : null;
 }
 
 function validateSimulationContract(id, SimulationClass) {
@@ -116,16 +202,20 @@ export const APPLET_META = Object.fromEntries(
     const config = APPLET_DEFINITIONS[id].config;
     const simulation = config?.simulation ?? {};
     const stats = config?.stats ?? {};
+    const { statEntries } = getStatsEntries(stats);
+    const fpsStat = statEntries.find((entry) => {
+      const label = String(entry?.label || "").toLowerCase();
+      const key = String(entry?.key || "").toLowerCase();
+      return label.includes("fps") || key.includes("fps");
+    }) || statEntries[0] || null;
     return [
       id,
       {
         id,
         label: config?.label ?? id,
         shortLabel: config?.shortLabel ?? config?.label?.split(/\s+/)[0] ?? id,
-        fpsValueId: stats.stats?.[0]?.valueId ?? null,
-        pauseButtonId: simulation.pauseButtonId ?? null,
-        defaultButtonId: simulation.defaultButtonId ?? null,
-        resetButtonId: simulation.resetButtonId ?? null,
+        fpsValueId: deriveStatValueId(fpsStat),
+        ...deriveSimulationActionButtonIds(id, simulation),
       },
     ];
   }),

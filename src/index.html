@@ -429,14 +429,15 @@
 
           <label class="form-label mt-1" for="boundary-mode">
             <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
+            <span class="label-value" id="boundary-mode-value">Cyclic (3D)</span>
           </label>
           <select class="form-select form-select-sm theme-select" id="boundary-mode">
-            <option value="cyclic-xyz" selected>Cyclic (3-axis)</option>
-            <option value="cyclic-xy">Cyclic (X/Y only)</option>
-            <option value="lost">Lost (remove out-of-bounds)</option>
+            <option value="cyclic-xyz" data-short="Cyclic (3D)" selected>Cyclic (X, Y, Z)</option>
+            <option value="cyclic-xy" data-short="Cyclic (2D)">Cyclic (X, Y)</option>
+            <option value="lost" data-short="Lost">Lost (remove out-of-bounds)</option>
           </select>
 
-          <div class="d-flex align-items-center justify-content-between mt-2">
+          <div class="d-flex align-items-center justify-content-between mt-1 compact-toggle-row">
             <label class="form-label mb-0" for="show-bounds">
               <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Show Bounds</span>
             </label>
@@ -564,6 +565,10 @@
             Emergenverse explores how complex system-level behavior emerges from simple local interaction rules.
           </p>
           <ul class="controls-list about-links mt-3">
+            <li>
+              <strong>Version</strong>:
+              <span id="about-version-value">--</span>
+            </li>
             <li>
               <strong>GitHub</strong>:
               <a href="https://github.com/MXGHarryLiu/emergenverse" target="_blank" rel="noopener noreferrer">
@@ -820,7 +825,7 @@
           </label>
           <input class="form-range" type="range" id="camera-rotation-speed" min="0" max="1" step="1" value="0" />
 
-          <div class="d-flex align-items-center justify-content-between mt-2">
+          <div class="d-flex align-items-center justify-content-between mt-1 compact-toggle-row">
             <label class="form-label mb-0" for="camera-locked">
               <span class="label-name"><i class="bi bi-lock-fill" aria-hidden="true"></i>Camera Lock</span>
             </label>
@@ -829,7 +834,7 @@
             </div>
           </div>
 
-          <div class="d-flex align-items-center justify-content-between mt-2">
+          <div class="d-flex align-items-center justify-content-between mt-1 compact-toggle-row">
             <label class="form-label mb-0" for="spaceship-mode">
               <span class="label-name"><i class="bi bi-rocket-takeoff-fill" aria-hidden="true"></i>Spaceship Mode</span>
             </label>

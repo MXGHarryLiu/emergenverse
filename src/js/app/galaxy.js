@@ -1,6 +1,6 @@
 // Galaxy gravity applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, selectControl, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig, selectControl } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Unit metadata used to derive the internal gravity constant from SI.
@@ -26,44 +26,41 @@ const GALAXY_INIT_PRESET_OPTIONS = [
   { value: "ellipsoid", label: "Ellipsoid" },
 ];
 
-// Default applet parameters.
-export const GALAXY_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
-  colorMode: "speed",
-  colormap: "magma",
-  colormapInverted: false,
-  solidColor: "#c9ddff",
-  count: 1000,
-  particleSize: 750,
-  initialShape: "disk",
-  initialRadius: 120000,
-  spin: 1.0,
-  centralMass: GALAXY_DEFAULT_CENTRAL_MASS,
-  objectTotalMass: GALAXY_DEFAULT_OBJECT_TOTAL_MASS,
-  softening: 180,
-};
-
 // Applet UI and metadata configuration.
 export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   label: "Galaxy Gravity",
-  defaultProjection: "perspective",
-  defaultBoundaryMode: "lost",
   camera: {
     distance: 777000,
     height: 336000,
-    fov: 34,
-    locked: false,
-    controls: {
-      fov: { min: 18, max: 88, step: 1, defaultValue: 34 },
-      moveSpeed: { min: 100, max: 1000000, step: 100, defaultValue: 30000 },
-      rotationSpeed: { min: 10, max: 720, step: 1, defaultValue: 84 },
-    },
+    params: [
+      { key: "projection", default: "perspective" },
+      { key: "locked", default: false },
+      { key: "fov", default: 34, uiMin: 18, uiMax: 88, step: 1 },
+      { key: "moveSpeed", default: 30000, uiMin: 100, uiMax: 1000000, step: 100 },
+      { key: "rotationSpeed", default: 84, uiMin: 10, uiMax: 720, step: 1 },
+    ],
   },
-  units: GALAXY_UNITS,
+  visual: {
+    params: [
+      { key: "colorMode", default: "speed" },
+      { key: "colormap", default: "magma" },
+      { key: "colormapInverted", default: false },
+      { key: "solidColor", default: "#c9ddff" },
+    ],
+  },
+  units: {
+    length: { label: "ly", toSI: 9.4607304725808e15 },
+    mass: { label: "M_sun", toSI: 1.98847e30 },
+    time: { label: "Myr", toSI: 31557600000000 },
+  },
   world: {
-    defaults: { x: 350000, y: 350000, z: 350000 },
-    range: { minX: 50000, maxX: 800000, minY: 50000, maxY: 800000, minZ: 50000, maxZ: 800000, step: 5000 },
-    gridSize: 20000,
+    params: [
+      { key: "x", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
+      { key: "y", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
+      { key: "z", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
+      { key: "gridSize", default: 20000, uiMin: 5000, uiMax: 800000, step: 5000 },
+      { key: "boundaryMode", default: "lost" },
+    ],
     lengthUnit: {
       name: GALAXY_UNITS.length.label,
       toSI: GALAXY_UNITS.length.toSI,
@@ -108,13 +105,12 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   stats: {
       stats: [{ label: "FPS", valueId: "galaxy-fps-live", initial: "--" }],
       charts: [
-        { title: "Count", liveId: "chart-galaxy-count-live", liveInitial: "0", canvasId: "chart-galaxy-count", aria: "galaxy count trend chart" },
-        { title: "Mean Radius", liveId: "chart-galaxy-radius-live", liveInitial: `0 ${GALAXY_UNITS.length.label}`, canvasId: "chart-galaxy-radius", aria: "galaxy mean radius trend chart" },
-        { title: "Mean Speed", liveId: "chart-galaxy-speed-live", liveInitial: `0 ${GALAXY_SPEED_UNIT}`, canvasId: "chart-galaxy-speed", aria: "galaxy mean speed trend chart" },
+        { key: "galaxy-count", label: "Count", liveInitial: "0" },
+        { key: "galaxy-radius", label: "Mean Radius", liveInitial: `0 ${GALAXY_UNITS.length.label}` },
+        { key: "galaxy-speed", label: "Mean Speed", liveInitial: `0 ${GALAXY_SPEED_UNIT}` },
       ],
     },
   simulation: {
-      sliderHub: { title: "Count", value: "1000", min: "50", max: "5000", step: "10", valueNum: "1000" },
       selects: [
         selectControl(
           "initial-shape",
@@ -125,19 +121,16 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
           { group: "initial", simulationAction: "reset", paramKey: "initialShape" },
         ),
       ],
-      sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("count", "Count", "bi-people-fill", "count-value", "1000", "50", "5000", "10", "1000", { group: "initial", resetTrendCharts: true }),
-        slider("initial-radius", "Initial Radius", "bi-bounding-box", "initial-radius-value", `120000 ${GALAXY_UNITS.length.label}`, "2000", "350000", "1000", "120000", { group: "initial", simulationAction: "reset", resetTrendCharts: true, paramKey: "initialRadius" }),
-        slider("scale", "Object Visual Size", "bi-rulers", "scale-value", `750 ${GALAXY_UNITS.length.label}`, "80", "2000", "20", "750", { group: "dynamic", paramKey: "particleSize" }),
-        slider("spin", "Initial Orbital Speed", "bi-arrow-clockwise", "spin-value", "1.0", "0.2", "2.5", "0.05", "1.0", { group: "initial" }),
-        slider("central-mass", "Central Mass (\\(M_c\\))", "bi-bullseye", "central-mass-value", `2.20e+12 ${GALAXY_UNITS.mass.label}`, "5.0e10", "1.0e13", "5.0e10", `${GALAXY_DEFAULT_CENTRAL_MASS}`, { group: "dynamic" }),
-        slider("object-total-mass", "Object Total Mass (\\(M_{\\mathrm{obj}}\\))", "bi-boxes", "object-total-mass-value", `4.40e+11 ${GALAXY_UNITS.mass.label}`, "1.0e10", "5.0e12", "1.0e10", `${GALAXY_DEFAULT_OBJECT_TOTAL_MASS}`, { group: "dynamic", paramKey: "objectTotalMass" }),
-        slider("softening", "Softening (\\(\\epsilon\\))", "bi-dot", "softening-value", `180 ${GALAXY_UNITS.length.label}`, "20", "4000", "10", "180", { group: "dynamic" }),
+      params: [
+        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
+        { key: "count", label: "Count", default: 1000, group: "initial", uiMin: 50, uiMax: 5000, control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
+        { key: "initialRadius", label: "Initial Radius", default: 120000, unit: GALAXY_UNITS.length.label, group: "initial", uiMin: 2000, uiMax: 350000, control: { type: "slider", icon: "bi-bounding-box", step: 1000, simulationAction: "reset", resetTrendCharts: true } },
+        { key: "particleSize", label: "Object Visual Size", default: 750, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 80, uiMax: 2000, control: { type: "slider", icon: "bi-rulers", step: 20 } },
+        { key: "spin", label: "Initial Orbital Speed", default: 1.0, group: "initial", uiMin: 0.2, uiMax: 2.5, control: { type: "slider", icon: "bi-arrow-clockwise", step: 0.05 } },
+        { key: "centralMass", label: "Central Mass (\\(M_c\\))", default: GALAXY_DEFAULT_CENTRAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 5.0e10, uiMax: 1.0e13, control: { type: "slider", icon: "bi-bullseye", step: 5.0e10 } },
+        { key: "objectTotalMass", label: "Object Total Mass (\\(M_{\\mathrm{obj}}\\))", default: GALAXY_DEFAULT_OBJECT_TOTAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 1.0e10, uiMax: 5.0e12, control: { type: "slider", icon: "bi-boxes", step: 1.0e10 } },
+        { key: "softening", label: "Softening (\\(\\epsilon\\))", default: 180, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 20, uiMax: 4000, control: { type: "slider", icon: "bi-dot", step: 10 } },
       ],
-      pauseButtonId: "toggle-galaxy-pause",
-      defaultButtonId: "default-galaxy-sim",
-      resetButtonId: "reset-galaxy-sim",
     },
 });
 
@@ -145,21 +138,21 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
 export const GALAXY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("chart-galaxy-count", "chart-galaxy-count-live", () => "0", {
+      createChartMetricsEntry("galaxy-count", () => "0", {
         stroke: "#8eb7ff",
         fill: "rgba(142, 183, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-galaxy-radius", "chart-galaxy-radius-live", () => `0 ${GALAXY_UNITS.length.label}`, {
+      createChartMetricsEntry("galaxy-radius", () => `0 ${GALAXY_UNITS.length.label}`, {
         stroke: "#9de2ff",
         fill: "rgba(157, 226, 255, 0.16)",
         axisLabel: GALAXY_UNITS.length.label,
         tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-galaxy-speed", "chart-galaxy-speed-live", () => `0 ${GALAXY_SPEED_UNIT}`, {
+      createChartMetricsEntry("galaxy-speed", () => `0 ${GALAXY_SPEED_UNIT}`, {
         stroke: "#ffbe8d",
         fill: "rgba(255, 190, 141, 0.16)",
         axisLabel: GALAXY_SPEED_UNIT,

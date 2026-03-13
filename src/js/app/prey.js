@@ -1,42 +1,44 @@
 // Predator-prey applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, slider } from "./appletConfigUtils.js";
+import { defineAppletConfig } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
-
-// Default applet parameters.
-export const PREY_DEFAULT_PARAMS = {
-  simSpeed: 1.0,
-  count: 260,
-  predatorCount: 24,
-  speed: 4.5,
-  predatorSpeed: 6.2,
-  predatorSenseRadius: 16,
-  predationRadius: 1.6,
-  birthRate: 0.08,
-  predationRateBeta: 1.0,
-  avoidRadius: 14,
-  avoidWeight: 2.4,
-  predatorEnergyLoss: 0.45,
-  predatorEnergyGain: 1.6,
-  predatorSpawnEnergy: 2.8,
-  maxCount: 1200,
-  scale: 0.62,
-  predatorScale: 1.0,
-  colorMode: "energy",
-  colormap: "turbo",
-  colormapInverted: false,
-  solidColor: "#ff8d5f",
-};
 
 // Applet UI and metadata configuration.
 export const PREY_APPLET_CONFIG = defineAppletConfig({
   label: "Prey Chain",
-  defaultProjection: "orthographic",
-  defaultBoundaryMode: "cyclic-xy",
+  camera: {
+    params: [
+      { key: "projection", default: "orthographic" },
+      { key: "locked", default: false },
+      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
+      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
+      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
+    ],
+  },
+  params: {
+    avoidRadius: 14,
+    avoidWeight: 2.4,
+    predatorSpawnEnergy: 2.8,
+    maxCount: 1200,
+    scale: 0.62,
+    predatorScale: 1.0,
+  },
+  visual: {
+    params: [
+      { key: "colorMode", default: "energy" },
+      { key: "colormap", default: "turbo" },
+      { key: "colormapInverted", default: false },
+      { key: "solidColor", default: "#ff8d5f" },
+    ],
+  },
   world: {
-    defaults: { x: 100, y: 100, z: 100 },
-    range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
-    gridSize: 5,
+    params: [
+      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
+      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
+      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
+      { key: "boundaryMode", default: "cyclic-xy" },
+    ],
   },
   intro: {
       paragraphs: [
@@ -82,29 +84,25 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
   stats: {
       stats: [{ label: "FPS", valueId: "prey-fps-live", initial: "--" }],
       charts: [
-        { title: "Prey Count", liveId: "chart-prey-count-live", liveInitial: "0", canvasId: "chart-prey-count", aria: "prey count trend chart" },
-        { title: "Predator Count", liveId: "chart-predator-count-live", liveInitial: "0", canvasId: "chart-predator-count", aria: "predator count trend chart" },
-        { title: "Predation (cum.)", liveId: "chart-prey-eaten-live", liveInitial: "0", canvasId: "chart-prey-eaten", aria: "predation events trend chart" },
+        { key: "prey-count", label: "Prey Count", liveInitial: "0" },
+        { key: "predator-count", label: "Predator Count", liveInitial: "0" },
+        { key: "prey-eaten", label: "Predation (cum.)", liveInitial: "0" },
       ],
     },
   simulation: {
-      sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
-      sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
-        slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260", { group: "initial", simulationSetter: "setPreyCount", resetTrendCharts: true }),
-        slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24", { group: "initial", resetTrendCharts: true }),
-        slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5", { group: "dynamic" }),
-        slider("predator-speed", "Predator Speed", "bi-lightning-charge-fill", "predator-speed-value", "6.2 m/s", "0.5", "24", "0.1", "6.2", { group: "dynamic" }),
-        slider("predator-sense-radius", "Sense Radius", "bi-broadcast", "predator-sense-radius-value", "16.0 m", "1", "60", "0.5", "16.0", { group: "dynamic" }),
-        slider("predation-radius", "Predation Radius", "bi-crosshair2", "predation-radius-value", "1.6 m", "0.2", "8", "0.1", "1.6", { group: "dynamic" }),
-        slider("prey-birth-rate", "Prey Birth Rate (\\(\\alpha\\))", "bi-activity", "prey-birth-rate-value", "0.08 1/s", "0", "0.8", "0.01", "0.08", { group: "dynamic" }),
-        slider("predation-rate-beta", "Predation Rate (\\(\\beta\\))", "bi-graph-up-arrow", "predation-rate-beta-value", "1.00", "0", "3", "0.05", "1.00", { group: "dynamic" }),
-        slider("predator-energy-gain", "Predator Gain (\\(\\delta\\))", "bi-plus-circle", "predator-energy-gain-value", "1.60", "0.1", "5", "0.05", "1.60", { group: "dynamic" }),
-        slider("predator-energy-loss", "Predator Energy Loss (\\(\\gamma\\))", "bi-dash-circle", "predator-energy-loss-value", "0.45 1/s", "0", "2", "0.01", "0.45", { group: "dynamic" }),
+      params: [
+        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
+        { key: "count", label: "Prey Count", default: 260, group: "initial", uiMin: 20, uiMax: 1200, control: { type: "slider", icon: "bi-circle-fill", step: 10, simulationSetter: "setPreyCount", resetTrendCharts: true } },
+        { key: "predatorCount", label: "Predator Count", default: 24, group: "initial", uiMin: 2, uiMax: 240, control: { type: "slider", icon: "bi-triangle-fill", step: 1, resetTrendCharts: true } },
+        { key: "speed", label: "Prey Speed", default: 4.5, unit: "m/s", group: "dynamic", uiMin: 0.5, uiMax: 18, control: { type: "slider", icon: "bi-speedometer2", step: 0.1 } },
+        { key: "predatorSpeed", label: "Predator Speed", default: 6.2, unit: "m/s", group: "dynamic", uiMin: 0.5, uiMax: 24, control: { type: "slider", icon: "bi-lightning-charge-fill", step: 0.1 } },
+        { key: "predatorSenseRadius", label: "Sense Radius", default: 16.0, unit: "m", group: "dynamic", uiMin: 1, uiMax: 60, control: { type: "slider", icon: "bi-broadcast", step: 0.5 } },
+        { key: "predationRadius", label: "Predation Radius", default: 1.6, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 8, control: { type: "slider", icon: "bi-crosshair2", step: 0.1 } },
+        { key: "birthRate", label: "Prey Birth Rate (\\(\\alpha\\))", default: 0.08, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 0.8, control: { type: "slider", icon: "bi-activity", step: 0.01 } },
+        { key: "predationRateBeta", label: "Predation Rate (\\(\\beta\\))", default: 1.0, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-graph-up-arrow", step: 0.05 } },
+        { key: "predatorEnergyGain", label: "Predator Gain (\\(\\delta\\))", default: 1.6, group: "dynamic", uiMin: 0.1, uiMax: 5, control: { type: "slider", icon: "bi-plus-circle", step: 0.05 } },
+        { key: "predatorEnergyLoss", label: "Predator Energy Loss (\\(\\gamma\\))", default: 0.45, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 2, control: { type: "slider", icon: "bi-dash-circle", step: 0.01 } },
       ],
-      pauseButtonId: "toggle-prey-pause",
-      defaultButtonId: "default-prey-sim",
-      resetButtonId: "reset-prey-sim",
     },
 });
 
@@ -112,21 +110,21 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
 export const PREY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("chart-prey-count", "chart-prey-count-live", () => "0", {
+      createChartMetricsEntry("prey-count", () => "0", {
         stroke: "#6be39f",
         fill: "rgba(107, 227, 159, 0.16)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-predator-count", "chart-predator-count-live", () => "0", {
+      createChartMetricsEntry("predator-count", () => "0", {
         stroke: "#ff9b70",
         fill: "rgba(255, 155, 112, 0.18)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("chart-prey-eaten", "chart-prey-eaten-live", () => "0", {
+      createChartMetricsEntry("prey-eaten", () => "0", {
         stroke: "#f0cf72",
         fill: "rgba(240, 207, 114, 0.18)",
         axisLabel: "events",
@@ -161,12 +159,10 @@ export const PREY_APPLET_VISUAL = {
     singleColorWrapId: "prey-single-color-wrap",
   },
   section: {
-    colorModeLabel: "Predator Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
       { value: "energy", label: "Predator Energy" },
     ],
-    solidColorLabel: "Predator Color",
     solidColorDefault: "#FF8D5F",
   },
   getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
