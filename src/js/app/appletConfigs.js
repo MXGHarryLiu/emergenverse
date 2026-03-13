@@ -114,8 +114,8 @@ export const APPLET_CONFIGS = Object.fromEntries(
 export const APPLET_META = Object.fromEntries(
   APPLET_ORDER.map((id) => {
     const config = APPLET_DEFINITIONS[id].config;
-    const simulation = config?.right?.simulation ?? {};
-    const stats = config?.left?.stats ?? {};
+    const simulation = config?.simulation ?? {};
+    const stats = config?.stats ?? {};
     return [
       id,
       {

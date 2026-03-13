@@ -25,18 +25,13 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "Describe the applet in plain language.",
         "Put equations and parameter mapping in the model popup.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Short summary of the governing model.",
       references: [{ label: "Wikipedia: Example", url: "https://en.wikipedia.org/wiki/Example" }],
       items: [
@@ -50,10 +45,7 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [{ label: "FPS", valueId: "example-fps-live", initial: "--" }],
       charts: [
         {
@@ -65,16 +57,10 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: { title: "Count", value: "100", min: "10", max: "500", step: "10", valueNum: "100" },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("count", "Count", "bi-people-fill", "count-value", "100", "10", "500", "10", "100", { group: "initial", resetTrendCharts: true }),
         // Optional explicit mapping when slider id does not convert to the desired param key.
         slider(
@@ -98,7 +84,6 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-example-sim",
       resetButtonId: "reset-example-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -136,7 +121,6 @@ export const EXAMPLE_APPLET_VISUAL = {
     singleColorWrapId: "example-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -217,4 +201,8 @@ Required exports for registry auto-discovery in appletConfigs.js:
 - exactly one `*_APPLET_RUNTIME` object
 - exactly one `*_APPLET_VISUAL` object
 */
+
+
+
+
 

@@ -38,18 +38,13 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
         "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Population balance coupled to local chase-and-escape motion.",
       references: [
         { label: "Wikipedia: Lotka-Volterra equations", url: "https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations" },
@@ -84,10 +79,7 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [{ label: "FPS", valueId: "prey-fps-live", initial: "--" }],
       charts: [
         { title: "Prey Count", liveId: "chart-prey-count-live", liveInitial: "0", canvasId: "chart-prey-count", aria: "prey count trend chart" },
@@ -95,16 +87,10 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
         { title: "Predation (cum.)", liveId: "chart-prey-eaten-live", liveInitial: "0", canvasId: "chart-prey-eaten", aria: "predation events trend chart" },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: { title: "Prey Count", value: "260", min: "20", max: "1200", step: "10", valueNum: "260" },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("prey-count", "Prey Count", "bi-circle-fill", "prey-count-value", "260", "20", "1200", "10", "260", { group: "initial", simulationSetter: "setPreyCount", resetTrendCharts: true }),
         slider("predator-count", "Predator Count", "bi-triangle-fill", "predator-count-value", "24", "2", "240", "1", "24", { group: "initial", resetTrendCharts: true }),
         slider("prey-speed", "Prey Speed", "bi-speedometer2", "prey-speed-value", "4.5 m/s", "0.5", "18", "0.1", "4.5", { group: "dynamic" }),
@@ -120,7 +106,6 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-prey-sim",
       resetButtonId: "reset-prey-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -176,7 +161,6 @@ export const PREY_APPLET_VISUAL = {
     singleColorWrapId: "prey-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Predator Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -822,4 +806,8 @@ function ensureVisibleColor(color, minLuminance) {
   );
   return color.lerp(new THREE.Color(1, 1, 1), deficiency * 0.55);
 }
+
+
+
+
 

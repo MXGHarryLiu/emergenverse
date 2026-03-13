@@ -262,7 +262,7 @@ function setupModelInfoPopup(dom, getActiveApplet) {
   };
 
   const renderModelContent = (appletId) => {
-    const modelConfig = APPLET_CONFIGS[appletId]?.left?.model;
+    const modelConfig = APPLET_CONFIGS[appletId]?.model;
     dom.modelInfoTitle.textContent = "Model Equations";
     dom.modelInfoBody.innerHTML = "";
 

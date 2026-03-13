@@ -457,6 +457,7 @@ function refreshAppletLegend(appletId = activeApplet) {
 
 const compactRangeRegistry = new Map();
 const compactSectionState = {};
+let isClearingCompactControls = false;
 const APPLET_IDS = new Set(APPLET_ORDER);
 const ROUTING_OPTIONS = {
   validAppletIds: APPLET_IDS,
@@ -923,7 +924,7 @@ function setupControls() {
 
 function bindAppletSimulationControls() {
   APPLET_ORDER.forEach((appletId) => {
-    const simulationConfig = APPLET_CONFIGS[appletId]?.right?.simulation;
+    const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
     const sliders = simulationConfig?.sliders;
     const selects = simulationConfig?.selects;
 
@@ -1405,7 +1406,7 @@ function getNumericPrecision(value) {
 }
 
 function applySimulationDefaultsForApplet(appletId) {
-  const simulationConfig = APPLET_CONFIGS[appletId]?.right?.simulation;
+  const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
   const sliders = simulationConfig?.sliders;
   const selects = simulationConfig?.selects;
 
@@ -2396,9 +2397,12 @@ function setupCompactSectionSliders() {
       slider,
       title,
       value,
+      defaultTitleText: title.textContent || "",
+      defaultValueText: value.textContent || "",
       activeInputId: null,
       firstInputId: null,
     };
+    hub.classList.add("is-hidden");
 
     slider.addEventListener("input", () => {
       const activeInputId = compactSectionState[sectionKey].activeInputId;
@@ -2441,6 +2445,7 @@ function setupRangeFocusEscape() {
     }
 
     blurFocusedRange();
+    clearActiveCompactRangeControls();
   }, true);
 }
 
@@ -2552,6 +2557,9 @@ function registerCompactRangeControl(inputRef, outputRef) {
       return;
     }
     commitCompactValueEdit(binding);
+    if (binding.input.id === compactSectionState[binding.sectionKey]?.activeInputId) {
+      clearActiveCompactRangeControls();
+    }
   });
   output.addEventListener("keydown", (event) => {
     const binding = compactRangeRegistry.get(input.id);
@@ -2574,11 +2582,9 @@ function registerCompactRangeControl(inputRef, outputRef) {
     }
   });
 
-  if (!sectionState.activeInputId) {
-    activateCompactRangeControl(input.id);
-  } else {
-    syncCompactSectionSlider(input.id);
-  }
+  setCompactValueEditable(compactRangeRegistry.get(input.id), false);
+  restoreCompactValueDisplay(compactRangeRegistry.get(input.id));
+  syncCompactSectionSlider(input.id);
 }
 
 function activateCompactRangeControl(inputId) {
@@ -2592,7 +2598,9 @@ function activateCompactRangeControl(inputId) {
     return;
   }
 
+  clearActiveCompactRangeControls({ keepInputId: inputId });
   sectionState.activeInputId = inputId;
+  sectionState.hub.classList.remove("is-hidden");
   if (binding.labelTitleNode) {
     sectionState.title.replaceChildren(binding.labelTitleNode.cloneNode(true));
   } else {
@@ -2608,13 +2616,11 @@ function activateCompactRangeControl(inputId) {
   }
 
   for (const item of compactRangeRegistry.values()) {
-    if (item.sectionKey === binding.sectionKey) {
-      const isActive = item.input.id === inputId;
-      item.output.classList.toggle("is-active-control", isActive);
-      setCompactValueEditable(item, isActive);
-      if (!isActive) {
-        restoreCompactValueDisplay(item);
-      }
+    const isActive = item.input.id === inputId;
+    item.output.classList.toggle("is-active-control", isActive);
+    setCompactValueEditable(item, isActive);
+    if (!isActive) {
+      restoreCompactValueDisplay(item);
     }
   }
 
@@ -2622,14 +2628,48 @@ function activateCompactRangeControl(inputId) {
 }
 
 function resetCompactSectionDefaults() {
-  Object.values(compactSectionState).forEach((sectionState) => {
-    const firstInputId = getFirstCompactRangeInputId(sectionState?.sectionKey) || sectionState?.firstInputId;
-    if (!firstInputId) {
-      return;
+  clearActiveCompactRangeControls();
+}
+
+function clearActiveCompactRangeControls(options = {}) {
+  if (isClearingCompactControls) {
+    return;
+  }
+  isClearingCompactControls = true;
+  const keepInputId = options.keepInputId || null;
+  try {
+    for (const item of compactRangeRegistry.values()) {
+      const shouldKeep = keepInputId && item.input.id === keepInputId;
+      if (!shouldKeep && isCompactValueEditable(item)) {
+        item.output.blur();
+      }
+      if (!shouldKeep) {
+        item.output.classList.remove("is-active-control");
+        setCompactValueEditable(item, false);
+        restoreCompactValueDisplay(item);
+      }
     }
-    sectionState.firstInputId = firstInputId;
-    activateCompactRangeControl(firstInputId);
-  });
+
+    Object.values(compactSectionState).forEach((sectionState) => {
+      if (!sectionState) {
+        return;
+      }
+      const shouldKeep = keepInputId && sectionState.activeInputId === keepInputId;
+      if (shouldKeep) {
+        return;
+      }
+      sectionState.activeInputId = null;
+      if (sectionState.defaultTitleText) {
+        sectionState.title.textContent = sectionState.defaultTitleText;
+      }
+      if (sectionState.defaultValueText) {
+        sectionState.value.textContent = sectionState.defaultValueText;
+      }
+      sectionState.hub.classList.add("is-hidden");
+    });
+  } finally {
+    isClearingCompactControls = false;
+  }
 }
 
 function syncCompactSectionSlider(inputId) {

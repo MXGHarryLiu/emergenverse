@@ -72,7 +72,10 @@ export function defineAppletConfig(config) {
       unitLabel: worldLengthUnit.name,
     },
     units: config.units ?? null,
-    left: config.left ?? {},
-    right: config.right ?? {},
+    intro: config.intro ?? config.left?.intro ?? null,
+    model: config.model ?? config.left?.model ?? null,
+    stats: config.stats ?? config.left?.stats ?? null,
+    simulation: config.simulation ?? config.right?.simulation ?? null,
+    interaction: config.interaction ?? config.right?.interaction ?? null,
   };
 }

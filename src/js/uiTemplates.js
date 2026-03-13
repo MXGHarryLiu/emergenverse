@@ -10,6 +10,14 @@ const SUPPORTED_SECTION_TITLES = Object.freeze({
   visual: "Visual",
 });
 
+const SUPPORTED_SECTION_ICONS = Object.freeze({
+  introduction: "bi-journal-text",
+  stats: "bi-bar-chart-line-fill",
+  simulation: "bi-sliders2",
+  interaction: "bi-hand-index-thumb",
+  visual: "bi-palette",
+});
+
 // Public renderer
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
@@ -41,17 +49,17 @@ export function renderAppletSectionsFromConfig() {
       return;
     }
 
-    if (config.left?.intro) {
-      leftFragment.appendChild(buildIntroSection(config.left.intro, config.left.model, appletId, templates));
+    if (config.intro) {
+      leftFragment.appendChild(buildIntroSection(config.intro, config.model, appletId, templates));
     }
-    if (config.left?.stats) {
-      leftFragment.appendChild(buildStatsSection(config.left.stats, appletId, templates));
+    if (config.stats) {
+      leftFragment.appendChild(buildStatsSection(config.stats, appletId, templates));
     }
-    if (config.right?.simulation) {
-      rightFragment.appendChild(buildSimulationSection(config.right.simulation, appletId, templates));
+    if (config.simulation) {
+      rightFragment.appendChild(buildSimulationSection(config.simulation, appletId, templates));
     }
-    if (config.right?.interaction) {
-      rightFragment.appendChild(buildInteractionSection(config.right.interaction, appletId, templates));
+    if (config.interaction) {
+      rightFragment.appendChild(buildInteractionSection(config.interaction, appletId, templates));
     }
 
     const visualAdapter = APPLET_VISUALS[appletId];
@@ -85,13 +93,12 @@ function removeGeneratedAppletSections(panel) {
 
 // Section shell builder
 function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
-  const sectionKey = normalizeSectionKey(sectionConfig?.sectionKey);
+  const sectionKey = normalizeSectionKey(options.sectionKey || sectionConfig?.sectionKey);
   const sectionTitle = getSectionTitle(sectionKey);
   const section = templates.section.content.firstElementChild.cloneNode(true);
   section.setAttribute("data-control-section", getScopedSectionKey(appletId, sectionKey));
   section.setAttribute("data-app-visible", appletId);
   section.setAttribute("data-generated-applet-section", "true");
-  section.classList.toggle("is-hidden", Boolean(sectionConfig.hidden));
   if (sectionConfig.className) {
     section.classList.add(...sectionConfig.className.split(/\s+/).filter(Boolean));
   }
@@ -103,7 +110,7 @@ function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   );
 
   const titleIcon = section.querySelector("[data-section-title-icon]");
-  titleIcon.className = `${sectionConfig.icon} panel-head-icon`;
+  titleIcon.className = `${getSectionIcon(sectionKey)} panel-head-icon`;
   const titleText = section.querySelector("[data-section-title-text]");
   titleText.textContent = sectionTitle;
 
@@ -117,6 +124,7 @@ function getSectionBody(section) {
 // Intro section
 function buildIntroSection(introConfig, modelConfig, appletId, templates) {
   const section = buildSectionShell(introConfig, appletId, templates, {
+    sectionKey: "introduction",
     toggleAriaLabel: `Toggle ${appletId} introduction section`,
   });
   const body = getSectionBody(section);
@@ -135,7 +143,7 @@ function buildIntroSection(introConfig, modelConfig, appletId, templates) {
     button.type = "button";
     button.className = "btn btn-sm btn-outline-theme mt-3";
     button.setAttribute("data-model-info-open", appletId);
-    button.textContent = modelConfig.buttonLabel || "Open Model Equations";
+    button.textContent = "Open Model Equations";
     tipsBox.appendChild(button);
     body.appendChild(tipsBox);
   }
@@ -146,6 +154,7 @@ function buildIntroSection(introConfig, modelConfig, appletId, templates) {
 // Stats section
 function buildStatsSection(statsConfig, appletId, templates) {
   const section = buildSectionShell(statsConfig, appletId, templates, {
+    sectionKey: "stats",
     toggleAriaLabel: `Toggle ${appletId} stats section`,
   });
   const body = getSectionBody(section);
@@ -191,8 +200,9 @@ function buildStatsSection(statsConfig, appletId, templates) {
 
 // Simulation section
 function buildSimulationSection(simConfig, appletId, templates) {
-  const simulationSectionKey = normalizeSectionKey(simConfig?.sectionKey);
+  const simulationSectionKey = "simulation";
   const section = buildSectionShell(simConfig, appletId, templates, {
+    sectionKey: simulationSectionKey,
     toggleAriaLabel: `Toggle ${appletId} simulation controls`,
   });
   const body = getSectionBody(section);
@@ -497,8 +507,9 @@ function createSimulationActionRow(simConfig) {
 
 // Interaction section
 function buildInteractionSection(interactionConfig, appletId, templates) {
-  const interactionSectionKey = normalizeSectionKey(interactionConfig?.sectionKey);
+  const interactionSectionKey = "interaction";
   const section = buildSectionShell(interactionConfig, appletId, templates, {
+    sectionKey: interactionSectionKey,
     toggleAriaLabel: `Toggle ${appletId} interaction controls`,
   });
   const body = getSectionBody(section);
@@ -570,10 +581,9 @@ function createInteractionSwitchRow(switchConfig, index) {
 function buildVisualSection(appletId, visualAdapter, templates) {
   const sectionConfig = {
     sectionKey: "visual",
-    icon: "bi-palette",
-    hidden: Boolean(visualAdapter?.section?.hidden),
   };
   const section = buildSectionShell(sectionConfig, appletId, templates, {
+    sectionKey: "visual",
     toggleAriaLabel: `Toggle ${appletId} visual controls`,
   });
   const body = getSectionBody(section);
@@ -755,4 +765,15 @@ function getSectionTitle(sectionKey) {
     );
   }
   return title;
+}
+
+function getSectionIcon(sectionKey) {
+  const normalizedKey = normalizeSectionKey(sectionKey);
+  const icon = SUPPORTED_SECTION_ICONS[normalizedKey];
+  if (!icon) {
+    throw new Error(
+      `Unsupported sectionKey "${sectionKey}" for icons. Supported keys: ${Object.keys(SUPPORTED_SECTION_ICONS).join(", ")}`,
+    );
+  }
+  return icon;
 }

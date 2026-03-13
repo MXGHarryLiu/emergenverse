@@ -37,18 +37,13 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
     range: { minX: 60, maxX: 220, minY: 60, maxY: 220, minZ: 60, maxZ: 220, step: 2 },
     gridSize: 10,
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "This applet models a sand bed as square columns that exchange sediment under steady wind. Wind moves grains downwind, while steep faces relax through avalanching.",
         "Open the model equations view for the transport rule, the avalanche threshold, and the control mapping.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Discrete height-field dunes with wind transport and repose-limited avalanches.",
       references: [
         { label: "Wikipedia: Aeolian processes", url: "https://en.wikipedia.org/wiki/Aeolian_processes" },
@@ -93,10 +88,7 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [
         { label: "FPS", valueId: "dune-fps-live", initial: "--" },
         { label: "Avalanches", valueId: "dune-avalanche-live", initial: "0" },
@@ -107,18 +99,12 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
         { title: "Transport", liveId: "chart-dune-transport-live", liveInitial: "0.00 m/s", canvasId: "chart-dune-transport", aria: "dune transport trend chart" },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: { title: "Object Visual Size", value: "5.0 m", min: "0.5", max: "20.0", step: "0.1", valueNum: "5.0" },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "5.0 m", "0.5", "20.0", "0.1", "5.0", { group: "initial", paramKey: "objectSizeM", simulationAction: "reset", resetTrendCharts: true }),
-        slider("height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "height-scale-value", "1.80x", "0.5", "4.0", "0.05", "1.8", { group: "dynamic" }),
+        slider("height-scale", "Vertical Exaggeration", "bi-bar-chart-steps", "height-scale-value", "1.80", "0.5", "4.0", "0.05", "1.8", { group: "dynamic" }),
         slider("wind-direction", "Wind Direction", "bi-compass", "wind-direction-value", "20°", "-180", "180", "1", "20", { group: "dynamic", paramKey: "windDirectionDeg" }),
         slider("wind-strength", "Wind Strength", "bi-wind", "wind-strength-value", "0.90", "0.0", "3.0", "0.05", "0.9", { group: "dynamic" }),
         slider("transport-rate", "Transport Rate", "bi-arrow-left-right", "transport-rate-value", "0.28", "0.0", "1.5", "0.02", "0.28", { group: "dynamic" }),
@@ -131,7 +117,6 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-dune-sim",
       resetButtonId: "reset-dune-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -187,7 +172,6 @@ export const DUNE_APPLET_VISUAL = {
     singleColorWrapId: "dune-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -615,4 +599,8 @@ function ensureVisibleColor(color, minLuminance) {
   );
   return color.lerp(duneWhite, deficiency * 0.55);
 }
+
+
+
+
 

@@ -31,17 +31,13 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
+  intro: {
       paragraphs: [
         "This applet shows flocking as a local coordination process. Each boid responds to nearby neighbors, and large-scale group motion emerges from those simple local interactions.",
         "Open the model equations view for the update rules and the parameter-to-equation mapping.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       references: [
         { label: "Wikipedia: Boids", url: "https://en.wikipedia.org/wiki/Boids" },
       ],
@@ -66,9 +62,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
+  stats: {
       stats: [{ label: "FPS", valueId: "fps-live", initial: "--" }],
       charts: [
         { title: "Counts", liveId: "chart-count-live", liveInitial: "0", canvasId: "chart-count", aria: "count trend chart" },
@@ -76,11 +70,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
         { title: "Neighbors", liveId: "chart-neighbors-live", liveInitial: "0.00", canvasId: "chart-neighbors", aria: "neighbor trend chart" },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
+  simulation: {
       sliderHub: {
         title: "Count",
         value: "220",
@@ -90,7 +80,7 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
         valueNum: "220",
       },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("count", "Count", "bi-people-fill", "count-value", "220", "30", "650", "10", "220", { group: "initial", resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.5 m", "0.1", "1.0", "0.1", "0.5", { group: "dynamic" }),
         slider("perception-radius", "Perception Radius", "bi-eye-fill", "perception-radius-value", "18.0 m", "2", "60", "0.5", "18", { group: "dynamic" }),
@@ -105,7 +95,6 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-sim",
       resetButtonId: "reset-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -162,7 +151,6 @@ export const BOID_APPLET_VISUAL = {
     singleColorWrapId: "single-color-wrap",
   },
   section: {
-    hidden: false,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -220,7 +208,6 @@ export const BOID_APPLET_VISUAL = {
   },
 };
 
-// File-local constants and helpers.
 // Simulation implementation.
 export class BoidSimulation extends BaseSimulation {
   static APPLET_ID = "boid";
@@ -702,4 +689,8 @@ function randomDirection() {
 
   return direction.normalize();
 }
+
+
+
+
 

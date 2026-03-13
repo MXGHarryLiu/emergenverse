@@ -69,18 +69,13 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       toSI: GALAXY_UNITS.length.toSI,
     },
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "This applet shows a self-gravitating 3D particle cloud. Matter pulls inward while initial orbital motion shapes large-scale structure over time.",
         "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Softened gravitational interaction in a 3D volume (light years, solar masses, Myr).",
       references: [
         { label: "Wikipedia: N-body simulation", url: "https://en.wikipedia.org/wiki/N-body_simulation" },
@@ -110,10 +105,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [{ label: "FPS", valueId: "galaxy-fps-live", initial: "--" }],
       charts: [
         { title: "Count", liveId: "chart-galaxy-count-live", liveInitial: "0", canvasId: "chart-galaxy-count", aria: "galaxy count trend chart" },
@@ -121,13 +113,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         { title: "Mean Speed", liveId: "chart-galaxy-speed-live", liveInitial: `0 ${GALAXY_SPEED_UNIT}`, canvasId: "chart-galaxy-speed", aria: "galaxy mean speed trend chart" },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: { title: "Count", value: "1000", min: "50", max: "5000", step: "10", valueNum: "1000" },
       selects: [
         selectControl(
@@ -140,7 +126,7 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         ),
       ],
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("count", "Count", "bi-people-fill", "count-value", "1000", "50", "5000", "10", "1000", { group: "initial", resetTrendCharts: true }),
         slider("initial-radius", "Initial Radius", "bi-bounding-box", "initial-radius-value", `120000 ${GALAXY_UNITS.length.label}`, "2000", "350000", "1000", "120000", { group: "initial", simulationAction: "reset", resetTrendCharts: true, paramKey: "initialRadius" }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", `750 ${GALAXY_UNITS.length.label}`, "80", "2000", "20", "750", { group: "dynamic", paramKey: "particleSize" }),
@@ -153,7 +139,6 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-galaxy-sim",
       resetButtonId: "reset-galaxy-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -208,7 +193,6 @@ export const GALAXY_APPLET_VISUAL = {
     singleColorWrapId: "galaxy-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -716,4 +700,8 @@ function randomPointInUnitSphere() {
   }
   return randomDirection3D().multiplyScalar(Math.cbrt(Math.random()));
 }
+
+
+
+
 

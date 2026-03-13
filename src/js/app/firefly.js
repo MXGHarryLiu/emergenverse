@@ -29,18 +29,13 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
     range: { minX: 40, maxX: 320, minY: 40, maxY: 320, minZ: 30, maxZ: 260, step: 2 },
     gridSize: 5,
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
         "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Local oscillator coupling with blink resets and a global order parameter.",
       references: [
         { label: "Wikipedia: Kuramoto model", url: "https://en.wikipedia.org/wiki/Kuramoto_model" },
@@ -68,10 +63,7 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [{ label: "FPS", valueId: "firefly-fps-live", initial: "--" }],
       charts: [
         { title: "Count", liveId: "chart-firefly-count-live", liveInitial: "0", canvasId: "chart-firefly-count", aria: "firefly count trend chart" },
@@ -79,16 +71,10 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
         { title: "Blink Rate", liveId: "chart-firefly-blink-live", liveInitial: "0.0 /s", canvasId: "chart-firefly-blink", aria: "firefly blink rate trend chart" },
       ],
     },
-  },
-  right: {
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: { title: "Count", value: "180", min: "20", max: "900", step: "10", valueNum: "180" },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0x", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "1.0", "0.1", "10", "0.1", "1.0", { group: "dynamic" }),
         slider("count", "Count", "bi-people-fill", "count-value", "180", "20", "900", "10", "180", { group: "initial", resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.80 m", "0.2", "2.5", "0.05", "0.8", { group: "dynamic", paramKey: "size" }),
         slider("speed", "Speed", "bi-arrow-repeat", "speed-value", "1.2 m/s", "0.1", "4.0", "0.1", "1.2", { group: "dynamic" }),
@@ -102,7 +88,6 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-firefly-sim",
       resetButtonId: "reset-firefly-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -158,7 +143,6 @@ export const FIREFLY_APPLET_VISUAL = {
     singleColorWrapId: "firefly-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -691,4 +675,8 @@ function getFireflyStateColors(name) {
     blink: 0x1f78b4,
   };
 }
+
+
+
+
 

@@ -41,18 +41,13 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
     gridSize: 100,
     lengthUnit: { name: "mm", toSI: 0.001 },
   },
-  left: {
-    intro: {
-      sectionKey: "introduction",
-      icon: "bi-journal-text",
-      hidden: true,
+  intro: {
       paragraphs: [
         "This applet models trail formation from simple foraging behavior. Ants sample local cues, choose a turning direction, and reinforce routes by leaving behind a shared trail field.",
         "Open the model equations view for the motion rule, the heading update, and the trail-field dynamics.",
       ],
     },
-    model: {
-      buttonLabel: "Open Model Equations",
+  model: {
       subtitle: "Agent motion coupled to a trail field on the foraging plane.",
       references: [
         { label: "Wikipedia: Trail pheromone", url: "https://en.wikipedia.org/wiki/Trail_pheromone" },
@@ -88,10 +83,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         },
       ],
     },
-    stats: {
-      sectionKey: "stats",
-      icon: "bi-bar-chart-line-fill",
-      hidden: true,
+  stats: {
       stats: [
         { label: "FPS", valueId: "ants-fps-live", initial: "--" },
         { label: "Carrying", valueId: "ants-carrying-live", initial: "0", labelClass: "ant-carrying-label" },
@@ -102,12 +94,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         { title: "Pheromone", liveId: "chart-ant-pheromone-live", liveInitial: "0.00", canvasId: "chart-ant-pheromone", aria: "ant pheromone trend chart" },
       ],
     },
-  },
-  right: {
-    interaction: {
-      sectionKey: "interaction",
-      icon: "bi-hand-index-thumb",
-      hidden: true,
+  interaction: {
       sliderHub: {
         title: "Food Added Per Click",
         value: "50 ug",
@@ -135,18 +122,13 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
           "100",
           "1",
           "50",
-          { className: "mt-2" },
         ),
       ],
       notes: [
         "Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass.",
       ],
     },
-    simulation: {
-      sectionKey: "simulation",
-      icon: "bi-sliders2",
-      hidden: true,
-      className: "mt-2",
+  simulation: {
       sliderHub: {
         title: "Count",
         value: "120",
@@ -156,7 +138,7 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
         valueNum: "120",
       },
       sliders: [
-        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0x", "0.1", "10", "0.1", "2.0", { group: "dynamic" }),
+        slider("sim-speed", "Simulation Speed", "bi-stopwatch", "sim-speed-value", "2.0", "0.1", "10", "0.1", "2.0", { group: "dynamic" }),
         slider("count", "Count", "bi-people-fill", "count-value", "120", "20", "400", "5", "120", { group: "initial", resetTrendCharts: true }),
         slider("scale", "Object Visual Size", "bi-rulers", "scale-value", "0.030 m", "0.010", "0.050", "0.001", "0.030", { group: "dynamic" }),
         slider("speed", "Speed", "bi-speedometer2", "speed-value", "0.012 m/s", "0.002", "0.040", "0.001", "0.012", { group: "dynamic" }),
@@ -174,7 +156,6 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       defaultButtonId: "default-ant-sim",
       resetButtonId: "reset-ant-sim",
     },
-  },
 });
 
 // Shell runtime hooks.
@@ -239,7 +220,6 @@ export const ANT_APPLET_VISUAL = {
     singleColorWrapId: "ant-single-color-wrap",
   },
   section: {
-    hidden: true,
     colorModeLabel: "Color Mode",
     colorModeOptions: [
       { value: "none", label: "None (single color)" },
@@ -1211,4 +1191,8 @@ function getAntStateColors(name) {
     carrying: 0xfaad42,
   };
 }
+
+
+
+
 
