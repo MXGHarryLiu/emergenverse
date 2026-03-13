@@ -5,9 +5,6 @@ import * as THREE from "three";
 import { defineAppletConfig, slider } from "./appletConfigUtils.js";
 import { BaseSimulation } from "./baseSimulation.js";
 
-// Namespace / registration id for this applet.
-export const APPLET_ID = "example";
-
 // Default applet parameters.
 export const EXAMPLE_DEFAULT_PARAMS = {
   simSpeed: 1.0,
@@ -122,7 +119,7 @@ export const EXAMPLE_APPLET_RUNTIME = {
       return;
     }
     const count = stats.count ?? 0;
-    ui.updateChartMetrics(APPLET_ID, [count], [String(count)]);
+    ui.updateChartMetrics(ExampleSimulation.APPLET_ID, [count], [String(count)]);
   },
   // Optional hook called from app.js after a slider changes.
   // Prefer slider config options first (simulationSetter/simulationAction/resetTrendCharts).
@@ -186,8 +183,10 @@ const EXAMPLE_COLORMAP_STOPS = {
 // Simulation implementation.
 // Extend BaseSimulation to get shared params/app context wiring.
 export class ExampleSimulation extends BaseSimulation {
+  static APPLET_ID = "example";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: APPLET_ID });
+    super({ scene, params, world, onStats });
   }
 
   init() {}

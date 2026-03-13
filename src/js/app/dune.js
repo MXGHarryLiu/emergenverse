@@ -250,8 +250,10 @@ const duneWhite = new THREE.Color(1, 1, 1);
 
 // Simulation implementation.
 export class DuneSimulation extends BaseSimulation {
+  static APPLET_ID = "dune";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: "dune" });
+    super({ scene, params, world, onStats });
 
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshPhongMaterial({

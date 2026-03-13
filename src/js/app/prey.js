@@ -237,8 +237,10 @@ const preyColormapLerpB = new THREE.Color();
 
 // Simulation implementation.
 export class PreySimulation extends BaseSimulation {
+  static APPLET_ID = "prey";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: "prey" });
+    super({ scene, params, world, onStats });
 
     this.preyGeometry = new THREE.SphereGeometry(0.42, 10, 8);
     this.preyMaterial = new THREE.MeshPhongMaterial({

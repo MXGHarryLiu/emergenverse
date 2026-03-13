@@ -8,6 +8,23 @@ export function slider(id, label, icon, valueId, valueText, min, max, step, valu
   return { id, label, icon, valueId, valueText, min, max, step, value, ...options };
 }
 
+export function selectControl(id, label, icon, optionsList, value, options = {}) {
+  // Common options:
+  // - paramKey: explicit params key when id->camelCase inference is not desired
+  // - simulationSetter: explicit simulation method name for control side effects
+  // - simulationAction: auto | reset | sync | none
+  // - group: initial | dynamic | custom
+  // - groupLabel: optional custom group heading label
+  return {
+    id,
+    label,
+    icon,
+    options: Array.isArray(optionsList) ? optionsList : [],
+    value,
+    ...options,
+  };
+}
+
 export function createAppletParams(rootParams, appletId) {
   return new Proxy(rootParams[appletId] ?? {}, {
     get(target, prop) {
@@ -45,6 +62,7 @@ export function defineAppletConfig(config) {
       height: config.camera?.height ?? 80,
       fov: config.camera?.fov ?? 50,
       locked: config.camera?.locked ?? false,
+      controls: config.camera?.controls ?? null,
     },
     world: {
       defaults: config.world?.defaults ?? { x: 100, y: 100, z: 100 },

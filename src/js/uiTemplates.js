@@ -1,6 +1,7 @@
 // Config-driven sidebar template renderer for applet information and controls.
 import { APPLET_CONFIGS, APPLET_ORDER, APPLET_VISUALS } from "./app/appletConfigs.js";
 
+// Section title mapping
 const SUPPORTED_SECTION_TITLES = Object.freeze({
   introduction: "Introduction",
   stats: "Stats",
@@ -9,6 +10,7 @@ const SUPPORTED_SECTION_TITLES = Object.freeze({
   visual: "Visual",
 });
 
+// Public renderer
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
   const rightPanel = document.getElementById("right-panel");
@@ -16,13 +18,7 @@ export function renderAppletSectionsFromConfig() {
     return;
   }
 
-  const templates = {
-    section: document.getElementById("tpl-control-section"),
-    sliderRow: document.getElementById("tpl-slider-row"),
-    chartCard: document.getElementById("tpl-chart-card"),
-    statCard: document.getElementById("tpl-stat-card"),
-    cameraSection: document.getElementById("tpl-camera-section"),
-  };
+  const templates = getTemplateRefs();
   if (!templates.section || !templates.sliderRow || !templates.chartCard || !templates.statCard) {
     return;
   }
@@ -44,6 +40,7 @@ export function renderAppletSectionsFromConfig() {
     if (!config) {
       return;
     }
+
     if (config.left?.intro) {
       leftFragment.appendChild(buildIntroSection(config.left.intro, config.left.model, appletId, templates));
     }
@@ -56,20 +53,28 @@ export function renderAppletSectionsFromConfig() {
     if (config.right?.interaction) {
       rightFragment.appendChild(buildInteractionSection(config.right.interaction, appletId, templates));
     }
+
     const visualAdapter = APPLET_VISUALS[appletId];
     if (visualAdapter?.section) {
       rightFragment.appendChild(buildVisualSection(appletId, visualAdapter, templates));
     }
   });
 
-  if (leftAnchor.parentNode) {
-    leftAnchor.parentNode.insertBefore(leftFragment, leftAnchor.nextSibling);
-  }
-  if (rightAnchor.parentNode) {
-    rightAnchor.parentNode.insertBefore(rightFragment, rightAnchor.nextSibling);
-  }
+  leftAnchor.parentNode?.insertBefore(leftFragment, leftAnchor.nextSibling);
+  rightAnchor.parentNode?.insertBefore(rightFragment, rightAnchor.nextSibling);
 
   renderSharedRightSections(rightPanel, templates);
+}
+
+// Template and panel helpers
+function getTemplateRefs() {
+  return {
+    section: document.getElementById("tpl-control-section"),
+    sliderRow: document.getElementById("tpl-slider-row"),
+    chartCard: document.getElementById("tpl-chart-card"),
+    statCard: document.getElementById("tpl-stat-card"),
+    cameraSection: document.getElementById("tpl-camera-section"),
+  };
 }
 
 function removeGeneratedAppletSections(panel) {
@@ -78,6 +83,7 @@ function removeGeneratedAppletSections(panel) {
   });
 }
 
+// Section shell builder
 function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   const sectionKey = normalizeSectionKey(sectionConfig?.sectionKey);
   const sectionTitle = getSectionTitle(sectionKey);
@@ -104,11 +110,16 @@ function buildSectionShell(sectionConfig, appletId, templates, options = {}) {
   return section;
 }
 
+function getSectionBody(section) {
+  return section.querySelector("[data-control-section-body]");
+}
+
+// Intro section
 function buildIntroSection(introConfig, modelConfig, appletId, templates) {
   const section = buildSectionShell(introConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} introduction section`,
   });
-  const body = section.querySelector("[data-control-section-body]");
+  const body = getSectionBody(section);
 
   introConfig.paragraphs.forEach((paragraph) => {
     const p = document.createElement("p");
@@ -132,11 +143,12 @@ function buildIntroSection(introConfig, modelConfig, appletId, templates) {
   return section;
 }
 
+// Stats section
 function buildStatsSection(statsConfig, appletId, templates) {
   const section = buildSectionShell(statsConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} stats section`,
   });
-  const body = section.querySelector("[data-control-section-body]");
+  const body = getSectionBody(section);
 
   const statGrid = document.createElement("div");
   statGrid.className = "stat-grid mb-3";
@@ -177,87 +189,131 @@ function buildStatsSection(statsConfig, appletId, templates) {
   return section;
 }
 
+// Simulation section
 function buildSimulationSection(simConfig, appletId, templates) {
   const simulationSectionKey = normalizeSectionKey(simConfig?.sectionKey);
   const section = buildSectionShell(simConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} simulation controls`,
   });
-  const body = section.querySelector("[data-control-section-body]");
+  const body = getSectionBody(section);
 
   if (simConfig.sliderHub) {
-    const hub = document.createElement("div");
-    hub.className = "section-slider-hub";
-    hub.setAttribute("data-slider-hub", getScopedSectionKey(appletId, simulationSectionKey));
-    hub.setAttribute("aria-label", `Active ${appletId} slider`);
-    hub.innerHTML = `
-      <div class="section-slider-head">
-        <span class="section-slider-title" data-section-slider-title>${simConfig.sliderHub.title}</span>
-        <span class="section-slider-value" data-section-slider-value>${simConfig.sliderHub.value}</span>
-      </div>
-      <input
-        class="form-range section-active-slider"
-        type="range"
-        data-section-slider
-        min="${simConfig.sliderHub.min}"
-        max="${simConfig.sliderHub.max}"
-        step="${simConfig.sliderHub.step}"
-        value="${simConfig.sliderHub.valueNum}"
-      />
-    `;
-    body.appendChild(hub);
+    body.appendChild(
+      createSliderHub(
+        simConfig.sliderHub,
+        getScopedSectionKey(appletId, simulationSectionKey),
+        `Active ${appletId} slider`,
+      ),
+    );
   }
 
   const sliders = Array.isArray(simConfig.sliders) ? simConfig.sliders : [];
-  const sliderRows = [];
-  const sliderList = document.createElement("div");
-  sliderList.className = "simulation-slider-list";
-  const hasGrouping = sliders.some((slider) => normalizeSliderGroup(slider.group));
-
-  sliders.forEach((slider, index) => {
-    const fragment = templates.sliderRow.content.cloneNode(true);
-    const sliderInputId = getSimulationSliderInputId(appletId, slider);
-    const sliderValueId = getSimulationSliderValueId(appletId, slider);
-    const label = fragment.querySelector("label.form-label");
-    label.setAttribute("for", sliderInputId);
-    const labelName = label.querySelector(".label-name");
-    labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i><span data-slider-label-text></span>`;
-    const labelTextNode = labelName.querySelector("[data-slider-label-text]");
-    if (labelTextNode) {
-      labelTextNode.textContent = slider.label;
-      renderInlineMathIfAvailable(labelTextNode);
-    }
-    const value = label.querySelector(".label-value");
-    value.id = sliderValueId;
-    value.textContent = slider.valueText;
-
-    const input = fragment.querySelector("input.form-range");
-    input.id = sliderInputId;
-    input.min = slider.min;
-    input.max = slider.max;
-    input.step = slider.step;
-    input.value = slider.value;
-
-    const row = document.createElement("div");
-    row.className = "simulation-slider-row";
-    row.appendChild(fragment);
-    sliderRows.push({
-      row,
-      slider,
+  const selects = Array.isArray(simConfig.selects) ? simConfig.selects : [];
+  const controlRows = [];
+  selects.forEach((select, index) => {
+    controlRows.push({
+      row: createSimulationSelectRow(appletId, select),
+      control: select,
       defaultIndex: index,
+      label: String(select.label || select.id || ""),
+      groupKey: normalizeSliderGroup(select.group),
+      groupLabel: select.groupLabel,
+    });
+  });
+  sliders.forEach((slider, index) => {
+    controlRows.push({
+      row: createSliderRow(templates, appletId, slider),
+      control: slider,
+      defaultIndex: selects.length + index,
       label: String(slider.label || slider.id || ""),
       groupKey: normalizeSliderGroup(slider.group),
       groupLabel: slider.groupLabel,
     });
   });
 
+  const sliderList = document.createElement("div");
+  sliderList.className = "simulation-slider-list";
+  const hasGrouping = controlRows.some((entry) => entry.groupKey);
+
   let groupActive = false;
   let alphabetActive = false;
   let orderButtons = [];
 
+  const renderSliderRows = (mode) => {
+    sliderList.replaceChildren();
+
+    if (mode === "alphabet") {
+      controlRows
+        .slice()
+        .sort((a, b) => a.label.localeCompare(b.label))
+        .forEach(({ row }) => sliderList.appendChild(row));
+      return;
+    }
+
+    if (mode === "default") {
+      controlRows
+        .slice()
+        .sort((a, b) => a.defaultIndex - b.defaultIndex)
+        .forEach(({ row }) => sliderList.appendChild(row));
+      return;
+    }
+
+    const grouped = new Map();
+    controlRows
+      .slice()
+      .sort((a, b) => a.defaultIndex - b.defaultIndex)
+      .forEach((entry) => {
+        const key = entry.groupKey || "ungrouped";
+        if (!grouped.has(key)) {
+          grouped.set(key, []);
+        }
+        grouped.get(key).push(entry);
+      });
+
+    const sortedGroups = Array.from(grouped.entries())
+      .map(([groupKey, rows]) => ({
+        groupKey,
+        rows,
+        label: deriveGroupLabel(groupKey, rows),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    sortedGroups.forEach(({ rows, label }) => {
+      const heading = document.createElement("div");
+      heading.className = "small text-uppercase fw-semibold opacity-75 mt-2 mb-1";
+      heading.textContent = label;
+      sliderList.appendChild(heading);
+      rows.forEach(({ row }) => sliderList.appendChild(row));
+    });
+  };
+
+  const resolveOrderMode = () => {
+    if (groupActive) {
+      return "group";
+    }
+    if (alphabetActive) {
+      return "alphabet";
+    }
+    return "default";
+  };
+
+  const updateOrderButtonVisuals = () => {
+    orderButtons.forEach((entry) => {
+      const mode = entry.getAttribute("data-order-mode");
+      const active = mode === "group" ? groupActive : alphabetActive;
+      entry.classList.toggle("btn-theme", active);
+      entry.classList.toggle("btn-outline-theme", !active);
+      entry.setAttribute("aria-pressed", String(active));
+    });
+  };
+
   if (hasGrouping) {
     const controlsRow = document.createElement("div");
-    controlsRow.className = "d-flex justify-content-end mt-0 mb-1";
+    controlsRow.className = "simulation-meta-row d-flex align-items-center justify-content-between mt-0 mb-1";
     controlsRow.innerHTML = `
+      <div class="simulation-unit-badge" aria-label="Simulation units">
+        ${buildSimulationUnitsBadge(appletId)}
+      </div>
       <div class="btn-group simulation-order-toggle" role="group" aria-label="Simulation parameter order">
         <button type="button" class="btn btn-theme simulation-order-btn" data-order-mode="group" aria-pressed="true" aria-label="Group order" title="Group order">
           <i class="bi bi-collection" aria-hidden="true"></i>
@@ -294,11 +350,128 @@ function buildSimulationSection(simConfig, appletId, templates) {
     updateOrderButtonVisuals();
     renderSliderRows(resolveOrderMode());
   } else {
-    sliderRows.forEach(({ row }) => sliderList.appendChild(row));
+    const controlsRow = document.createElement("div");
+    controlsRow.className = "simulation-meta-row d-flex align-items-center justify-content-start mt-0 mb-1";
+    controlsRow.innerHTML = `
+      <div class="simulation-unit-badge" aria-label="Simulation units">
+        ${buildSimulationUnitsBadge(appletId)}
+      </div>
+    `;
+    body.appendChild(controlsRow);
+    controlRows.forEach(({ row }) => sliderList.appendChild(row));
   }
 
   body.appendChild(sliderList);
+  body.appendChild(createSimulationActionRow(simConfig));
 
+  return section;
+}
+
+function createSimulationSelectRow(appletId, selectConfig) {
+  const row = document.createElement("div");
+  row.className = "simulation-slider-row";
+
+  const label = document.createElement("label");
+  label.className = "form-label";
+  const inputId = getSimulationSelectInputId(appletId, selectConfig);
+  label.setAttribute("for", inputId);
+
+  const labelName = document.createElement("span");
+  labelName.className = "label-name";
+  const iconClass = selectConfig.icon || "bi bi-sliders";
+  labelName.innerHTML = `<i class="${iconClass}" aria-hidden="true"></i><span data-select-label-text></span>`;
+  const labelTextNode = labelName.querySelector("[data-select-label-text]");
+  if (labelTextNode) {
+    labelTextNode.textContent = selectConfig.label || "";
+    renderInlineMathIfAvailable(labelTextNode);
+  }
+  label.appendChild(labelName);
+  row.appendChild(label);
+
+  const select = document.createElement("select");
+  select.className = "form-select form-select-sm theme-select";
+  select.id = inputId;
+  (Array.isArray(selectConfig.options) ? selectConfig.options : []).forEach((optionConfig) => {
+    const option = document.createElement("option");
+    option.value = String(optionConfig.value);
+    option.textContent = String(optionConfig.label);
+    select.appendChild(option);
+  });
+  if (selectConfig.value !== undefined && selectConfig.value !== null) {
+    select.value = String(selectConfig.value);
+  }
+  row.appendChild(select);
+
+  return row;
+}
+
+function createSliderHub(hubConfig, hubKey, ariaLabel) {
+  const hub = document.createElement("div");
+  hub.className = "section-slider-hub";
+  hub.setAttribute("data-slider-hub", hubKey);
+  hub.setAttribute("aria-label", ariaLabel);
+  hub.innerHTML = `
+    <div class="section-slider-head">
+      <span class="section-slider-title" data-section-slider-title>${hubConfig.title}</span>
+      <span class="section-slider-value" data-section-slider-value>${hubConfig.value}</span>
+    </div>
+    <input
+      class="form-range section-active-slider"
+      type="range"
+      data-section-slider
+      min="${hubConfig.min}"
+      max="${hubConfig.max}"
+      step="${hubConfig.step}"
+      value="${hubConfig.valueNum}"
+    />
+  `;
+  return hub;
+}
+
+function createSliderRow(templates, appletId, slider, options = {}) {
+  const fragment = templates.sliderRow.content.cloneNode(true);
+  const sliderInputId = options.inputId || getSimulationSliderInputId(appletId, slider);
+  const sliderValueId = options.valueId || getSimulationSliderValueId(appletId, slider);
+
+  const label = fragment.querySelector("label.form-label");
+  if (slider.className) {
+    label.classList.add(...slider.className.split(/\s+/).filter(Boolean));
+  }
+  label.setAttribute("for", sliderInputId);
+
+  const labelName = label.querySelector(".label-name");
+  labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i><span data-slider-label-text></span>`;
+  const labelTextNode = labelName.querySelector("[data-slider-label-text]");
+  if (labelTextNode) {
+    labelTextNode.textContent = slider.label;
+    if (options.renderMath !== false) {
+      renderInlineMathIfAvailable(labelTextNode);
+    }
+  }
+
+  const value = label.querySelector(".label-value");
+  value.id = sliderValueId;
+  value.textContent = slider.valueText;
+
+  const input = fragment.querySelector("input.form-range");
+  input.id = sliderInputId;
+  input.min = slider.min;
+  input.max = slider.max;
+  input.step = slider.step;
+  input.value = slider.value;
+
+  const wrapSimulationRow = options.wrapSimulationRow !== false;
+  if (wrapSimulationRow) {
+    const row = document.createElement("div");
+    row.className = "simulation-slider-row";
+    row.appendChild(fragment);
+    return row;
+  }
+
+  return fragment;
+}
+
+function createSimulationActionRow(simConfig) {
   const actions = document.createElement("div");
   actions.className = "d-flex gap-2 mt-3 simulation-action-row";
   actions.innerHTML = `
@@ -319,212 +492,38 @@ function buildSimulationSection(simConfig, appletId, templates) {
       <span>Reset</span>
     </button>
   `;
-  body.appendChild(actions);
-
-  return section;
-
-  function renderSliderRows(mode) {
-    sliderList.replaceChildren();
-
-    if (mode === "alphabet") {
-      sliderRows
-        .slice()
-        .sort((a, b) => a.label.localeCompare(b.label))
-        .forEach(({ row }) => sliderList.appendChild(row));
-      return;
-    }
-
-    if (mode === "default") {
-      sliderRows
-        .slice()
-        .sort((a, b) => a.defaultIndex - b.defaultIndex)
-        .forEach(({ row }) => sliderList.appendChild(row));
-      return;
-    }
-
-    const grouped = new Map();
-    sliderRows
-      .slice()
-      .sort((a, b) => a.defaultIndex - b.defaultIndex)
-      .forEach((entry) => {
-        const key = entry.groupKey || "ungrouped";
-        if (!grouped.has(key)) {
-          grouped.set(key, []);
-        }
-        grouped.get(key).push(entry);
-      });
-
-    const sortedGroups = Array.from(grouped.entries())
-      .map(([groupKey, rows]) => ({
-        groupKey,
-        rows,
-        label: deriveGroupLabel(groupKey, rows),
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    sortedGroups.forEach(({ rows, label }) => {
-      const heading = document.createElement("div");
-      heading.className = "small text-uppercase fw-semibold opacity-75 mt-2 mb-1";
-      heading.textContent = label;
-      sliderList.appendChild(heading);
-      rows.forEach(({ row }) => sliderList.appendChild(row));
-    });
-  }
-
-  function resolveOrderMode() {
-    if (groupActive) {
-      return "group";
-    }
-    if (alphabetActive) {
-      return "alphabet";
-    }
-    return "default";
-  }
-
-  function updateOrderButtonVisuals() {
-    orderButtons.forEach((entry) => {
-      const mode = entry.getAttribute("data-order-mode");
-      const active = mode === "group" ? groupActive : alphabetActive;
-      entry.classList.toggle("btn-theme", active);
-      entry.classList.toggle("btn-outline-theme", !active);
-      entry.setAttribute("aria-pressed", String(active));
-    });
-  }
+  return actions;
 }
 
-function normalizeSliderGroup(group) {
-  if (typeof group !== "string") {
-    return null;
-  }
-  const normalized = group.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : null;
-}
-
-function getSimulationSliderInputId(appletId, slider) {
-  return `${appletId}-${slider.id}`;
-}
-
-function getSimulationSliderValueId(appletId, slider) {
-  return `${appletId}-${slider.valueId}`;
-}
-
-function deriveGroupLabel(groupKey, rows) {
-  const customLabel = rows.find((entry) => typeof entry.groupLabel === "string" && entry.groupLabel.trim().length > 0)?.groupLabel;
-  if (customLabel) {
-    return customLabel;
-  }
-  if (groupKey === "initial") {
-    return "Initialization";
-  }
-  if (groupKey === "dynamic") {
-    return "Dynamics";
-  }
-  if (groupKey === "ungrouped") {
-    return "Other";
-  }
-
-  return groupKey
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
-    .join(" ");
-}
-
-function renderInlineMathIfAvailable(node) {
-  if (!node || typeof window === "undefined") {
-    return;
-  }
-  if (typeof window.renderMathInElement !== "function") {
-    return;
-  }
-  window.renderMathInElement(node, {
-    delimiters: [
-      { left: "\\(", right: "\\)", display: false },
-    ],
-    throwOnError: false,
-  });
-}
-
+// Interaction section
 function buildInteractionSection(interactionConfig, appletId, templates) {
   const interactionSectionKey = normalizeSectionKey(interactionConfig?.sectionKey);
   const section = buildSectionShell(interactionConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} interaction controls`,
   });
-  const body = section.querySelector("[data-control-section-body]");
+  const body = getSectionBody(section);
 
   if (interactionConfig.sliderHub) {
-    const hub = document.createElement("div");
-    hub.className = "section-slider-hub";
-    hub.setAttribute("data-slider-hub", getScopedSectionKey(appletId, interactionSectionKey));
-    hub.setAttribute("aria-label", `Active ${appletId} interaction slider`);
-    hub.innerHTML = `
-      <div class="section-slider-head">
-        <span class="section-slider-title" data-section-slider-title>${interactionConfig.sliderHub.title}</span>
-        <span class="section-slider-value" data-section-slider-value>${interactionConfig.sliderHub.value}</span>
-      </div>
-      <input
-        class="form-range section-active-slider"
-        type="range"
-        data-section-slider
-        min="${interactionConfig.sliderHub.min}"
-        max="${interactionConfig.sliderHub.max}"
-        step="${interactionConfig.sliderHub.step}"
-        value="${interactionConfig.sliderHub.valueNum}"
-      />
-    `;
-    body.appendChild(hub);
+    body.appendChild(
+      createSliderHub(
+        interactionConfig.sliderHub,
+        getScopedSectionKey(appletId, interactionSectionKey),
+        `Active ${appletId} interaction slider`,
+      ),
+    );
   }
 
   (interactionConfig.switches || []).forEach((switchConfig, index) => {
-    const row = document.createElement("div");
-    row.className = `form-label${index > 0 ? " mt-2" : ""}`;
-
-    const labelName = document.createElement("span");
-    labelName.className = "label-name";
-    labelName.innerHTML = `
-      <i class="${switchConfig.icon || "bi bi-toggle-on"}" aria-hidden="true"></i>
-      <span>${switchConfig.label || ""}</span>
-    `;
-
-    const switchWrap = document.createElement("div");
-    switchWrap.className = "form-check form-switch m-0";
-
-    const input = document.createElement("input");
-    input.className = "form-check-input";
-    input.type = "checkbox";
-    input.setAttribute("role", "switch");
-    input.id = switchConfig.id;
-    input.checked = Boolean(switchConfig.checked);
-    if (switchConfig.label) {
-      input.setAttribute("aria-label", switchConfig.label);
-    }
-
-    switchWrap.appendChild(input);
-    row.appendChild(labelName);
-    row.appendChild(switchWrap);
-    body.appendChild(row);
+    body.appendChild(createInteractionSwitchRow(switchConfig, index));
   });
 
   (interactionConfig.sliders || []).forEach((slider) => {
-    const fragment = templates.sliderRow.content.cloneNode(true);
-    const label = fragment.querySelector("label.form-label");
-    if (slider.className) {
-      label.classList.add(...slider.className.split(/\s+/).filter(Boolean));
-    }
-    label.setAttribute("for", slider.id);
-    const labelName = label.querySelector(".label-name");
-    labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i>${slider.label}`;
-    const value = label.querySelector(".label-value");
-    value.id = slider.valueId;
-    value.textContent = slider.valueText;
-
-    const input = fragment.querySelector("input.form-range");
-    input.id = slider.id;
-    input.min = slider.min;
-    input.max = slider.max;
-    input.step = slider.step;
-    input.value = slider.value;
-    body.appendChild(fragment);
+    body.appendChild(createSliderRow(templates, appletId, slider, {
+      inputId: slider.id,
+      valueId: slider.valueId,
+      renderMath: true,
+      wrapSimulationRow: false,
+    }));
   });
 
   (interactionConfig.notes || []).forEach((note, index) => {
@@ -537,17 +536,47 @@ function buildInteractionSection(interactionConfig, appletId, templates) {
   return section;
 }
 
+function createInteractionSwitchRow(switchConfig, index) {
+  const row = document.createElement("div");
+  row.className = `form-label${index > 0 ? " mt-2" : ""}`;
+
+  const labelName = document.createElement("span");
+  labelName.className = "label-name";
+  labelName.innerHTML = `
+    <i class="${switchConfig.icon || "bi bi-toggle-on"}" aria-hidden="true"></i>
+    <span>${switchConfig.label || ""}</span>
+  `;
+
+  const switchWrap = document.createElement("div");
+  switchWrap.className = "form-check form-switch m-0";
+
+  const input = document.createElement("input");
+  input.className = "form-check-input";
+  input.type = "checkbox";
+  input.setAttribute("role", "switch");
+  input.id = switchConfig.id;
+  input.checked = Boolean(switchConfig.checked);
+  if (switchConfig.label) {
+    input.setAttribute("aria-label", switchConfig.label);
+  }
+
+  switchWrap.appendChild(input);
+  row.appendChild(labelName);
+  row.appendChild(switchWrap);
+  return row;
+}
+
+// Visual section
 function buildVisualSection(appletId, visualAdapter, templates) {
   const sectionConfig = {
     sectionKey: "visual",
-    title: "Visual",
     icon: "bi-palette",
     hidden: Boolean(visualAdapter?.section?.hidden),
   };
   const section = buildSectionShell(sectionConfig, appletId, templates, {
     toggleAriaLabel: `Toggle ${appletId} visual controls`,
   });
-  const body = section.querySelector("[data-control-section-body]");
+  const body = getSectionBody(section);
   const controls = visualAdapter?.controls || {};
   const meta = visualAdapter?.section || {};
   const colorModeId = controls.colorModeId;
@@ -609,6 +638,102 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   return section;
 }
 
+// Shared right-panel section
+function renderSharedRightSections(rightPanel, templates) {
+  if (!rightPanel) {
+    return;
+  }
+
+  rightPanel.querySelector('[data-control-section="camera"]')?.remove();
+
+  const cameraTemplate = templates.cameraSection;
+  if (!cameraTemplate) {
+    return;
+  }
+
+  const cameraSection = cameraTemplate.content.firstElementChild.cloneNode(true);
+  const worldSection = rightPanel.querySelector('[data-control-section="world"]');
+  if (worldSection?.parentNode) {
+    worldSection.parentNode.insertBefore(cameraSection, worldSection);
+  } else {
+    rightPanel.appendChild(cameraSection);
+  }
+}
+
+// Naming and grouping utilities
+function normalizeSliderGroup(group) {
+  if (typeof group !== "string") {
+    return null;
+  }
+  const normalized = group.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getSimulationSliderInputId(appletId, slider) {
+  return `${appletId}-${slider.id}`;
+}
+
+function getSimulationSliderValueId(appletId, slider) {
+  return `${appletId}-${slider.valueId}`;
+}
+
+function getSimulationSelectInputId(appletId, selectConfig) {
+  return `${appletId}-${selectConfig.id}`;
+}
+
+function deriveGroupLabel(groupKey, rows) {
+  const customLabel = rows.find((entry) => typeof entry.groupLabel === "string" && entry.groupLabel.trim().length > 0)?.groupLabel;
+  if (customLabel) {
+    return customLabel;
+  }
+  if (groupKey === "initial") {
+    return "Initialization";
+  }
+  if (groupKey === "dynamic") {
+    return "Dynamics";
+  }
+  if (groupKey === "ungrouped") {
+    return "Other";
+  }
+
+  return groupKey
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
+function buildSimulationUnitsBadge(appletId) {
+  const config = APPLET_CONFIGS[appletId] || {};
+  const units = config.units || {};
+  const worldLength = config.world?.lengthUnit?.name || config.world?.unitLabel || "m";
+  const lengthLabel = units.length?.label || worldLength || "m";
+  const timeLabel = units.time?.label || "s";
+  const massLabel = units.mass?.label || "a.u.";
+  return `
+    <span title="Length unit: ${lengthLabel}" aria-label="Length unit ${lengthLabel}">L: ${lengthLabel}</span>
+    <span title="Time unit: ${timeLabel}" aria-label="Time unit ${timeLabel}">T: ${timeLabel}</span>
+    <span title="Mass unit: ${massLabel}" aria-label="Mass unit ${massLabel}">M: ${massLabel}</span>
+  `;
+}
+
+// Math rendering helper
+function renderInlineMathIfAvailable(node) {
+  if (!node || typeof window === "undefined") {
+    return;
+  }
+  if (typeof window.renderMathInElement !== "function") {
+    return;
+  }
+  window.renderMathInElement(node, {
+    delimiters: [
+      { left: "\\(", right: "\\)", display: false },
+    ],
+    throwOnError: false,
+  });
+}
+
+// Section-key utilities
 function getScopedSectionKey(appletId, sectionKey) {
   const normalizedAppletId = String(appletId || "applet").trim() || "applet";
   const normalizedSectionKey = normalizeSectionKey(sectionKey);
@@ -630,26 +755,4 @@ function getSectionTitle(sectionKey) {
     );
   }
   return title;
-}
-
-function renderSharedRightSections(rightPanel, templates) {
-  if (!rightPanel) {
-    return;
-  }
-
-  const existingCamera = rightPanel.querySelector('[data-control-section="camera"]');
-  existingCamera?.remove();
-
-  const cameraTemplate = templates.cameraSection;
-  if (!cameraTemplate) {
-    return;
-  }
-
-  const cameraSection = cameraTemplate.content.firstElementChild.cloneNode(true);
-  const worldSection = rightPanel.querySelector('[data-control-section="world"]');
-  if (worldSection?.parentNode) {
-    worldSection.parentNode.insertBefore(cameraSection, worldSection);
-  } else {
-    rightPanel.appendChild(cameraSection);
-  }
 }

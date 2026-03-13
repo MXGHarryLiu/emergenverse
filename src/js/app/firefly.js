@@ -265,8 +265,10 @@ const fireflyLerpB = new THREE.Color();
 
 // Simulation implementation.
 export class FireflySimulation extends BaseSimulation {
+  static APPLET_ID = "firefly";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: "firefly" });
+    super({ scene, params, world, onStats });
 
     this.geometry = new THREE.SphereGeometry(0.45, 10, 8);
     this.material = new THREE.MeshBasicMaterial({

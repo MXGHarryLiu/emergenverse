@@ -172,6 +172,32 @@ body {
   gap: 0;
 }
 
+.simulation-meta-row {
+  min-height: 2rem;
+  gap: 0.5rem;
+}
+
+.simulation-unit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  flex-wrap: wrap;
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-soft);
+  line-height: 1.2;
+}
+
+.simulation-unit-badge > span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.34rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--bg-elev) 55%, transparent);
+}
+
 .simulation-order-btn {
   width: 1.92rem;
   height: 1.92rem;
@@ -1562,11 +1588,12 @@ body {
   place-items: center;
   background: rgba(2, 8, 20, 0.62);
   backdrop-filter: blur(5px);
-  padding: 1rem;
+  padding: 1rem 1.25rem;
 }
 
 .controls-modal {
-  width: min(560px, 100%);
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 2.5rem));
   max-height: min(90vh, calc(100vh - 2rem));
   display: flex;
   flex-direction: column;
@@ -1578,11 +1605,11 @@ body {
 }
 
 .controls-modal-compact {
-  width: min(520px, 100%);
+  width: min(520px, calc(100vw - 2.5rem));
 }
 
 .controls-modal-wide {
-  width: min(860px, 100%);
+  width: min(820px, calc(100vw - 2.5rem));
 }
 
 .share-row {
@@ -1820,6 +1847,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   min-width: 620px;
+  table-layout: auto;
   font-size: 0.78rem;
   background: transparent;
 }
@@ -1858,6 +1886,8 @@ body {
 
 .controls-table tbody td {
   color: var(--text-main);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .keycaps {
@@ -1893,6 +1923,40 @@ body {
 .controls-table tbody tr:last-child th,
 .controls-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+@media (max-width: 900px) {
+  .controls-table {
+    min-width: 520px;
+    font-size: 0.74rem;
+  }
+
+  .controls-table thead th {
+    padding: 0.42rem 0.46rem;
+  }
+
+  .controls-table tbody th,
+  .controls-table tbody td {
+    padding: 0.38rem 0.46rem;
+  }
+
+  .controls-table tbody th {
+    white-space: normal;
+  }
+
+  .keycap {
+    min-width: 1.16rem;
+    height: 1.16rem;
+    padding: 0 0.28rem;
+    font-size: 0.64rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .controls-table {
+    min-width: 460px;
+    font-size: 0.72rem;
+  }
 }
 
 .about-links a {

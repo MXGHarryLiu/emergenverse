@@ -448,8 +448,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     touchState.lastAngle = angle;
 
     if (params.projectionMode === "perspective" && !params.cameraLocked) {
-      applyPerspectiveLookDelta(dx, dy, touchLookSensitivity);
-      applyPerspectiveRollDelta(angleDelta * touchRollSensitivity);
+      applyPerspectiveLookDelta(-dx, -dy, touchLookSensitivity);
+      applyPerspectiveRollDelta(-angleDelta * touchRollSensitivity);
     }
     applyFovDelta(-distanceDelta * touchFovSensitivity);
 

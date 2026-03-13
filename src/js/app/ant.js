@@ -338,8 +338,10 @@ const antLerpB = new THREE.Color();
 
 // Simulation implementation.
 export class AntSimulation extends BaseSimulation {
+  static APPLET_ID = "ants";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: "ants" });
+    super({ scene, params, world, onStats });
 
     this.geometry = new THREE.ConeGeometry(0.45, 1.05, 8);
     this.material = new THREE.MeshPhongMaterial({
@@ -614,7 +616,7 @@ export class AntSimulation extends BaseSimulation {
     const sensorAngleRad = THREE.MathUtils.degToRad(this.params.sensorAngle);
     const sensorDistance = Math.max(0.2, this.params.sensorDistance);
     const foodSenseRadius = Math.max(sensorDistance, this.params.foodSenseDistance ?? sensorDistance);
-    const foodPickupRadius = Math.max(0.15, this.params.pickupRadius ?? 0.55);
+    const foodPickupRadius = Math.max(0.005, this.params.pickupRadius ?? 0.04);
     const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
     const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
     const turnGain = Math.max(0, this.params.turnGain);

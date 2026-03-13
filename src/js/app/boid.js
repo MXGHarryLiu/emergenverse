@@ -223,8 +223,10 @@ export const BOID_APPLET_VISUAL = {
 // File-local constants and helpers.
 // Simulation implementation.
 export class BoidSimulation extends BaseSimulation {
+  static APPLET_ID = "boid";
+
   constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats, appletId: "boid" });
+    super({ scene, params, world, onStats });
 
     this.geometry = new THREE.ConeGeometry(0.7, 2.6, 10);
     this.geometry.rotateX(Math.PI / 2);

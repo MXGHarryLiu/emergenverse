@@ -6,6 +6,7 @@ import { createWorldManager } from "./world.js";
 import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
+import { createSpaceshipHudController } from "./spaceship.js";
 import {
   normalizeAppletId as normalizeAppletIdParam,
   setAppletInUrl as setAppletInUrlParam,
@@ -41,7 +42,7 @@ const params = {
   showBounds: true,
   cameraLocked: false,
   projectionMode: "perspective",
-  keyboardMoveSpeed: 42,
+  keyboardMoveSpeed: 30000,
   keyboardRotationSpeed: 84,
   paused: false,
   ...Object.fromEntries(
@@ -62,6 +63,12 @@ const cameraDefaults = {
   projectionMode: "perspective",
 };
 
+const cameraControlDefaults = Object.freeze({
+  fov: Object.freeze({ min: 20, max: 90, step: 1 }),
+  moveSpeed: Object.freeze({ min: 1, max: 100000, step: 1, defaultValue: 30000 }),
+  rotationSpeed: Object.freeze({ min: 1, max: 720, step: 1, defaultValue: 84 }),
+});
+
 function getAppletCameraDefaults(appletId = activeApplet) {
   const camera = APPLET_CONFIGS[appletId]?.camera;
   return {
@@ -70,6 +77,69 @@ function getAppletCameraDefaults(appletId = activeApplet) {
     cameraFov: Number(camera?.fov ?? cameraDefaults.cameraFov),
     cameraLocked: Boolean(camera?.locked ?? cameraDefaults.cameraLocked),
   };
+}
+
+function getAppletCameraControlConfig(appletId = activeApplet) {
+  const camera = APPLET_CONFIGS[appletId]?.camera || {};
+  const controls = camera.controls || {};
+  return {
+    fov: resolveCameraControlConfig(controls.fov, {
+      ...cameraControlDefaults.fov,
+      defaultValue: Number(camera.fov ?? cameraDefaults.cameraFov),
+    }),
+    moveSpeed: resolveCameraControlConfig(controls.moveSpeed, cameraControlDefaults.moveSpeed),
+    rotationSpeed: resolveCameraControlConfig(controls.rotationSpeed, cameraControlDefaults.rotationSpeed),
+  };
+}
+
+function resolveCameraControlConfig(customConfig, fallback) {
+  const min = Number(customConfig?.min ?? fallback.min);
+  const max = Number(customConfig?.max ?? fallback.max);
+  const step = Number(customConfig?.step ?? fallback.step);
+  const defaultValue = Number(customConfig?.defaultValue ?? fallback.defaultValue);
+
+  const safeMin = Number.isFinite(min) ? min : fallback.min;
+  const safeMax = Number.isFinite(max) ? max : fallback.max;
+  const normalizedMax = safeMax > safeMin ? safeMax : safeMin + Math.max(1, Math.abs(safeMin) * 0.1);
+  const safeStep = Number.isFinite(step) && step > 0 ? step : fallback.step;
+  const fallbackDefault = Number.isFinite(defaultValue) ? defaultValue : fallback.defaultValue;
+  const safeDefault = THREE.MathUtils.clamp(fallbackDefault, safeMin, normalizedMax);
+
+  return {
+    min: safeMin,
+    max: normalizedMax,
+    step: safeStep,
+    defaultValue: safeDefault,
+  };
+}
+
+function applyCameraControlConfig(appletId = activeApplet, options = {}) {
+  const { resetToDefaults = false } = options;
+  const config = getAppletCameraControlConfig(appletId);
+
+  const applyRangeMeta = (id, meta) => {
+    const input = document.getElementById(id);
+    if (!input || !meta) {
+      return;
+    }
+    input.min = String(meta.min);
+    input.max = String(meta.max);
+    input.step = String(meta.step);
+  };
+
+  applyRangeMeta("camera-fov", config.fov);
+  applyRangeMeta("camera-move-speed", config.moveSpeed);
+  applyRangeMeta("camera-rotation-speed", config.rotationSpeed);
+
+  if (resetToDefaults) {
+    params.cameraFov = config.fov.defaultValue;
+    params.keyboardMoveSpeed = config.moveSpeed.defaultValue;
+    params.keyboardRotationSpeed = config.rotationSpeed.defaultValue;
+  } else {
+    params.cameraFov = THREE.MathUtils.clamp(params.cameraFov, config.fov.min, config.fov.max);
+    params.keyboardMoveSpeed = THREE.MathUtils.clamp(params.keyboardMoveSpeed, config.moveSpeed.min, config.moveSpeed.max);
+    params.keyboardRotationSpeed = THREE.MathUtils.clamp(params.keyboardRotationSpeed, config.rotationSpeed.min, config.rotationSpeed.max);
+  }
 }
 
 function renderAppletNavigationFromConfig() {
@@ -506,36 +576,14 @@ const orientationIndicatorAxes = [
 ];
 const orientationIndicatorInvQuat = new THREE.Quaternion();
 const orientationIndicatorDir = new THREE.Vector3();
-const spaceshipHudInvQuat = new THREE.Quaternion();
-const spaceshipHudMarkerLocal = new THREE.Vector3();
-const spaceshipHudRadialWorld = new THREE.Vector3();
-const spaceshipHudProgradeWorld = new THREE.Vector3();
-const spaceshipHudViewWorld = new THREE.Vector3();
-const spaceshipHudNormalWorld = new THREE.Vector3();
-const spaceshipHudTmpWorld = new THREE.Vector3();
-const spaceshipHudRadialLocal = new THREE.Vector3();
-const spaceshipHudNorthLocal = new THREE.Vector3();
-const spaceshipHudGuideU = new THREE.Vector3();
-const spaceshipHudGuideV = new THREE.Vector3();
-const spaceshipHudGuidePoint = new THREE.Vector3();
-const spaceshipHudGuideRef = new THREE.Vector3();
-const spaceshipHudGuidePrevU = new THREE.Vector3(1, 0, 0);
-let spaceshipHudGuideBasisInitialized = false;
-const spaceshipHudWorldNorthAxis = new THREE.Vector3(0, 1, 0);
-const spaceshipHudWorldUpAxis = new THREE.Vector3(0, 0, 1);
-const spaceshipHudRasterCache = {
-  width: 0,
-  height: 0,
-  imageData: null,
-};
-const NAVBALL_MARKER_STYLE = {
-  prograde: { shape: "circle", filled: false, color: "#ccf700" },
-  retrograde: { shape: "circle", filled: true, color: "#ccf700" },
-  normal: { shape: "triangle-up", filled: false, color: "#db23e8" },
-  antinormal: { shape: "triangle-down", filled: true, color: "#db23e8" },
-  radialOut: { shape: "square", filled: false, color: "#22d6db" },
-  radialIn: { shape: "square", filled: true, color: "#22d6db" },
-};
+const spaceshipHud = createSpaceshipHudController({
+  dom,
+  params,
+  cameraController,
+  getActiveApplet: () => activeApplet,
+  getWorldUnitLabel,
+  formatDisplayNumber,
+});
 
 // Startup Wiring + App Initialization Sequence
 cameraController.setPerspectiveCameraFromParams(false);
@@ -610,7 +658,7 @@ function animate() {
 
   controls.update();
   cameraController.updateTelemetry();
-  updateSpaceshipHud();
+  spaceshipHud.update();
   updateOrientationIndicator();
 
   renderer.render(scene, cameraController.getActiveCamera());
@@ -644,6 +692,7 @@ function rebuildBoundsAndGrid() {
 // Controls: Binding, Simulation Sliders, Defaults
 function setupControls() {
   bindAppletSimulationControls();
+  applyCameraControlConfig(activeApplet, { resetToDefaults: true });
 
   bindRange("world-size-x", "world-size-x-value", (value) => {
     params.worldSizeX = convertLengthFromDisplay(value);
@@ -751,7 +800,7 @@ function setupControls() {
     }
     params.spaceshipMode = enabled;
     cameraController.setSpaceshipMode?.(enabled);
-    updateSpaceshipHud();
+    spaceshipHud.update();
   });
 
   dom.boundaryMode.addEventListener("change", () => {
@@ -780,13 +829,14 @@ function setupControls() {
       }
       updateProjectionToggleUI();
       updateViewportLabel();
-      updateSpaceshipHud();
+      spaceshipHud.update();
     });
   }
 
   if (dom.resetCamera) {
     dom.resetCamera.addEventListener("click", () => {
       const appletCameraDefaults = getAppletCameraDefaults(activeApplet);
+      applyCameraControlConfig(activeApplet, { resetToDefaults: true });
       params.cameraLocked = appletCameraDefaults.cameraLocked;
       dom.cameraLocked.checked = params.cameraLocked;
       const restored = cameraController.restoreCameraSnapshot(appletInitialCameraState[activeApplet]);
@@ -805,11 +855,23 @@ function setupControls() {
         }
       }
       setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
+      setControlValue(
+        "camera-move-speed",
+        params.keyboardMoveSpeed,
+        "camera-move-speed-value",
+        (value) => formatKeyboardMoveSpeed(value),
+      );
+      setControlValue(
+        "camera-rotation-speed",
+        params.keyboardRotationSpeed,
+        "camera-rotation-speed-value",
+        (value) => formatKeyboardRotationSpeed(value),
+      );
       cameraController.applyCameraInteractivity();
       cameraController.updateTelemetry();
       updateProjectionToggleUI();
       updateViewportLabel();
-      updateSpaceshipHud();
+      spaceshipHud.update();
     });
   }
 
@@ -821,15 +883,15 @@ function setupControls() {
   cameraController.setSpaceshipMode?.(params.spaceshipMode);
   dom.spaceshipSasToggle?.addEventListener("click", () => {
     params.spaceshipSas = !params.spaceshipSas;
-    updateSpaceshipHud();
+    spaceshipHud.update();
   });
   dom.spaceshipHaltRotation?.addEventListener("click", () => {
     cameraController.haltSpaceshipRotation?.();
-    updateSpaceshipHud();
+    spaceshipHud.update();
   });
   dom.spaceshipHaltMotion?.addEventListener("click", () => {
     cameraController.haltAllSpaceshipMotion?.();
-    updateSpaceshipHud();
+    spaceshipHud.update();
   });
   dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
   APPLET_ORDER.forEach((appletId) => {
@@ -861,19 +923,32 @@ function setupControls() {
 
 function bindAppletSimulationControls() {
   APPLET_ORDER.forEach((appletId) => {
-    const sliders = APPLET_CONFIGS[appletId]?.right?.simulation?.sliders;
-    if (!Array.isArray(sliders) || sliders.length === 0) {
-      return;
+    const simulationConfig = APPLET_CONFIGS[appletId]?.right?.simulation;
+    const sliders = simulationConfig?.sliders;
+    const selects = simulationConfig?.selects;
+
+    if (Array.isArray(sliders) && sliders.length > 0) {
+      sliders.forEach((slider) => {
+        const inputId = getSimulationSliderInputId(appletId, slider);
+        const valueId = getSimulationSliderValueId(appletId, slider);
+        bindRange(inputId, valueId, (value) => {
+          const displayValue = handleAppletSliderInput(appletId, slider, value);
+          return formatSliderDisplayValue(slider, displayValue);
+        });
+      });
     }
 
-    sliders.forEach((slider) => {
-      const inputId = getSimulationSliderInputId(appletId, slider);
-      const valueId = getSimulationSliderValueId(appletId, slider);
-      bindRange(inputId, valueId, (value) => {
-        const displayValue = handleAppletSliderInput(appletId, slider, value);
-        return formatSliderDisplayValue(slider, displayValue);
+    if (Array.isArray(selects) && selects.length > 0) {
+      selects.forEach((selectConfig) => {
+        const input = document.getElementById(getSimulationSelectInputId(appletId, selectConfig));
+        if (!input) {
+          return;
+        }
+        input.addEventListener("change", () => {
+          handleAppletSelectInput(appletId, selectConfig, input.value);
+        });
       });
-    });
+    }
   });
 }
 
@@ -1120,6 +1195,10 @@ function getSimulationSliderValueId(appletId, slider) {
   return `${appletId}-${slider.valueId}`;
 }
 
+function getSimulationSelectInputId(appletId, selectConfig) {
+  return `${appletId}-${selectConfig.id}`;
+}
+
 function handleAppletSliderInput(appletId, slider, rawValue) {
   const appletParams = params[appletId];
   const simulation = simulations[appletId];
@@ -1149,6 +1228,46 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
   });
 
   if (slider?.resetTrendCharts) {
+    resetTrendCharts(appletId);
+  }
+  refreshAppletLegend(appletId);
+  return appletParams[paramKey];
+}
+
+function handleAppletSelectInput(appletId, selectConfig, rawValue) {
+  const appletParams = params[appletId];
+  const simulation = simulations[appletId];
+  if (!appletParams) {
+    return rawValue;
+  }
+
+  const paramKey = inferSliderParamKey(appletId, selectConfig);
+  if (!paramKey) {
+    return rawValue;
+  }
+
+  const normalized = String(rawValue ?? "");
+  appletParams[paramKey] = normalized;
+
+  applySliderChangeToSimulation({
+    slider: selectConfig,
+    paramKey,
+    value: normalized,
+    simulation,
+  });
+
+  APPLET_DEFINITIONS[appletId].runtime?.onSliderChange?.({
+    appletId,
+    slider: selectConfig,
+    paramKey,
+    value: normalized,
+    params: appletParams,
+    simulation,
+    resetTrendCharts: () => resetTrendCharts(appletId),
+    refreshLegend: () => refreshAppletLegend(appletId),
+  });
+
+  if (selectConfig?.resetTrendCharts) {
     resetTrendCharts(appletId);
   }
   refreshAppletLegend(appletId);
@@ -1286,19 +1405,31 @@ function getNumericPrecision(value) {
 }
 
 function applySimulationDefaultsForApplet(appletId) {
-  const sliders = APPLET_CONFIGS[appletId]?.right?.simulation?.sliders;
-  if (!Array.isArray(sliders) || sliders.length === 0) {
-    return;
+  const simulationConfig = APPLET_CONFIGS[appletId]?.right?.simulation;
+  const sliders = simulationConfig?.sliders;
+  const selects = simulationConfig?.selects;
+
+  if (Array.isArray(sliders) && sliders.length > 0) {
+    sliders.forEach((slider) => {
+      const input = document.getElementById(getSimulationSliderInputId(appletId, slider));
+      if (!input) {
+        return;
+      }
+      input.value = String(slider.value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
   }
 
-  sliders.forEach((slider) => {
-    const input = document.getElementById(getSimulationSliderInputId(appletId, slider));
-    if (!input) {
-      return;
-    }
-    input.value = String(slider.value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  if (Array.isArray(selects) && selects.length > 0) {
+    selects.forEach((selectConfig) => {
+      const input = document.getElementById(getSimulationSelectInputId(appletId, selectConfig));
+      if (!input) {
+        return;
+      }
+      input.value = String(selectConfig.value ?? "");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
 }
 
 // App Routing + Applet Switching + Persisted Per-Applet State
@@ -1407,9 +1538,12 @@ function applyDefaultProjectionForApplet(appletId) {
   }
 
   const appletCameraDefaults = getAppletCameraDefaults(appletId);
+  const appletCameraControlConfig = getAppletCameraControlConfig(appletId);
   params.cameraDistance = appletCameraDefaults.cameraDistance;
   params.cameraHeight = appletCameraDefaults.cameraHeight;
   params.cameraFov = appletCameraDefaults.cameraFov;
+  params.keyboardMoveSpeed = appletCameraControlConfig.moveSpeed.defaultValue;
+  params.keyboardRotationSpeed = appletCameraControlConfig.rotationSpeed.defaultValue;
   params.cameraLocked = appletCameraDefaults.cameraLocked;
 
   const projectionMode = APPLET_CONFIGS[appletId]?.defaultProjection || "perspective";
@@ -1483,6 +1617,7 @@ function applyAppletMode(appletId, options = {}) {
   const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
   const { updateUrl = false, replaceHistory = false } = options;
   const previousApplet = activeApplet;
+  const wasProjectionInitialized = Boolean(appletProjectionInitialized[normalizedId]);
 
   if (previousApplet && previousApplet !== normalizedId && APPLET_IDS.has(previousApplet)) {
     appletCameraState[previousApplet] = cameraController.getCameraSnapshot();
@@ -1512,6 +1647,7 @@ function applyAppletMode(appletId, options = {}) {
   if (!restoredCamera) {
     applyDefaultProjectionForApplet(normalizedId);
   }
+  applyCameraControlConfig(normalizedId, { resetToDefaults: !wasProjectionInitialized });
 
   setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
   setControlValue(
@@ -1527,7 +1663,7 @@ function applyAppletMode(appletId, options = {}) {
     (value) => formatKeyboardRotationSpeed(value),
   );
   updateProjectionToggleUI();
-  updateSpaceshipHud();
+  spaceshipHud.update();
   if (previousApplet && APPLET_IDS.has(previousApplet)) {
     appletPausedPreferences[previousApplet] = params.paused;
   }
@@ -2794,433 +2930,6 @@ function updateViewportLabel() {
   dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
 }
 
-function clamp01(value) {
-  return Math.min(1, Math.max(0, value));
-}
-
-function getNavballRaster(context, width, height) {
-  if (
-    !spaceshipHudRasterCache.imageData ||
-    spaceshipHudRasterCache.width !== width ||
-    spaceshipHudRasterCache.height !== height
-  ) {
-    spaceshipHudRasterCache.width = width;
-    spaceshipHudRasterCache.height = height;
-    spaceshipHudRasterCache.imageData = context.createImageData(width, height);
-  }
-  return spaceshipHudRasterCache.imageData;
-}
-
-function drawNavballBackground(context, width, height, centerX, centerY, radius, radialLocal, theme) {
-  const imageData = getNavballRaster(context, width, height);
-  const data = imageData.data;
-  data.fill(0);
-
-  const horizonBand = 0.028;
-  const skyTop = theme === "light" ? [133, 170, 228] : [84, 123, 198];
-  const skyBottom = theme === "light" ? [94, 133, 195] : [48, 79, 136];
-  const groundTop = theme === "light" ? [168, 138, 98] : [122, 98, 69];
-  const groundBottom = theme === "light" ? [121, 95, 66] : [78, 57, 40];
-  const horizonColor = theme === "light" ? [244, 248, 255] : [210, 223, 247];
-
-  for (let py = 0; py < height; py += 1) {
-    const y = (centerY - (py + 0.5)) / radius;
-    const verticalLerp = clamp01((y + 1) * 0.5);
-
-    for (let px = 0; px < width; px += 1) {
-      const x = ((px + 0.5) - centerX) / radius;
-      const rr = x * x + y * y;
-      if (rr > 1) {
-        continue;
-      }
-
-      const z = -Math.sqrt(Math.max(0, 1 - rr));
-      const dot = x * radialLocal.x + y * radialLocal.y + z * radialLocal.z;
-      const i = ((py * width) + px) * 4;
-
-      let r;
-      let g;
-      let b;
-      if (Math.abs(dot) <= horizonBand) {
-        const t = 1 - clamp01(Math.abs(dot) / horizonBand);
-        const boost = 0.72 + (0.28 * t);
-        r = Math.round(horizonColor[0] * boost);
-        g = Math.round(horizonColor[1] * boost);
-        b = Math.round(horizonColor[2] * boost);
-      } else {
-        const top = dot >= 0 ? skyTop : groundTop;
-        const bottom = dot >= 0 ? skyBottom : groundBottom;
-        const baseR = bottom[0] + ((top[0] - bottom[0]) * verticalLerp);
-        const baseG = bottom[1] + ((top[1] - bottom[1]) * verticalLerp);
-        const baseB = bottom[2] + ((top[2] - bottom[2]) * verticalLerp);
-        const depthShade = 0.76 + (0.24 * clamp01(-z));
-        r = Math.round(baseR * depthShade);
-        g = Math.round(baseG * depthShade);
-        b = Math.round(baseB * depthShade);
-      }
-
-      data[i] = r;
-      data[i + 1] = g;
-      data[i + 2] = b;
-      data[i + 3] = 255;
-    }
-  }
-
-  context.putImageData(imageData, 0, 0);
-}
-
-function drawNavballPoleGuides(context, centerX, centerY, radius, dpr) {
-  if (spaceshipHudNorthLocal.lengthSq() < 1e-8) {
-    return;
-  }
-
-  // Lock guide frame to horizon normal so red/blue split is deterministic w.r.t sky/horizon.
-  // U points tangent to horizon along the north/south great circle.
-  spaceshipHudGuideU.copy(spaceshipHudNorthLocal).cross(spaceshipHudRadialLocal);
-  if (spaceshipHudGuideU.lengthSq() < 1e-8) {
-    // Degenerate only when north aligns with horizon normal; keep prior frame if available.
-    if (spaceshipHudGuideBasisInitialized && spaceshipHudGuidePrevU.lengthSq() > 1e-8) {
-      spaceshipHudGuideU.copy(spaceshipHudGuidePrevU);
-    } else {
-      spaceshipHudGuideRef.set(1, 0, 0);
-      spaceshipHudGuideU.copy(spaceshipHudNorthLocal).cross(spaceshipHudGuideRef);
-    }
-  }
-  if (spaceshipHudGuideU.lengthSq() < 1e-8) {
-    return;
-  }
-  spaceshipHudGuideU.normalize();
-  spaceshipHudGuideV.copy(spaceshipHudNorthLocal).cross(spaceshipHudGuideU).normalize();
-
-  // Keep continuity only for degenerate fallback reuse.
-  spaceshipHudGuidePrevU.copy(spaceshipHudGuideU);
-  spaceshipHudGuideBasisInitialized = true;
-
-  context.lineCap = "round";
-  context.lineWidth = Math.max(1.3, dpr * 1.55);
-  const steps = 192;
-  const redColor = "#e15454";
-  const blueColor = "#4f93ff";
-  const visibilityEpsilon = 0.004;
-  let activeSign = 0;
-  let pathOpen = false;
-
-  for (let i = 0; i <= steps; i += 1) {
-    const t = (Math.PI * 2 * i) / steps;
-    spaceshipHudGuidePoint
-      .copy(spaceshipHudGuideU)
-      .multiplyScalar(Math.cos(t))
-      .addScaledVector(spaceshipHudGuideV, Math.sin(t));
-
-    const x = centerX + (spaceshipHudGuidePoint.x * radius);
-    const y = centerY - (spaceshipHudGuidePoint.y * radius);
-    // Fix color to horizon side: one half in "sky", the opposite half in "ground".
-    const sign = spaceshipHudGuidePoint.dot(spaceshipHudRadialLocal) >= 0 ? 1 : -1;
-    const visible = spaceshipHudGuidePoint.z <= visibilityEpsilon;
-
-    if (!visible) {
-      if (pathOpen) {
-        context.stroke();
-        pathOpen = false;
-      }
-      continue;
-    }
-
-    if (!pathOpen) {
-      activeSign = sign;
-      context.strokeStyle = activeSign > 0 ? redColor : blueColor;
-      context.beginPath();
-      context.moveTo(x, y);
-      pathOpen = true;
-      continue;
-    }
-
-    if (sign !== activeSign) {
-      context.lineTo(x, y);
-      context.stroke();
-      activeSign = sign;
-      context.strokeStyle = activeSign > 0 ? redColor : blueColor;
-      context.beginPath();
-      context.moveTo(x, y);
-    }
-
-    context.lineTo(x, y);
-  }
-
-  if (pathOpen) {
-    context.stroke();
-  }
-}
-
-function projectNavballDirection(directionWorld, centerX, centerY, radius) {
-  spaceshipHudMarkerLocal.copy(directionWorld).applyQuaternion(spaceshipHudInvQuat);
-  const lengthSq = spaceshipHudMarkerLocal.lengthSq();
-  if (lengthSq < 1e-10) {
-    return null;
-  }
-
-  spaceshipHudMarkerLocal.multiplyScalar(1 / Math.sqrt(lengthSq));
-  if (spaceshipHudMarkerLocal.z > 0.04) {
-    return null;
-  }
-
-  const depth = clamp01(-spaceshipHudMarkerLocal.z);
-  return {
-    x: centerX + (spaceshipHudMarkerLocal.x * radius),
-    y: centerY - (spaceshipHudMarkerLocal.y * radius),
-    depth,
-  };
-}
-
-function drawNavballMarker(context, markerKey, directionWorld, centerX, centerY, radius, dpr) {
-  const style = NAVBALL_MARKER_STYLE[markerKey];
-  if (!style) {
-    return;
-  }
-
-  const projected = projectNavballDirection(directionWorld, centerX, centerY, radius);
-  if (!projected) {
-    return;
-  }
-
-  const alpha = 0.46 + (0.54 * projected.depth);
-  const markerSize = Math.max(7 * dpr, (9.6 * dpr) * (0.72 + (0.44 * projected.depth)));
-  const half = markerSize * 0.5;
-  const lineWidth = Math.max(1.2, dpr * 1.35);
-
-  context.save();
-  context.globalAlpha = alpha;
-  context.strokeStyle = style.color;
-  context.fillStyle = style.color;
-  context.lineWidth = lineWidth;
-  context.lineJoin = "round";
-  context.lineCap = "round";
-  context.translate(projected.x, projected.y);
-
-  if (style.shape === "circle") {
-    context.beginPath();
-    context.arc(0, 0, half * 0.9, 0, Math.PI * 2);
-  } else if (style.shape === "square") {
-    context.beginPath();
-    context.rect(-half * 0.86, -half * 0.86, half * 1.72, half * 1.72);
-  } else if (style.shape === "triangle-up") {
-    context.beginPath();
-    context.moveTo(0, -half * 1.05);
-    context.lineTo(half * 0.98, half * 0.88);
-    context.lineTo(-half * 0.98, half * 0.88);
-    context.closePath();
-  } else if (style.shape === "triangle-down") {
-    context.beginPath();
-    context.moveTo(0, half * 1.05);
-    context.lineTo(half * 0.98, -half * 0.88);
-    context.lineTo(-half * 0.98, -half * 0.88);
-    context.closePath();
-  }
-
-  if (style.filled) {
-    context.fill();
-  } else {
-    context.stroke();
-  }
-
-  context.restore();
-}
-
-function drawNavballCenterCross(context, centerX, centerY, radius, dpr, theme) {
-  const crossHalf = radius * 0.125;
-  const lineWidth = Math.max(1.4, dpr * 1.5);
-  const crossColor = theme === "light" ? "rgba(34, 59, 98, 0.95)" : "rgba(232, 241, 255, 0.95)";
-
-  context.strokeStyle = crossColor;
-  context.lineWidth = lineWidth;
-  context.lineCap = "round";
-  context.beginPath();
-  context.moveTo(centerX - crossHalf, centerY);
-  context.lineTo(centerX + crossHalf, centerY);
-  context.moveTo(centerX, centerY - crossHalf);
-  context.lineTo(centerX, centerY + crossHalf);
-  context.stroke();
-
-  context.fillStyle = crossColor;
-  context.beginPath();
-  context.arc(centerX, centerY, Math.max(1.9, dpr * 2), 0, Math.PI * 2);
-  context.fill();
-}
-
-function drawSpaceshipHudScope(telemetry) {
-  const canvas = dom.spaceshipHudScope;
-  if (!canvas) {
-    return;
-  }
-
-  const context = canvas.getContext("2d");
-  const activeCamera = cameraController.getActiveCamera?.();
-  if (!context || !activeCamera) {
-    return;
-  }
-
-  const cssWidth = Math.max(1, Math.floor(canvas.clientWidth || 128));
-  const cssHeight = Math.max(1, Math.floor(canvas.clientHeight || 128));
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const pixelWidth = Math.max(1, Math.floor(cssWidth * dpr));
-  const pixelHeight = Math.max(1, Math.floor(cssHeight * dpr));
-  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-    canvas.width = pixelWidth;
-    canvas.height = pixelHeight;
-  }
-
-  const width = canvas.width;
-  const height = canvas.height;
-  const centerX = width * 0.5;
-  const centerY = height * 0.5;
-  const radius = Math.min(width, height) * 0.42;
-  const theme = document.body.getAttribute("data-theme") === "light" ? "light" : "dark";
-
-  context.clearRect(0, 0, width, height);
-
-  spaceshipHudInvQuat.copy(activeCamera.quaternion).invert();
-  // Use world +Z as the fixed normal of the global XY plane for the navball horizon.
-  spaceshipHudRadialWorld.copy(spaceshipHudWorldUpAxis);
-
-  spaceshipHudRadialLocal.copy(spaceshipHudRadialWorld).applyQuaternion(spaceshipHudInvQuat).normalize();
-  spaceshipHudNorthLocal
-    .copy(spaceshipHudWorldNorthAxis)
-    .applyQuaternion(spaceshipHudInvQuat)
-    .normalize();
-
-  drawNavballBackground(context, width, height, centerX, centerY, radius, spaceshipHudRadialLocal, theme);
-
-  context.save();
-  context.beginPath();
-  context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-  context.clip();
-
-  drawNavballPoleGuides(context, centerX, centerY, radius, dpr);
-
-  const speed = Number(telemetry.speed) || 0;
-  if (speed > 1e-6) {
-    spaceshipHudProgradeWorld
-      .set(telemetry.velocity?.x ?? 0, telemetry.velocity?.y ?? 0, telemetry.velocity?.z ?? 0)
-      .normalize();
-    spaceshipHudViewWorld
-      .set(telemetry.view?.x ?? 0, telemetry.view?.y ?? 0, telemetry.view?.z ?? 0)
-      .normalize();
-    drawNavballMarker(context, "prograde", spaceshipHudProgradeWorld, centerX, centerY, radius, dpr);
-
-    spaceshipHudTmpWorld.copy(spaceshipHudProgradeWorld).multiplyScalar(-1);
-    drawNavballMarker(context, "retrograde", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
-
-    // Build marker frame from ship motion first (velocity + view), then stable fallbacks.
-    spaceshipHudNormalWorld.copy(spaceshipHudProgradeWorld).cross(spaceshipHudViewWorld);
-    if (spaceshipHudNormalWorld.lengthSq() < 1e-9) {
-      spaceshipHudNormalWorld.copy(spaceshipHudWorldUpAxis).cross(spaceshipHudProgradeWorld);
-    }
-    if (spaceshipHudNormalWorld.lengthSq() < 1e-9) {
-      spaceshipHudNormalWorld.copy(spaceshipHudWorldNorthAxis).cross(spaceshipHudProgradeWorld);
-    }
-    if (spaceshipHudNormalWorld.lengthSq() >= 1e-9) {
-      spaceshipHudNormalWorld.normalize();
-      drawNavballMarker(context, "normal", spaceshipHudNormalWorld, centerX, centerY, radius, dpr);
-      spaceshipHudTmpWorld.copy(spaceshipHudNormalWorld).multiplyScalar(-1);
-      drawNavballMarker(context, "antinormal", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
-
-      spaceshipHudRadialWorld
-        .copy(spaceshipHudNormalWorld)
-        .cross(spaceshipHudProgradeWorld)
-        .normalize();
-      drawNavballMarker(context, "radialOut", spaceshipHudRadialWorld, centerX, centerY, radius, dpr);
-      spaceshipHudTmpWorld.copy(spaceshipHudRadialWorld).multiplyScalar(-1);
-      drawNavballMarker(context, "radialIn", spaceshipHudTmpWorld, centerX, centerY, radius, dpr);
-    }
-  }
-
-  context.restore();
-
-  drawNavballCenterCross(context, centerX, centerY, radius, dpr, theme);
-}
-
-function setSpaceshipHudButtonsDisabled(disabled) {
-  const nextDisabled = Boolean(disabled);
-  if (dom.spaceshipSasToggle) {
-    dom.spaceshipSasToggle.disabled = nextDisabled;
-    const sasOn = Boolean(params.spaceshipSas);
-    dom.spaceshipSasToggle.classList.toggle("is-active", sasOn);
-    dom.spaceshipSasToggle.classList.toggle("is-off", !sasOn);
-  }
-  if (dom.spaceshipHaltRotation) {
-    dom.spaceshipHaltRotation.disabled = nextDisabled;
-  }
-  if (dom.spaceshipHaltMotion) {
-    dom.spaceshipHaltMotion.disabled = nextDisabled;
-  }
-}
-
-function updateSpaceshipHud() {
-  if (!dom.spaceshipHud) {
-    return;
-  }
-
-  const enabled = Boolean(params.spaceshipMode && params.projectionMode === "perspective");
-  dom.spaceshipHud.classList.toggle("is-hidden", !enabled);
-  if (!enabled) {
-    setSpaceshipHudButtonsDisabled(true);
-    return;
-  }
-
-  const telemetry = cameraController.getSpaceshipTelemetry?.();
-  if (!telemetry) {
-    setSpaceshipHudButtonsDisabled(true);
-    return;
-  }
-
-  const unitLabel = getWorldUnitLabel(activeApplet);
-  if (dom.spaceshipSpeed) {
-    dom.spaceshipSpeed.textContent =
-      `${formatDisplayNumber(telemetry.speed, { trailingDigits: 2 })} ${unitLabel}/s`;
-  }
-  if (dom.spaceshipSasToggle) {
-    const sasOn = Boolean(params.spaceshipSas);
-    dom.spaceshipSasToggle.disabled = false;
-    dom.spaceshipSasToggle.classList.toggle("is-active", sasOn);
-    dom.spaceshipSasToggle.classList.toggle("is-off", !sasOn);
-    dom.spaceshipSasToggle.title = sasOn ? "SAS on" : "SAS off";
-    dom.spaceshipSasToggle.setAttribute("aria-label", sasOn ? "SAS on" : "SAS off");
-    dom.spaceshipSasToggle.setAttribute("aria-pressed", sasOn ? "true" : "false");
-    const sasIcon = dom.spaceshipSasToggle.querySelector("i");
-    if (sasIcon) {
-      sasIcon.className = `bi ${sasOn ? "bi-bullseye" : "bi-circle"}`;
-    }
-  }
-  const angular = telemetry.angular || {};
-
-  const linearSpeed = Number(telemetry.speed) || 0;
-  const angularRate = Math.hypot(
-    Number(angular.yaw) || 0,
-    Number(angular.pitch) || 0,
-    Number(angular.roll) || 0,
-  );
-  const rotationZero = angularRate <= 1e-4;
-  const motionZero = rotationZero && linearSpeed <= 1e-4;
-
-  if (dom.spaceshipHaltRotation) {
-    dom.spaceshipHaltRotation.disabled = rotationZero;
-    dom.spaceshipHaltRotation.title = rotationZero ? "Rotation already zero" : "Halt rotation";
-    dom.spaceshipHaltRotation.setAttribute(
-      "aria-label",
-      rotationZero ? "Rotation already zero" : "Halt rotation",
-    );
-  }
-  if (dom.spaceshipHaltMotion) {
-    dom.spaceshipHaltMotion.disabled = motionZero;
-    dom.spaceshipHaltMotion.title = motionZero ? "Motion already zero" : "Halt all motion";
-    dom.spaceshipHaltMotion.setAttribute(
-      "aria-label",
-      motionZero ? "Motion already zero" : "Halt all motion",
-    );
-  }
-  drawSpaceshipHudScope(telemetry);
-}
-
 function getActiveSimulationSpeed() {
   return THREE.MathUtils.clamp(Number(params[activeApplet]?.simSpeed) || 1, 0.1, 10);
 }
@@ -3254,5 +2963,3 @@ function scheduleMathRendering() {
     { once: true },
   );
 }
-
-
