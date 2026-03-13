@@ -730,11 +730,23 @@
 
     <template id="tpl-chart-card">
       <div class="chart-card" data-chart-card>
-        <button class="chart-head" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle chart">
-          <span class="chart-title">Chart</span>
-          <span class="chart-live">0</span>
-          <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
-        </button>
+        <div class="chart-head">
+          <button
+            class="chart-mode-btn is-hidden"
+            type="button"
+            data-chart-mode-toggle
+            aria-label="Show time trend"
+            title="Show time trend"
+            aria-pressed="false"
+          >
+            <i class="bi bi-clock-history" aria-hidden="true"></i>
+          </button>
+          <button class="chart-toggle-btn" type="button" data-chart-toggle aria-expanded="true" aria-label="Toggle chart">
+            <span class="chart-title">Chart</span>
+            <span class="chart-live">0</span>
+            <i class="bi bi-chevron-up chart-toggle-icon" aria-hidden="true"></i>
+          </button>
+        </div>
         <canvas class="trend-chart" width="260" height="96"></canvas>
       </div>
     </template>

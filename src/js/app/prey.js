@@ -31,6 +31,11 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#ff8d5f" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "a.u.", description: "arbitrary unit" },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
@@ -82,11 +87,11 @@ export const PREY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [{ label: "FPS", valueId: "prey-fps-live", initial: "--" }],
-      charts: [
-        { key: "prey-count", label: "Prey Count", liveInitial: "0" },
-        { key: "predator-count", label: "Predator Count", liveInitial: "0" },
-        { key: "prey-eaten", label: "Predation (cum.)", liveInitial: "0" },
+      params: [
+        { type: "stat", key: "prey-fps", label: "FPS", valueId: "prey-fps-live", initial: "--" },
+        { type: "chart", key: "prey-count", label: "Prey Count", liveInitial: "0" },
+        { type: "chart", key: "predator-count", label: "Predator Count", liveInitial: "0" },
+        { type: "chart", key: "prey-eaten", label: "Predation (cum.)", liveInitial: "0" },
       ],
     },
   simulation: {

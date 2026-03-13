@@ -193,6 +193,20 @@ function buildStatsSection(statsConfig, appletId, templates) {
     }
     const head = card.querySelector("[data-chart-toggle]");
     head.setAttribute("aria-label", `Toggle ${chartLabel.toLowerCase()} chart`);
+    const modeToggle = card.querySelector("[data-chart-mode-toggle]");
+    if (modeToggle) {
+      const supportsDistribution = Boolean(chart?.supportsDistribution);
+      if (supportsDistribution) {
+        modeToggle.classList.remove("is-hidden");
+        modeToggle.setAttribute("data-applet-id", appletId);
+        modeToggle.setAttribute("data-chart-key", chartKey);
+        modeToggle.setAttribute("aria-label", `Show time trend for ${chartLabel.toLowerCase()}`);
+        modeToggle.setAttribute("title", `Show time trend for ${chartLabel.toLowerCase()}`);
+      } else {
+        modeToggle.classList.add("is-hidden");
+        modeToggle.setAttribute("disabled", "disabled");
+      }
+    }
     card.querySelector(".chart-title").textContent = chartLabel;
     const live = card.querySelector(".chart-live");
     live.id = deriveChartLiveId(chartKey);
@@ -821,15 +835,18 @@ function deriveGroupLabel(groupKey, rows) {
 
 function buildSimulationUnitsBadge(appletId) {
   const config = APPLET_CONFIGS[appletId] || {};
-  const units = config.units || {};
+  const units = config.unit || {};
   const worldLength = config.world?.lengthUnit?.name || config.world?.unitLabel || "m";
   const lengthLabel = units.length?.label || worldLength || "m";
   const timeLabel = units.time?.label || "s";
   const massLabel = units.mass?.label || "a.u.";
+  const lengthDescription = units.length?.description || lengthLabel;
+  const timeDescription = units.time?.description || timeLabel;
+  const massDescription = units.mass?.description || massLabel;
   return `
-    <span title="Length unit: ${lengthLabel}" aria-label="Length unit ${lengthLabel}">L: ${lengthLabel}</span>
-    <span title="Time unit: ${timeLabel}" aria-label="Time unit ${timeLabel}">T: ${timeLabel}</span>
-    <span title="Mass unit: ${massLabel}" aria-label="Mass unit ${massLabel}">M: ${massLabel}</span>
+    <span title="Length unit: ${lengthDescription} (${lengthLabel})" aria-label="Length unit ${lengthDescription} (${lengthLabel})">L: ${lengthLabel}</span>
+    <span title="Time unit: ${timeDescription} (${timeLabel})" aria-label="Time unit ${timeDescription} (${timeLabel})">T: ${timeLabel}</span>
+    <span title="Mass unit: ${massDescription} (${massLabel})" aria-label="Mass unit ${massDescription} (${massLabel})">M: ${massLabel}</span>
   `;
 }
 

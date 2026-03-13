@@ -469,7 +469,7 @@ export function defineAppletConfig(config) {
       lengthUnit: worldLengthUnit,
       unitLabel: worldLengthUnit.name,
     },
-    units: config.units ?? null,
+    unit: config.unit ?? config.units ?? null,
     intro: config.intro ?? config.left?.intro ?? null,
     model: config.model ?? config.left?.model ?? null,
     stats: config.stats ?? config.left?.stats ?? null,

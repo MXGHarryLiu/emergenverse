@@ -25,6 +25,11 @@ export const DUNE_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#D8B36A" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "a.u.", description: "arbitrary unit" },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 120, uiMin: 60, uiMax: 220, step: 2 },

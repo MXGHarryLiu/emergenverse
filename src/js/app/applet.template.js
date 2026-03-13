@@ -25,6 +25,11 @@ export const EXAMPLE_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#4cd3b6" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "a.u.", description: "arbitrary unit" },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },

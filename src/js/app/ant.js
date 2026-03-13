@@ -23,6 +23,11 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#62d6f9" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "ug", description: "microgram", toSI: 1e-9 },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 2000, uiMin: 500, uiMax: 10000, step: 50 },
@@ -76,14 +81,12 @@ export const ANT_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [
-        { label: "FPS", valueId: "ants-fps-live", initial: "--" },
-        { label: "Carrying", valueId: "ants-carrying-live", initial: "0", labelClass: "ant-carrying-label" },
-      ],
-      charts: [
-        { key: "ant-count", label: "Counts", liveInitial: "0" },
-        { key: "ant-trips", label: "Trips", liveInitial: "0" },
-        { key: "ant-pheromone", label: "Pheromone", liveInitial: "0.00" },
+      params: [
+        { type: "stat", key: "ant-fps", label: "FPS", valueId: "ants-fps-live", initial: "--" },
+        { type: "stat", key: "ant-carrying", label: "Carrying", valueId: "ants-carrying-live", initial: "0", labelClass: "ant-carrying-label" },
+        { type: "chart", key: "ant-count", label: "Counts", liveInitial: "0" },
+        { type: "chart", key: "ant-trips", label: "Trips", liveInitial: "0" },
+        { type: "chart", key: "ant-pheromone", label: "Pheromone", liveInitial: "0.00" },
       ],
     },
   interaction: {

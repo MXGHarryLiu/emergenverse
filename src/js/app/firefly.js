@@ -23,6 +23,11 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#ffd86b" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "a.u.", description: "arbitrary unit" },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
@@ -67,11 +72,11 @@ export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [{ label: "FPS", valueId: "firefly-fps-live", initial: "--" }],
-      charts: [
-        { key: "firefly-count", label: "Count", liveInitial: "0" },
-        { key: "firefly-order", label: "Order (R)", liveInitial: "0.000" },
-        { key: "firefly-blink", label: "Blink Rate", liveInitial: "0.0 /s" },
+      params: [
+        { type: "stat", key: "firefly-fps", label: "FPS", valueId: "firefly-fps-live", initial: "--" },
+        { type: "chart", key: "firefly-count", label: "Count", liveInitial: "0" },
+        { type: "chart", key: "firefly-order", label: "Order (R)", liveInitial: "0.000" },
+        { type: "chart", key: "firefly-blink", label: "Blink Rate", liveInitial: "0.0 /s" },
       ],
     },
   simulation: {

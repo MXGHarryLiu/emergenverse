@@ -5,9 +5,9 @@ import { BaseSimulation } from "./baseSimulation.js";
 
 // Unit metadata used to derive the internal gravity constant from SI.
 const GALAXY_UNITS = {
-  length: { label: "ly", toSI: 9.4607304725808e15 },
-  mass: { label: "M_sun", toSI: 1.98847e30 },
-  time: { label: "Myr", toSI: 31557600000000 },
+  length: { label: "kly", description: "kilo-light-year", toSI: 9.4607304725808e18 },
+  mass: { label: "M_sun", description: "solar mass", toSI: 1.98847e30 },
+  time: { label: "Myr", description: "million years", toSI: 31557600000000 },
 };
 const GALAXY_SPEED_UNIT = `${GALAXY_UNITS.length.label}/${GALAXY_UNITS.time.label}`;
 const GALAXY_SI_GRAVITATIONAL_CONSTANT = 6.6743e-11;
@@ -30,13 +30,13 @@ const GALAXY_INIT_PRESET_OPTIONS = [
 export const GALAXY_APPLET_CONFIG = defineAppletConfig({
   label: "Galaxy Gravity",
   camera: {
-    distance: 777000,
-    height: 336000,
+    distance: 777,
+    height: 336,
     params: [
       { key: "projection", default: "perspective" },
       { key: "locked", default: false },
       { key: "fov", default: 34, uiMin: 18, uiMax: 88, step: 1 },
-      { key: "moveSpeed", default: 30000, uiMin: 100, uiMax: 1000000, step: 100 },
+      { key: "moveSpeed", default: 30, uiMin: 1, uiMax: 1000, step: 1 },
       { key: "rotationSpeed", default: 84, uiMin: 10, uiMax: 720, step: 1 },
     ],
   },
@@ -48,17 +48,17 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#c9ddff" },
     ],
   },
-  units: {
-    length: { label: "ly", toSI: 9.4607304725808e15 },
-    mass: { label: "M_sun", toSI: 1.98847e30 },
-    time: { label: "Myr", toSI: 31557600000000 },
+  unit: {
+    length: { label: "kly", description: "kilo-light-year", toSI: 9.4607304725808e18 },
+    mass: { label: "M_sun", description: "solar mass", toSI: 1.98847e30 },
+    time: { label: "Myr", description: "million years", toSI: 31557600000000 },
   },
   world: {
     params: [
-      { key: "x", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
-      { key: "y", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
-      { key: "z", default: 350000, uiMin: 50000, uiMax: 800000, step: 5000 },
-      { key: "gridSize", default: 20000, uiMin: 5000, uiMax: 800000, step: 5000 },
+      { key: "x", default: 350, uiMin: 50, uiMax: 800, step: 5 },
+      { key: "y", default: 350, uiMin: 50, uiMax: 800, step: 5 },
+      { key: "z", default: 350, uiMin: 50, uiMax: 800, step: 5 },
+      { key: "gridSize", default: 20, uiMin: 5, uiMax: 800, step: 5 },
       { key: "boundaryMode", default: "lost" },
     ],
     lengthUnit: {
@@ -71,9 +71,9 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
         "This applet shows a self-gravitating 3D particle cloud. Matter pulls inward while initial orbital motion shapes large-scale structure over time.",
         "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units.",
       ],
-    },
+  },
   model: {
-      subtitle: "Softened gravitational interaction in a 3D volume (light years, solar masses, Myr).",
+      subtitle: "Softened gravitational interaction in a 3D volume (kilo-light years, solar masses, Myr).",
       references: [
         { label: "Wikipedia: N-body simulation", url: "https://en.wikipedia.org/wiki/N-body_simulation" },
         { label: "Wikipedia: Galaxy formation and evolution", url: "https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution" },
@@ -103,11 +103,11 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [{ label: "FPS", valueId: "galaxy-fps-live", initial: "--" }],
-      charts: [
-        { key: "galaxy-count", label: "Count", liveInitial: "0" },
-        { key: "galaxy-radius", label: "Mean Radius", liveInitial: `0 ${GALAXY_UNITS.length.label}` },
-        { key: "galaxy-speed", label: "Mean Speed", liveInitial: `0 ${GALAXY_SPEED_UNIT}` },
+      params: [
+        { type: "stat", key: "galaxy-fps", label: "FPS", valueId: "galaxy-fps-live", initial: "--" },
+        { type: "chart", key: "galaxy-count", label: "Count", liveInitial: "0" },
+        { type: "chart", key: "galaxy-radius", label: "Radius", liveInitial: `0 ${GALAXY_UNITS.length.label}`, supportsDistribution: true },
+        { type: "chart", key: "galaxy-speed", label: "Mean Speed", liveInitial: `0 ${GALAXY_SPEED_UNIT}` },
       ],
     },
   simulation: {
@@ -124,12 +124,12 @@ export const GALAXY_APPLET_CONFIG = defineAppletConfig({
       params: [
         { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
         { key: "count", label: "Count", default: 1000, group: "initial", uiMin: 50, uiMax: 5000, control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
-        { key: "initialRadius", label: "Initial Radius", default: 120000, unit: GALAXY_UNITS.length.label, group: "initial", uiMin: 2000, uiMax: 350000, control: { type: "slider", icon: "bi-bounding-box", step: 1000, simulationAction: "reset", resetTrendCharts: true } },
-        { key: "particleSize", label: "Object Visual Size", default: 750, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 80, uiMax: 2000, control: { type: "slider", icon: "bi-rulers", step: 20 } },
+        { key: "initialRadius", label: "Initial Radius", default: 120, unit: GALAXY_UNITS.length.label, group: "initial", uiMin: 2, uiMax: 350, control: { type: "slider", icon: "bi-bounding-box", step: 1, simulationAction: "reset", resetTrendCharts: true } },
+        { key: "particleSize", label: "Object Visual Size", default: 0.75, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 0.08, uiMax: 2, control: { type: "slider", icon: "bi-rulers", step: 0.02 } },
         { key: "spin", label: "Initial Orbital Speed", default: 1.0, group: "initial", uiMin: 0.2, uiMax: 2.5, control: { type: "slider", icon: "bi-arrow-clockwise", step: 0.05 } },
         { key: "centralMass", label: "Central Mass (\\(M_c\\))", default: GALAXY_DEFAULT_CENTRAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 5.0e10, uiMax: 1.0e13, control: { type: "slider", icon: "bi-bullseye", step: 5.0e10 } },
         { key: "objectTotalMass", label: "Object Total Mass (\\(M_{\\mathrm{obj}}\\))", default: GALAXY_DEFAULT_OBJECT_TOTAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 1.0e10, uiMax: 5.0e12, control: { type: "slider", icon: "bi-boxes", step: 1.0e10 } },
-        { key: "softening", label: "Softening (\\(\\epsilon\\))", default: 180, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 20, uiMax: 4000, control: { type: "slider", icon: "bi-dot", step: 10 } },
+        { key: "softening", label: "Softening (\\(\\epsilon\\))", default: 0.18, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 0.02, uiMax: 4, control: { type: "slider", icon: "bi-dot", step: 0.01 } },
       ],
     },
 });
@@ -148,6 +148,12 @@ export const GALAXY_APPLET_RUNTIME = {
       createChartMetricsEntry("galaxy-radius", () => `0 ${GALAXY_UNITS.length.label}`, {
         stroke: "#9de2ff",
         fill: "rgba(157, 226, 255, 0.16)",
+        supportsDistribution: true,
+        defaultViewMode: "distribution",
+        distributionBins: 22,
+        distributionSmoothing: 1.3,
+        distributionXTickFormatter: (value) => value.toFixed(1),
+        distributionYTickFormatter: (value) => `${Math.round(value * 100)}%`,
         axisLabel: GALAXY_UNITS.length.label,
         tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
@@ -169,12 +175,17 @@ export const GALAXY_APPLET_RUNTIME = {
     const count = stats.count ?? 0;
     const meanRadius = stats.meanRadius ?? 0;
     const meanSpeed = stats.meanSpeed ?? 0;
+    const radiusSamples = stats.radiusSamples ?? [];
 
     ui.updateChartMetrics("galaxy", [count, meanRadius, meanSpeed], [
       String(count),
       `${Math.round(meanRadius).toLocaleString()} ${GALAXY_UNITS.length.label}`,
       `${Math.round(meanSpeed).toLocaleString()} ${GALAXY_SPEED_UNIT}`,
-    ]);
+    ], {
+      distributionSamples: {
+        "galaxy-radius": radiusSamples,
+      },
+    });
   },
 };
 
@@ -218,8 +229,8 @@ export const GALAXY_APPLET_VISUAL = {
       },
       legend: {
         gradient: continuousColormapGradients[colormap] || continuousColormapGradients.magma,
-        minText: `cmin: ${Number(range.min).toFixed(0)} ly/Myr`,
-        maxText: `cmax: ${Number(range.max).toFixed(0)} ly/Myr`,
+        minText: `cmin: ${Number(range.min).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
+        maxText: `cmax: ${Number(range.max).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
       },
     };
   },
@@ -325,7 +336,7 @@ export class GalaxySimulation extends BaseSimulation {
     }
 
     const dtMyr = dt * GALAXY_TIME_SCALE_MYR_PER_SECOND;
-    const soft = Math.max(1, lengthToInternalLightYears(this.params.softening ?? 180));
+    const soft = Math.max(0.001, lengthToInternalLightYears(this.params.softening ?? 0.18));
     const softSq = soft * soft;
     const G = GALAXY_GRAVITY_INTERNAL;
     const centralMass = Math.max(0, massToInternalSolarMass(this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS));
@@ -489,7 +500,7 @@ export class GalaxySimulation extends BaseSimulation {
     const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
 
     const indexedByRadius = this.particles
-      .map((particle, index) => ({ index, radius: Math.max(200, particle.position.length()) }))
+      .map((particle, index) => ({ index, radius: Math.max(0.2, particle.position.length()) }))
       .sort((a, b) => a.radius - b.radius);
 
     for (let rank = 0; rank < indexedByRadius.length; rank += 1) {
@@ -520,12 +531,12 @@ export class GalaxySimulation extends BaseSimulation {
   }
 
   getInitialSpreadForAxis(worldSize) {
-    const worldLimit = Math.max(2000, Number(worldSize) * 0.49);
-    const requested = Number(this.params.initialRadius ?? Math.max(2000, Number(worldSize) * 0.45));
+    const worldLimit = Math.max(2, Number(worldSize) * 0.49);
+    const requested = Number(this.params.initialRadius ?? Math.max(2, Number(worldSize) * 0.45));
     if (!Number.isFinite(requested)) {
       return worldLimit;
     }
-    return THREE.MathUtils.clamp(requested, 2000, worldLimit);
+    return THREE.MathUtils.clamp(requested, 2, worldLimit);
   }
 
   getSpeedBounds() {
@@ -590,26 +601,30 @@ export class GalaxySimulation extends BaseSimulation {
     const count = this.particles.length;
     let radiusSum = 0;
     let speedSum = 0;
+    const radiusSamples = new Float32Array(count);
     for (let i = 0; i < count; i += 1) {
       const p = this.particles[i];
-      radiusSum += p.position.length();
+      const radius = p.position.length();
+      radiusSum += radius;
       speedSum += p.velocity.length();
+      radiusSamples[i] = radius;
     }
 
     this.onStats({
       count,
       meanRadius: count > 0 ? radiusSum / count : 0,
       meanSpeed: count > 0 ? speedSum / count : 0,
+      radiusSamples,
     });
   }
 }
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   if (preset === "disk") {
-    const maxR = Math.max(200, Math.min(spreadX, spreadY));
+    const maxR = Math.max(0.2, Math.min(spreadX, spreadY));
     const r = Math.sqrt(Math.random()) * maxR;
     const angle = Math.random() * Math.PI * 2;
-    const thickness = Math.max(80, spreadZ * 0.08);
+    const thickness = Math.max(0.08, spreadZ * 0.08);
     return new THREE.Vector3(
       r * Math.cos(angle),
       r * Math.sin(angle),
@@ -618,15 +633,15 @@ function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   }
 
   if (preset === "sphere") {
-    const maxR = Math.max(200, Math.min(spreadX, spreadY, spreadZ));
+    const maxR = Math.max(0.2, Math.min(spreadX, spreadY, spreadZ));
     const radius = maxR * Math.cbrt(Math.random());
     return randomDirection3D().multiplyScalar(radius);
   }
 
   if (preset === "ellipsoid") {
-    const xScale = Math.max(200, spreadX);
-    const yScale = Math.max(200, spreadY);
-    const zScale = Math.max(200, spreadZ * 0.5);
+    const xScale = Math.max(0.2, spreadX);
+    const yScale = Math.max(0.2, spreadY);
+    const zScale = Math.max(0.2, spreadZ * 0.5);
     const spherePoint = randomPointInUnitSphere();
     return new THREE.Vector3(
       spherePoint.x * xScale,

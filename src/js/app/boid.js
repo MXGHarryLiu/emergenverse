@@ -23,6 +23,11 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       { key: "solidColor", default: "#4cd3b6" },
     ],
   },
+  unit: {
+    length: { label: "m", description: "meter", toSI: 1 },
+    mass: { label: "a.u.", description: "arbitrary unit" },
+    time: { label: "s", description: "second", toSI: 1 },
+  },
   world: {
     params: [
       { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
@@ -64,11 +69,11 @@ export const BOID_APPLET_CONFIG = defineAppletConfig({
       ],
     },
   stats: {
-      stats: [{ label: "FPS", valueId: "fps-live", initial: "--" }],
-      charts: [
-        { key: "count", label: "Counts", liveInitial: "0" },
-        { key: "speed", label: "Speed", liveInitial: "0.00 m/s" },
-        { key: "neighbors", label: "Neighbors", liveInitial: "0.00" },
+      params: [
+        { type: "stat", key: "boid-fps", label: "FPS", valueId: "fps-live", initial: "--" },
+        { type: "chart", key: "count", label: "Counts", liveInitial: "0" },
+        { type: "chart", key: "speed", label: "Speed", liveInitial: "0.00 m/s", supportsDistribution: true },
+        { type: "chart", key: "neighbors", label: "Neighbors", liveInitial: "0.00" },
       ],
     },
   simulation: {
@@ -102,6 +107,12 @@ export const BOID_APPLET_RUNTIME = {
       createChartMetricsEntry("speed", () => "0.00 m/s", {
         stroke: "#4cd3b6",
         fill: "rgba(76, 211, 182, 0.14)",
+        supportsDistribution: true,
+        defaultViewMode: "distribution",
+        distributionBins: 22,
+        distributionSmoothing: 1.3,
+        distributionXTickFormatter: (value) => value.toFixed(1),
+        distributionYTickFormatter: (value) => `${Math.round(value * 100)}%`,
         axisLabel: "m/s",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
@@ -123,6 +134,7 @@ export const BOID_APPLET_RUNTIME = {
     const boidCount = stats.count ?? 0;
     const speedSum = stats.speedSum ?? 0;
     const neighborSum = stats.neighborSum ?? 0;
+    const speedSamples = stats.speedSamples ?? [];
     const avgSpeed = boidCount > 0 ? speedSum / boidCount : 0;
     const avgNeighbors = boidCount > 0 ? neighborSum / boidCount : 0;
 
@@ -130,7 +142,11 @@ export const BOID_APPLET_RUNTIME = {
       String(boidCount),
       `${avgSpeed.toFixed(2)} m/s`,
       avgNeighbors.toFixed(2),
-    ]);
+    ], {
+      distributionSamples: {
+        speed: speedSamples,
+      },
+    });
   },
 };
 
@@ -521,10 +537,15 @@ export class BoidSimulation extends BaseSimulation {
     if (typeof this.onStats !== "function") {
       return;
     }
+    const speedSamples = new Float32Array(this.boids.length);
+    for (let i = 0; i < this.boids.length; i += 1) {
+      speedSamples[i] = this.boids[i].velocity.length();
+    }
     this.onStats({
       count: this.boids.length,
       speedSum,
       neighborSum,
+      speedSamples,
     });
   }
 

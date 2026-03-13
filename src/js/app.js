@@ -466,7 +466,7 @@ function getAppletLengthUnit(appletId = activeApplet) {
 
 function worldValuesUseAppletLengthUnit(appletId = activeApplet) {
   const appletLengthUnit = getAppletLengthUnit(appletId);
-  const simulationLengthUnit = APPLET_CONFIGS[appletId]?.units?.length;
+  const simulationLengthUnit = APPLET_CONFIGS[appletId]?.unit?.length;
   if (!simulationLengthUnit) {
     return appletLengthUnit.toSI === 1;
   }
@@ -618,8 +618,8 @@ const appletStatsApis = Object.fromEntries(
     id,
     {
       setText: setElementText,
-      updateChartMetrics: (appletId, values, liveTexts) =>
-        updateChartMetrics(appletId, values, liveTexts),
+      updateChartMetrics: (appletId, values, liveTexts, options) =>
+        updateChartMetrics(appletId, values, liveTexts, options),
       refreshLegend: () => refreshAppletLegend(id),
     },
   ]),
@@ -646,11 +646,16 @@ APPLET_ORDER.forEach((id) => {
 });
 
 const chartMaxPoints = 160;
+const chartMaxRefreshHz = 10;
+const chartMinRefreshMs = 1000 / chartMaxRefreshHz;
 const chartState = Object.fromEntries(
   APPLET_ORDER.map((id) => [
     id,
     {
-      frameCounter: 0,
+      lastRefreshMs: 0,
+      pendingValues: null,
+      pendingLiveTexts: null,
+      pendingDistributionSamples: null,
       metrics: APPLET_DEFINITIONS[id].runtime?.createChartMetrics?.(
         (key, initialText, options) => createChartMetricsEntry(id, key, initialText, options),
       ) ?? [],
@@ -712,6 +717,7 @@ setupUiOverlays({
   }),
 });
 setupTrendCharts();
+setupChartModeToggles();
 setupChartCollapses();
 setupAppRouting();
 worldStatePersistenceEnabled = true;
@@ -2428,14 +2434,45 @@ function setupChartCollapses() {
   });
 }
 
+function setupChartModeToggles() {
+  const toggles = document.querySelectorAll("[data-chart-mode-toggle]");
+  if (!toggles || toggles.length === 0) {
+    return;
+  }
+
+  toggles.forEach((toggle) => {
+    const appletId = String(toggle.getAttribute("data-applet-id") || "").trim();
+    const chartKey = String(toggle.getAttribute("data-chart-key") || "").trim();
+    const metric = getChartMetric(appletId, chartKey);
+    if (!metric || !metric.supportsDistribution) {
+      toggle.classList.add("is-hidden");
+      toggle.setAttribute("disabled", "disabled");
+      return;
+    }
+
+    syncChartModeToggleState(toggle, metric);
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      metric.viewMode = metric.viewMode === "time" ? "distribution" : "time";
+      syncChartModeToggleState(toggle, metric);
+      drawTrendCharts();
+    });
+  });
+}
+
 function resetTrendCharts(appletId) {
   const state = chartState[appletId];
   if (!state) {
     return;
   }
-  state.frameCounter = 0;
+  state.lastRefreshMs = 0;
+  state.pendingValues = null;
+  state.pendingLiveTexts = null;
+  state.pendingDistributionSamples = null;
   state.metrics.forEach((metric) => {
     metric.history.length = 0;
+    metric.distributionValues = null;
     setElementText(metric.liveId, metric.initialText());
   });
   drawTrendCharts();
@@ -2453,7 +2490,11 @@ function resizeTrendCharts() {
 function drawTrendCharts() {
   APPLET_ORDER.forEach((appletId) => {
     chartState[appletId]?.metrics.forEach((metric) => {
-      renderTrendChart(getElement(metric.canvasId), metric.history, metric.options);
+      renderTrendChart(getElement(metric.canvasId), metric.history, {
+        ...metric.options,
+        viewMode: metric.viewMode,
+        distributionValues: metric.distributionValues,
+      });
     });
   });
 }
@@ -2473,6 +2514,14 @@ function createChartMetricsEntry(appletId, key, initialText, options) {
     throw new Error("[app] Chart metric entry requires non-empty applet id and key.");
   }
   const sanitizedOptions = { ...(options || {}) };
+  const supportsDistribution = Boolean(sanitizedOptions.supportsDistribution);
+  const defaultViewModeRaw = String(sanitizedOptions.defaultViewMode || "").trim().toLowerCase();
+  const defaultViewMode =
+    supportsDistribution && defaultViewModeRaw === "distribution"
+      ? "distribution"
+      : "time";
+  delete sanitizedOptions.supportsDistribution;
+  delete sanitizedOptions.defaultViewMode;
   delete sanitizedOptions.axisLabel;
   return {
     key: normalizedKey,
@@ -2481,28 +2530,83 @@ function createChartMetricsEntry(appletId, key, initialText, options) {
     initialText,
     options: sanitizedOptions,
     history: [],
+    distributionValues: null,
+    supportsDistribution,
+    viewMode: defaultViewMode,
   };
 }
 
-function updateChartMetrics(appletId, values, liveTexts) {
+function getChartMetric(appletId, key) {
+  const state = chartState[appletId];
+  if (!state) {
+    return null;
+  }
+  return state.metrics.find((metric) => metric.key === key) || null;
+}
+
+function syncChartModeToggleState(toggle, metric) {
+  if (!toggle || !metric) {
+    return;
+  }
+
+  const isTimeMode = metric.viewMode === "time";
+  toggle.classList.toggle("is-active", isTimeMode);
+  toggle.setAttribute("aria-pressed", String(isTimeMode));
+  const title = isTimeMode ? "Show distribution" : "Show time trend";
+  toggle.setAttribute("title", title);
+  toggle.setAttribute("aria-label", title);
+}
+
+function updateChartMetrics(appletId, values, liveTexts, options = {}) {
   const state = chartState[appletId];
   if (!state) {
     return;
   }
 
-  state.metrics.forEach((metric, index) => {
-    setElementText(metric.liveId, liveTexts[index]);
-  });
+  const distributionSamples = options?.distributionSamples && typeof options.distributionSamples === "object"
+    ? options.distributionSamples
+    : null;
 
-  state.frameCounter += 1;
-  if (state.frameCounter % 3 !== 0) {
+  state.pendingValues = Array.isArray(values) ? values.slice() : [];
+  state.pendingLiveTexts = Array.isArray(liveTexts) ? liveTexts.slice() : [];
+  state.pendingDistributionSamples = distributionSamples;
+
+  const nowMs = getNowMs();
+  if (nowMs - state.lastRefreshMs < chartMinRefreshMs) {
     return;
   }
 
+  flushChartMetricsState(appletId, state, nowMs);
+}
+
+function flushChartMetricsState(appletId, state, nowMs) {
+  if (!state || !Array.isArray(state.pendingValues) || !Array.isArray(state.pendingLiveTexts)) {
+    return;
+  }
+
+  const pendingDistributionSamples = state.pendingDistributionSamples;
   state.metrics.forEach((metric, index) => {
-    appendTrendValue(metric.history, values[index], chartMaxPoints);
+    setElementText(metric.liveId, state.pendingLiveTexts[index]);
+    if (pendingDistributionSamples && pendingDistributionSamples[metric.key] && metric.supportsDistribution) {
+      metric.distributionValues = pendingDistributionSamples[metric.key];
+    }
   });
+
+  state.metrics.forEach((metric, index) => {
+    appendTrendValue(metric.history, state.pendingValues[index], chartMaxPoints);
+  });
+  state.lastRefreshMs = nowMs;
+  state.pendingValues = null;
+  state.pendingLiveTexts = null;
+  state.pendingDistributionSamples = null;
   drawTrendCharts();
+}
+
+function getNowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
 }
 
 // Generic Control Utils + Compact Slider Hub
