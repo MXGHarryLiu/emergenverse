@@ -412,7 +412,7 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
   };
 }
 
-export function defineAppletConfig(config) {
+export function validateAppletConfig(config) {
   const worldLengthUnit = config.world?.lengthUnit ?? {
     name: config.world?.unitLabel ?? "m",
     toSI: 1,
@@ -478,3 +478,6 @@ export function defineAppletConfig(config) {
     visual: config.visual ?? config.right?.visual ?? null,
   };
 }
+
+// Backward-compatible alias during migration.
+export const defineAppletConfig = validateAppletConfig;

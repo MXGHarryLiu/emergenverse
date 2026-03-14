@@ -1,6 +1,7 @@
 // Galaxy gravity applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig, selectControl } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import galaxyConfigData from "./galaxy_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Unit metadata used to derive the internal gravity constant from SI.
@@ -19,137 +20,8 @@ const GALAXY_GRAVITY_INTERNAL_SCALE =
 const GALAXY_GRAVITY_INTERNAL = GALAXY_SI_GRAVITATIONAL_CONSTANT * GALAXY_GRAVITY_INTERNAL_SCALE;
 const GALAXY_DEFAULT_CENTRAL_MASS = 2.2e12;
 const GALAXY_DEFAULT_OBJECT_TOTAL_MASS = GALAXY_DEFAULT_CENTRAL_MASS * GALAXY_DEFAULT_OBJECT_MASS_FRACTION;
-const GALAXY_INIT_PRESET_OPTIONS = [
-  { value: "disk", label: "Disk" },
-  { value: "cloud", label: "Cloud" },
-  { value: "sphere", label: "Sphere" },
-  { value: "ellipsoid", label: "Ellipsoid" },
-];
-
 // Applet UI and metadata configuration.
-export const GALAXY_APPLET_CONFIG = defineAppletConfig({
-  label: "Galaxy Gravity",
-  camera: {
-    distance: 777,
-    height: 336,
-    params: [
-      { key: "projection", default: "perspective" },
-      { key: "locked", default: false },
-      { key: "fov", default: 34, uiMin: 18, uiMax: 88, step: 1 },
-      { key: "moveSpeed", default: 30, uiMin: 1, uiMax: 1000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 10, uiMax: 720, step: 1 },
-    ],
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "speed",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "speed", label: "Orbital Speed" },
-        ],
-      },
-      { key: "colormap", default: "magma" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#c9ddff" },
-    ],
-  },
-  unit: {
-    length: { label: "kly", description: "kilo-light-year", toSI: 9.4607304725808e18 },
-    mass: { label: "M_sun", description: "solar mass", toSI: 1.98847e30 },
-    time: { label: "Myr", description: "million years", toSI: 31557600000000 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 350, uiMin: 50, uiMax: 800, step: 5 },
-      { key: "y", default: 350, uiMin: 50, uiMax: 800, step: 5 },
-      { key: "z", default: 350, uiMin: 50, uiMax: 800, step: 5 },
-      { key: "gridSize", default: 20, uiMin: 5, uiMax: 800, step: 5 },
-      { key: "boundaryMode", default: "lost" },
-    ],
-    lengthUnit: {
-      name: GALAXY_UNITS.length.label,
-      toSI: GALAXY_UNITS.length.toSI,
-    },
-  },
-  intro: {
-      paragraphs: [
-        "This applet shows a self-gravitating 3D particle cloud. Matter pulls inward while initial orbital motion shapes large-scale structure over time.",
-        "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units.",
-      ],
-  },
-  model: {
-      subtitle: "Softened gravitational interaction in a 3D volume (kilo-light years, solar masses, Myr).",
-      references: [
-        { label: "Wikipedia: N-body simulation", url: "https://en.wikipedia.org/wiki/N-body_simulation" },
-        { label: "Wikipedia: Galaxy formation and evolution", url: "https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution" },
-      ],
-      items: [
-        {
-          title: "Position (\\(x\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=\\mathbf{v}\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t\\end{aligned}$$",
-          explanation: "Each particle advances according to its current orbital velocity.",
-        },
-        {
-          title: "Velocity (\\(v\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\mathbf{a}\\\\\\mathbf{v}_i(t+\\Delta t)&=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\end{aligned}$$",
-          explanation: "Velocity changes in response to the current gravitational acceleration.",
-        },
-        {
-          title: "Softened Gravity",
-          equation: "$$\\mathbf{a}_i=G\\sum_{j\\ne i}m_p\\frac{\\mathbf{r}_{ji}}{\\left(\\|\\mathbf{r}_{ji}\\|^2+\\epsilon^2\\right)^{3/2}}+G\\,M_c\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}},\\quad m_p=\\frac{M_{\\mathrm{obj}}}{N}$$",
-          explanation: "Acceleration combines particle-particle attraction with a pull from the central mass, while softening prevents singular forces at very small separations. In this applet, G is fixed to the physical SI gravitational constant and converted internally into galaxy units.",
-          parameters: [
-            "<strong>Central Mass</strong> (\\(M_c\\)) controls how strongly the system stays bound to the center.",
-            "<strong>Object Total Mass</strong> (\\(M_{\\mathrm{obj}}\\)) sets the total self-gravitating mass represented by particles.",
-            "<strong>Count</strong> (\\(N\\)) changes resolution; per-particle mass is \\(m_p=M_{\\mathrm{obj}}/N\\).",
-            "<strong>Softening</strong> (\\(\\epsilon\\)) sets the short-range smoothing scale.",
-          ],
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "galaxy-fps", label: "FPS", valueId: "galaxy-fps-live", initial: "--" },
-        { type: "chart", key: "galaxy-count", label: "Count", liveInitial: "0" },
-        { type: "chart", key: "galaxy-radius", label: "Radius", liveInitial: `0 ${GALAXY_UNITS.length.label}`, supportsDistribution: true },
-        { type: "chart", key: "galaxy-speed", label: "Mean Speed", liveInitial: `0 ${GALAXY_SPEED_UNIT}` },
-      ],
-    },
-  simulation: {
-      selects: [
-        selectControl(
-          "initial-shape",
-          "Initial Shape",
-          "bi-stars",
-          GALAXY_INIT_PRESET_OPTIONS,
-          "disk",
-          { group: "initial", simulationAction: "reset", paramKey: "initialShape" },
-        ),
-      ],
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "count", label: "Count", default: 1000, group: "initial", uiMin: 50, uiMax: 5000, control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
-        { key: "initialRadius", label: "Initial Radius", default: 120, unit: GALAXY_UNITS.length.label, group: "initial", uiMin: 2, uiMax: 350, control: { type: "slider", icon: "bi-bounding-box", step: 1, simulationAction: "reset", resetTrendCharts: true } },
-        { key: "particleSize", label: "Object Visual Size", default: 0.75, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 0.08, uiMax: 2, control: { type: "slider", icon: "bi-rulers", step: 0.02 } },
-        { key: "spin", label: "Initial Orbital Speed", default: 1.0, group: "initial", uiMin: 0.2, uiMax: 2.5, control: { type: "slider", icon: "bi-arrow-clockwise", step: 0.05 } },
-        { key: "centralMass", label: "Central Mass (\\(M_c\\))", default: GALAXY_DEFAULT_CENTRAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 5.0e10, uiMax: 1.0e13, control: { type: "slider", icon: "bi-bullseye", step: 5.0e10 } },
-        { key: "objectTotalMass", label: "Object Total Mass (\\(M_{\\mathrm{obj}}\\))", default: GALAXY_DEFAULT_OBJECT_TOTAL_MASS, unit: GALAXY_UNITS.mass.label, group: "dynamic", uiMin: 1.0e10, uiMax: 5.0e12, control: { type: "slider", icon: "bi-boxes", step: 1.0e10 } },
-        { key: "softening", label: "Softening (\\(\\epsilon\\))", default: 0.18, unit: GALAXY_UNITS.length.label, group: "dynamic", uiMin: 0.02, uiMax: 4, control: { type: "slider", icon: "bi-dot", step: 0.01 } },
-      ],
-    },
-});
+export const GALAXY_APPLET_CONFIG = validateAppletConfig(galaxyConfigData);
 
 // Shell runtime hooks.
 const GALAXY_APPLET_RUNTIME = {
@@ -596,6 +468,8 @@ function buildGalaxyColormapConfig({
 }) {
   const colorMode = params?.colorMode || "speed";
   const colormap = params?.colormap || "magma";
+  const colorModeOption = getGalaxyColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
   if (colorMode === "solid") {
     return {
       visible: false,
@@ -617,10 +491,19 @@ function buildGalaxyColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.magma,
-      minText: `cmin: ${Number(range.min).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
-      maxText: `cmax: ${Number(range.max).toFixed(0)} ${GALAXY_SPEED_UNIT}`,
+      minText: `min: ${Number(range.min).toFixed(0)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(range.max).toFixed(0)}${unit ? ` ${unit}` : ""}`,
     },
   };
+}
+
+function getGalaxyColorModeOption(colorMode) {
+  const visualParams = Array.isArray(GALAXY_APPLET_CONFIG.visual?.params)
+    ? GALAXY_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {

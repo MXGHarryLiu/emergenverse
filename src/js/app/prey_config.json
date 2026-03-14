@@ -1,0 +1,476 @@
+{
+  "label": "Prey Chain",
+  "intro": {
+    "paragraphs": [
+      "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
+      "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping."
+    ]
+  },
+  "model": {
+    "subtitle": "Population balance coupled to local chase-and-escape motion.",
+    "references": [
+      {
+        "label": "Wikipedia: Lotka-Volterra equations",
+        "url": "https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations"
+      },
+      {
+        "label": "Wikipedia: Food chain",
+        "url": "https://en.wikipedia.org/wiki/Food_chain"
+      }
+    ],
+    "items": [
+      {
+        "title": "Population Balance",
+        "equation": "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
+        "explanation": "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
+        "parameters": [
+          "<strong>Prey Count</strong> (\\(x\\)) sets the initial prey population.",
+          "<strong>Predator Count</strong> (\\(y\\)) sets the initial predator population.",
+          "<strong>Prey Birth Rate</strong> (\\(\\alpha\\)) sets the prey growth tendency.",
+          "<strong>Predation Rate</strong> (\\(\\beta\\)) scales encounter pressure.",
+          "<strong>Predator Gain</strong> (\\(\\delta\\)) controls how much predators benefit from captures.",
+          "<strong>Predator Energy Loss</strong> (\\(\\gamma\\)) sets background predator decline."
+        ]
+      },
+      {
+        "title": "Position (\\(x\\))",
+        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{p}}{dt}&=\\mathbf{v}\\\\\\mathbf{p}_k(t+\\Delta t)&=\\mathbf{p}_k(t)+\\mathbf{v}_k(t)\\Delta t\\end{aligned}$$",
+        "explanation": "Each prey or predator moves forward using its current velocity."
+      },
+      {
+        "title": "Velocity (\\(v\\))",
+        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{norm}(\\mathbf{v}+\\mathbf{u}\\,\\Delta t)\\,s-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_{k}(t+\\Delta t)&=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}(t)+\\mathbf{u}_{k}(t)\\Delta t\\right)\\,s_k\\end{aligned}$$",
+        "explanation": "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
+        "parameters": [
+          "<strong>Prey Speed</strong> (\\(s_{prey}\\)) and <strong>Predator Speed</strong> (\\(s_{pred}\\)) set the travel rates."
+        ]
+      }
+    ]
+  },
+  "unit": {
+    "length": {
+      "label": "m",
+      "description": "meter",
+      "toSI": 1
+    },
+    "mass": {
+      "label": "a.u.",
+      "description": "arbitrary unit"
+    },
+    "time": {
+      "label": "s",
+      "description": "second",
+      "toSI": 1
+    }
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "prey-fps",
+        "label": "FPS",
+        "valueId": "prey-fps-live",
+        "initial": "--"
+      },
+      {
+        "type": "chart",
+        "key": "prey-count",
+        "label": "Prey Count",
+        "liveInitial": "0"
+      },
+      {
+        "type": "chart",
+        "key": "predator-count",
+        "label": "Predator Count",
+        "liveInitial": "0"
+      },
+      {
+        "type": "chart",
+        "key": "prey-eaten",
+        "label": "Predation (cum.)",
+        "liveInitial": "0"
+      }
+    ]
+  },
+  "simulation": {
+    "params": [
+      {
+        "key": "simSpeed",
+        "label": "Simulation Speed",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 10,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stopwatch",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "count",
+        "label": "Prey Count",
+        "default": 260,
+        "group": "initial",
+        "uiMin": 20,
+        "uiMax": 1200,
+        "control": {
+          "type": "slider",
+          "icon": "bi-circle-fill",
+          "step": 10,
+          "simulationSetter": "setPreyCount",
+          "resetTrendCharts": true
+        }
+      },
+      {
+        "key": "predatorCount",
+        "label": "Predator Count",
+        "default": 24,
+        "group": "initial",
+        "uiMin": 2,
+        "uiMax": 240,
+        "control": {
+          "type": "slider",
+          "icon": "bi-triangle-fill",
+          "step": 1,
+          "resetTrendCharts": true
+        }
+      },
+      {
+        "key": "speed",
+        "label": "Prey Speed",
+        "default": 4.5,
+        "unit": "m/s",
+        "group": "dynamic",
+        "uiMin": 0.5,
+        "uiMax": 18,
+        "control": {
+          "type": "slider",
+          "icon": "bi-speedometer2",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "predatorSpeed",
+        "label": "Predator Speed",
+        "default": 6.2,
+        "unit": "m/s",
+        "group": "dynamic",
+        "uiMin": 0.5,
+        "uiMax": 24,
+        "control": {
+          "type": "slider",
+          "icon": "bi-lightning-charge-fill",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "predatorSenseRadius",
+        "label": "Sense Radius",
+        "default": 16.0,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 1,
+        "uiMax": 60,
+        "control": {
+          "type": "slider",
+          "icon": "bi-broadcast",
+          "step": 0.5
+        }
+      },
+      {
+        "key": "predationRadius",
+        "label": "Predation Radius",
+        "default": 1.6,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 8,
+        "control": {
+          "type": "slider",
+          "icon": "bi-crosshair2",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "birthRate",
+        "label": "Prey Birth Rate (\\(\\alpha\\))",
+        "default": 0.08,
+        "unit": "1/s",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 0.8,
+        "control": {
+          "type": "slider",
+          "icon": "bi-activity",
+          "step": 0.01
+        }
+      },
+      {
+        "key": "predationRateBeta",
+        "label": "Predation Rate (\\(\\beta\\))",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 3,
+        "control": {
+          "type": "slider",
+          "icon": "bi-graph-up-arrow",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "predatorEnergyGain",
+        "label": "Predator Gain (\\(\\delta\\))",
+        "default": 1.6,
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-plus-circle",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "predatorEnergyLoss",
+        "label": "Predator Energy Loss (\\(\\gamma\\))",
+        "default": 0.45,
+        "unit": "1/s",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 2,
+        "control": {
+          "type": "slider",
+          "icon": "bi-dash-circle",
+          "step": 0.01
+        }
+      }
+    ]
+  },
+  "visual": {
+    "colormap": [
+      {
+        "name": "turbo",
+        "value": [
+          "#30123b",
+          "#4145ab",
+          "#4685f4",
+          "#39c6c5",
+          "#77df6e",
+          "#b8de29",
+          "#f9ba38",
+          "#ee6a24",
+          "#c91f16"
+        ]
+      },
+      {
+        "name": "viridis",
+        "value": [
+          "#440154",
+          "#482878",
+          "#3e4a89",
+          "#31688e",
+          "#26828e",
+          "#1f9e89",
+          "#35b779",
+          "#6ece58",
+          "#b5de2b",
+          "#fee825"
+        ]
+      },
+      {
+        "name": "plasma",
+        "value": [
+          "#0d0887",
+          "#5b02a3",
+          "#9a179b",
+          "#cb4679",
+          "#ed7953",
+          "#fb9f3a",
+          "#fdca26",
+          "#f0f921"
+        ]
+      },
+      {
+        "name": "magma",
+        "value": [
+          "#000004",
+          "#180f3d",
+          "#440f76",
+          "#721f81",
+          "#9f2f7f",
+          "#cd4071",
+          "#f1605d",
+          "#fd9668",
+          "#fec98d",
+          "#fcfdbf"
+        ]
+      },
+      {
+        "name": "inferno",
+        "value": [
+          "#000004",
+          "#1b0c41",
+          "#4a0c6b",
+          "#781c6d",
+          "#a52c60",
+          "#cf4446",
+          "#ed6925",
+          "#fb9b06",
+          "#f7d13d",
+          "#fcffa4"
+        ]
+      },
+      {
+        "name": "cividis",
+        "value": [
+          "#00204d",
+          "#213f6f",
+          "#3f5f7f",
+          "#5d7f87",
+          "#7a9f8a",
+          "#99bf88",
+          "#b9dd7f",
+          "#dbf06a",
+          "#fff44f"
+        ]
+      },
+      {
+        "name": "coolwarm",
+        "value": [
+          "#3b4cc0",
+          "#688aef",
+          "#98b9ff",
+          "#c9d7f0",
+          "#ece5dc",
+          "#f7c7a6",
+          "#ee8468",
+          "#d34b44",
+          "#b40426"
+        ]
+      },
+      {
+        "name": "greys",
+        "value": [
+          "#111111",
+          "#3a3a3a",
+          "#5f5f5f",
+          "#878787",
+          "#afafaf",
+          "#d3d3d3",
+          "#f2f2f2"
+        ]
+      }
+    ],
+    "params": [
+      {
+        "key": "colorMode",
+        "default": "energy",
+        "options": [
+          {
+            "value": "solid",
+            "label": "Single color",
+            "unit": "",
+            "type": "single"
+          },
+          {
+            "value": "energy",
+            "label": "Predator Energy",
+            "unit": "a.u.",
+            "type": "continuous"
+          }
+        ]
+      },
+      {
+        "key": "colormap",
+        "default": "turbo"
+      },
+      {
+        "key": "colormapInverted",
+        "default": false
+      },
+      {
+        "key": "solidColor",
+        "default": "#ff8d5f"
+      }
+    ]
+  },
+  "camera": {
+    "params": [
+      {
+        "key": "projection",
+        "default": "orthographic"
+      },
+      {
+        "key": "locked",
+        "default": false
+      },
+      {
+        "key": "fov",
+        "default": 50,
+        "uiMin": 20,
+        "uiMax": 90,
+        "step": 1
+      },
+      {
+        "key": "moveSpeed",
+        "default": 120,
+        "uiMin": 1,
+        "uiMax": 100000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "uiMin": 1,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "params": [
+      {
+        "key": "x",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "y",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "z",
+        "default": 100,
+        "uiMin": 30,
+        "uiMax": 260,
+        "step": 2
+      },
+      {
+        "key": "gridSize",
+        "default": 5,
+        "uiMin": 2,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "boundaryMode",
+        "default": "cyclic-xy"
+      }
+    ]
+  },
+  "params": {
+    "avoidRadius": 14,
+    "avoidWeight": 2.4,
+    "predatorSpawnEnergy": 2.8,
+    "maxCount": 1200,
+    "scale": 0.62,
+    "predatorScale": 1.0
+  }
+}

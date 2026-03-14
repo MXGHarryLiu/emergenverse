@@ -1,31 +1,7 @@
 // Visual styling controls shared across applet rendering modes.
-import { APPLET_VISUALS } from "./app/appletConfigs.js";
+import { APPLET_CONFIGS, APPLET_VISUALS } from "./app/appletConfigs.js";
 
-const CONTINUOUS_COLORMAP_OPTIONS = [
-  { value: "turbo", label: "Turbo" },
-  { value: "viridis", label: "Viridis" },
-  { value: "plasma", label: "Plasma" },
-  { value: "magma", label: "Magma" },
-  { value: "inferno", label: "Inferno" },
-  { value: "cividis", label: "Cividis" },
-  { value: "coolwarm", label: "Coolwarm" },
-  { value: "greys", label: "Greys" },
-];
-
-const CONTINUOUS_COLORMAP_GRADIENTS = {
-  turbo: "linear-gradient(90deg, #30123b 0%, #4145ab 12.5%, #4685f4 25%, #39c6c5 37.5%, #77df6e 50%, #b8de29 62.5%, #f9ba38 75%, #ee6a24 87.5%, #c91f16 100%)",
-  viridis: "linear-gradient(90deg, #440154 0%, #482878 11%, #3e4a89 22%, #31688e 33%, #26828e 44%, #1f9e89 55%, #35b779 66%, #6ece58 77%, #b5de2b 88%, #fee825 100%)",
-  plasma: "linear-gradient(90deg, #0d0887 0%, #5b02a3 14%, #9a179b 28%, #cb4679 42%, #ed7953 57%, #fb9f3a 71%, #fdca26 85%, #f0f921 100%)",
-  magma: "linear-gradient(90deg, #000004 0%, #180f3d 11%, #440f76 22%, #721f81 33%, #9f2f7f 44%, #cd4071 55%, #f1605d 66%, #fd9668 77%, #fec98d 88%, #fcfdbf 100%)",
-  inferno: "linear-gradient(90deg, #000004 0%, #1b0c41 11%, #4a0c6b 22%, #781c6d 33%, #a52c60 44%, #cf4446 55%, #ed6925 66%, #fb9b06 77%, #f7d13d 88%, #fcffa4 100%)",
-  cividis: "linear-gradient(90deg, #00204d 0%, #213f6f 12.5%, #3f5f7f 25%, #5d7f87 37.5%, #7a9f8a 50%, #99bf88 62.5%, #b9dd7f 75%, #dbf06a 87.5%, #fff44f 100%)",
-  coolwarm: "linear-gradient(90deg, #3b4cc0 0%, #688aef 12.5%, #98b9ff 25%, #c9d7f0 37.5%, #ece5dc 50%, #f7c7a6 62.5%, #ee8468 75%, #d34b44 87.5%, #b40426 100%)",
-  greys: "linear-gradient(90deg, #111111 0%, #3a3a3a 16%, #5f5f5f 32%, #878787 48%, #afafaf 64%, #d3d3d3 82%, #f2f2f2 100%)",
-};
-
-const CONTINUOUS_COLORMAP_GRADIENTS_INVERTED = Object.fromEntries(
-  Object.entries(CONTINUOUS_COLORMAP_GRADIENTS).map(([key, gradient]) => [key, invertLinearGradientDirection(gradient)]),
-);
+const CONTINUOUS_COLORMAP_BY_APPLET = buildContinuousColormapCatalogByApplet(APPLET_CONFIGS);
 
 export function createVisualControls({
   params,
@@ -33,6 +9,7 @@ export function createVisualControls({
   getActiveApplet,
 }) {
   const dom = getVisualControlsDom();
+  let activeCompactColorModeAppletId = null;
 
   function formatHexColor(value) {
     if (typeof value !== "string") {
@@ -41,12 +18,15 @@ export function createVisualControls({
     return value.toUpperCase();
   }
 
-  function syncColorInput(inputEl, valueEl, value) {
+  function syncColorInput(inputEl, valueEl, value, swatchEl) {
     if (inputEl) {
       inputEl.value = value;
     }
     if (valueEl) {
       valueEl.textContent = formatHexColor(value);
+    }
+    if (swatchEl) {
+      swatchEl.style.background = value;
     }
   }
 
@@ -68,9 +48,25 @@ export function createVisualControls({
     dom.colormapPanel.invertWrap?.classList.add("is-hidden");
   }
 
+  function hideStateColorsPanel() {
+    dom.stateColorsPanel.panel?.classList.add("is-hidden");
+    if (dom.stateColorsPanel.list) {
+      dom.stateColorsPanel.list.innerHTML = "";
+    }
+  }
+
   function mountColormapPanel(appletId) {
     const panel = dom.colormapPanel.panel;
     const host = dom.colormapPanel.hosts[appletId];
+    if (!panel || !host || panel.parentElement === host) {
+      return;
+    }
+    host.appendChild(panel);
+  }
+
+  function mountStateColorsPanel(appletId) {
+    const panel = dom.stateColorsPanel.panel;
+    const host = dom.stateColorsPanel.hosts[appletId];
     if (!panel || !host || panel.parentElement === host) {
       return;
     }
@@ -109,9 +105,89 @@ export function createVisualControls({
     return dom.appletControls[appletId] || {};
   }
 
+  function getColorModeParam(appletId) {
+    const appletConfig = APPLET_CONFIGS[appletId];
+    const visualParams = Array.isArray(appletConfig?.visual?.params)
+      ? appletConfig.visual.params
+      : [];
+    return visualParams.find((entry) => entry?.key === "colorMode") || null;
+  }
+
+  function getColorModeDisplayMeta(appletId) {
+    const appletParams = params?.[appletId];
+    const colorModeParam = getColorModeParam(appletId);
+    const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+    const selectedValue = String(appletParams?.colorMode || colorModeParam?.default || options[0]?.value || "").trim();
+    const selectedOption = options.find((option) => option?.value === selectedValue) || null;
+    const shortValue = String(selectedOption?.value || selectedValue || "");
+    const longLabel = String(selectedOption?.label || shortValue);
+    const unit = String(selectedOption?.unit || "").trim();
+    const tooltip = unit ? `${longLabel}, ${unit}` : longLabel;
+    return { shortValue, tooltip };
+  }
+
+  function setCompactColorModeActive(appletId, active) {
+    const controls = getAppletControls(appletId);
+    if (!controls.colorMode || !controls.colorModeValue) {
+      return;
+    }
+    controls.colorMode.classList.toggle("is-active-select", active);
+    controls.colorModeValue.classList.toggle("is-active-control", active);
+  }
+
+  function deactivateCompactColorMode() {
+    if (!activeCompactColorModeAppletId) {
+      return;
+    }
+    setCompactColorModeActive(activeCompactColorModeAppletId, false);
+    activeCompactColorModeAppletId = null;
+  }
+
+  function activateCompactColorMode(appletId) {
+    if (!appletId) {
+      return;
+    }
+    if (activeCompactColorModeAppletId === appletId) {
+      getAppletControls(appletId).colorMode?.focus();
+      return;
+    }
+    deactivateCompactColorMode();
+    activeCompactColorModeAppletId = appletId;
+    setCompactColorModeActive(appletId, true);
+    getAppletControls(appletId).colorMode?.focus();
+  }
+
+  function syncColorModeValueDisplay(appletId) {
+    const controls = getAppletControls(appletId);
+    if (!controls.colorModeValue) {
+      return;
+    }
+    const { shortValue, tooltip } = getColorModeDisplayMeta(appletId);
+    controls.colorModeValue.textContent = shortValue;
+    controls.colorModeValue.dataset.formattedValue = shortValue;
+    controls.colorModeValue.setAttribute("title", tooltip);
+    controls.colorModeValue.setAttribute("aria-label", tooltip);
+  }
+
+  function getColorModeOption(appletId) {
+    const appletConfig = APPLET_CONFIGS[appletId];
+    const appletParams = params?.[appletId];
+    const visualParams = Array.isArray(appletConfig?.visual?.params)
+      ? appletConfig.visual.params
+      : [];
+    const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+    const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+    const activeMode = String(appletParams?.colorMode || colorModeParam?.default || options[0]?.value || "").trim();
+    if (!activeMode) {
+      return null;
+    }
+    return options.find((option) => option?.value === activeMode) || null;
+  }
+
   function getColormapConfig(appletId) {
     const visualAdapter = APPLET_VISUALS[appletId];
     const appletParams = params?.[appletId];
+    const colormapCatalog = CONTINUOUS_COLORMAP_BY_APPLET[appletId];
     if (!visualAdapter?.getColormapConfig || !appletParams) {
       return null;
     }
@@ -120,19 +196,20 @@ export function createVisualControls({
       appletId,
       params: appletParams,
       simulation: simulations[appletId],
-      continuousColormapOptions: CONTINUOUS_COLORMAP_OPTIONS,
-      continuousColormapGradients: CONTINUOUS_COLORMAP_GRADIENTS,
+      continuousColormapOptions: colormapCatalog?.options || [],
+      continuousColormapGradients: colormapCatalog?.gradients || {},
     });
     if (!baseConfig) {
       return null;
     }
 
     const supportsInvert =
-      baseConfig.options === CONTINUOUS_COLORMAP_OPTIONS &&
+      baseConfig.options === colormapCatalog?.options &&
       Boolean(baseConfig.visible);
 
     return {
       ...baseConfig,
+      colormapGradientsInverted: colormapCatalog?.gradientsInverted || {},
       invertVisible: supportsInvert,
       inverted: Boolean(appletParams.colormapInverted) && supportsInvert,
       setInverted(value) {
@@ -151,7 +228,7 @@ export function createVisualControls({
     const selectedMap = config.value || "";
     const normalGradient = config.legend.gradient;
     const invertedGradient =
-      CONTINUOUS_COLORMAP_GRADIENTS_INVERTED[selectedMap] ||
+      config.colormapGradientsInverted[selectedMap] ||
       invertLinearGradientDirection(normalGradient);
     const gradient =
       config.inverted && config.invertVisible ? invertedGradient : normalGradient;
@@ -163,13 +240,106 @@ export function createVisualControls({
     });
   }
 
+  function normalizeStateColorValue(value, fallback = "#ffffff") {
+    if (typeof value !== "string") {
+      return fallback;
+    }
+    const trimmed = value.trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+      return fallback;
+    }
+    return trimmed.toLowerCase();
+  }
+
+  function syncStateColorsPanel(appletId, colorModeOption) {
+    const panel = dom.stateColorsPanel.panel;
+    const list = dom.stateColorsPanel.list;
+    const appletParams = params?.[appletId];
+    const simulation = simulations[appletId];
+    const stateEntries = Array.isArray(colorModeOption?.states) ? colorModeOption.states : [];
+    if (!panel || !list || !appletParams || stateEntries.length === 0) {
+      hideStateColorsPanel();
+      return;
+    }
+
+    mountStateColorsPanel(appletId);
+    panel.classList.remove("is-hidden");
+    list.innerHTML = "";
+
+    stateEntries.forEach((entry, index) => {
+      const key = String(entry?.key || "").trim();
+      if (!key) {
+        return;
+      }
+      const label = String(entry?.label || key).trim();
+      const fallback = normalizeStateColorValue(String(entry?.default || "#ffffff"), "#ffffff");
+      const currentValue = normalizeStateColorValue(String(appletParams[key] || fallback), fallback);
+      appletParams[key] = currentValue;
+
+      const row = document.createElement("div");
+      row.className = "state-color-row";
+
+      const title = document.createElement("div");
+      title.className = "state-color-title";
+      title.textContent = `${index + 1}. ${label}`;
+
+      const controls = document.createElement("div");
+      controls.className = "state-color-controls";
+
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "color-chip state-color-chip";
+      chip.setAttribute("aria-label", `${label} color`);
+
+      const swatch = document.createElement("span");
+      swatch.className = "color-chip-swatch";
+      swatch.style.background = currentValue;
+
+      const valueText = document.createElement("span");
+      valueText.className = "color-chip-value";
+      valueText.textContent = currentValue.toUpperCase();
+
+      const input = document.createElement("input");
+      input.type = "color";
+      input.className = "form-control form-control-color theme-color-input state-color-input";
+      input.value = currentValue;
+      input.addEventListener("input", () => {
+        const nextValue = normalizeStateColorValue(input.value, fallback);
+        appletParams[key] = nextValue;
+        valueText.textContent = nextValue.toUpperCase();
+        swatch.style.background = nextValue;
+        simulation?.syncInstances?.();
+      });
+      chip.addEventListener("click", () => input.click());
+
+      chip.appendChild(swatch);
+      chip.appendChild(valueText);
+      controls.appendChild(chip);
+      controls.appendChild(input);
+      row.appendChild(title);
+      row.appendChild(controls);
+      list.appendChild(row);
+    });
+  }
+
   function syncColormapPanel() {
     const activeApplet = getActiveApplet?.();
     const config = getColormapConfig(activeApplet);
+    const colorModeOption = getColorModeOption(activeApplet);
+    const colorModeType = String(colorModeOption?.type || "continuous").toLowerCase();
     if (!config) {
       hideColormapPanel();
+      hideStateColorsPanel();
       return;
     }
+
+    if (colorModeType === "states") {
+      hideColormapPanel();
+      syncStateColorsPanel(activeApplet, colorModeOption);
+      return;
+    }
+
+    hideStateColorsPanel();
 
     mountColormapPanel(activeApplet);
     dom.colormapPanel.panel?.classList.toggle("is-hidden", !config.visible);
@@ -215,19 +385,53 @@ export function createVisualControls({
       }
 
       if (controls.colorMode) {
+        controls.colorMode.classList.add("compact-source-select");
+        controls.colorMode.addEventListener("blur", () => {
+          setTimeout(() => {
+            if (activeCompactColorModeAppletId === appletId) {
+              deactivateCompactColorMode();
+            }
+          }, 0);
+        });
         controls.colorMode.addEventListener("change", () => {
           appletParams.colorMode = controls.colorMode.value || appletParams.colorMode;
+          syncColorModeValueDisplay(appletId);
           syncSingleColorVisibility(appletId);
           syncColormapPanel();
           simulation?.syncInstances?.();
           refreshLegend(appletId);
         });
       }
+      if (controls.colorModeValue) {
+        controls.colorModeValue.classList.add("compact-value-trigger");
+        controls.colorModeValue.setAttribute("role", "button");
+        controls.colorModeValue.setAttribute("tabindex", "0");
+        controls.colorModeValue.setAttribute("aria-label", "Edit color mode");
+        const activate = (event) => {
+          if (event.type === "keydown" && event.key !== "Enter" && event.key !== " " && event.key !== "F2") {
+            return;
+          }
+          if (event.type === "keydown") {
+            event.preventDefault();
+          }
+          activateCompactColorMode(appletId);
+        };
+        controls.colorModeValue.addEventListener("click", activate);
+        controls.colorModeValue.addEventListener("keydown", activate);
+      }
 
       if (controls.solidColor) {
+        if (controls.solidColorChip) {
+          controls.solidColorChip.addEventListener("click", () => controls.solidColor.click());
+        }
         controls.solidColor.addEventListener("input", () => {
           appletParams.solidColor = controls.solidColor.value;
-          syncColorInput(controls.solidColor, controls.solidColorValue, appletParams.solidColor);
+          syncColorInput(
+            controls.solidColor,
+            controls.solidColorValue,
+            appletParams.solidColor,
+            controls.solidColorSwatch,
+          );
           simulation?.syncInstances?.();
         });
       }
@@ -269,8 +473,14 @@ export function createVisualControls({
       if (controls.colorMode) {
         controls.colorMode.value = appletParams.colorMode;
       }
+      syncColorModeValueDisplay(appletId);
       if (controls.solidColor) {
-        syncColorInput(controls.solidColor, controls.solidColorValue, appletParams.solidColor);
+        syncColorInput(
+          controls.solidColor,
+          controls.solidColorValue,
+          appletParams.solidColor,
+          controls.solidColorSwatch,
+        );
       }
       syncSingleColorVisibility(appletId);
     });
@@ -296,17 +506,22 @@ export function createVisualControls({
 
 function getVisualControlsDom() {
   const hosts = {};
+  const stateColorHosts = {};
   const appletControls = {};
 
   Object.entries(APPLET_VISUALS).forEach(([id]) => {
     hosts[id] = document.querySelector(`[data-shared-colormap-host="${id}"]`);
-    const controlIds = deriveVisualControlIds(id);
+    stateColorHosts[id] = document.querySelector(`[data-shared-state-colors-host="${id}"]`);
+      const controlIds = deriveVisualControlIds(id);
     appletControls[id] = {
       colorMode: document.getElementById(controlIds.colorModeId),
+      colorModeValue: document.getElementById(controlIds.colorModeValueId),
       solidColor: document.getElementById(controlIds.solidColorId),
-      solidColorValue: document.getElementById(controlIds.solidColorValueId),
-      singleColorWrap: document.getElementById(controlIds.singleColorWrapId),
-    };
+      solidColorChip: document.getElementById(controlIds.solidColorChipId),
+      solidColorSwatch: document.getElementById(controlIds.solidColorSwatchId),
+        solidColorValue: document.getElementById(controlIds.solidColorValueId),
+        singleColorWrap: document.getElementById(controlIds.singleColorWrapId),
+      };
   });
 
   return {
@@ -324,6 +539,11 @@ function getVisualControlsDom() {
       },
       hosts,
     },
+    stateColorsPanel: {
+      panel: document.getElementById("shared-state-colors-panel"),
+      list: document.getElementById("state-colors-list"),
+      hosts: stateColorHosts,
+    },
   };
 }
 
@@ -331,7 +551,10 @@ function deriveVisualControlIds(appletId) {
   const prefix = String(appletId || "").trim();
   return {
     colorModeId: `${prefix}-color-mode`,
+    colorModeValueId: `${prefix}-color-mode-value`,
     solidColorId: `${prefix}-solid-color`,
+    solidColorChipId: `${prefix}-solid-color-chip`,
+    solidColorSwatchId: `${prefix}-solid-color-swatch`,
     solidColorValueId: `${prefix}-solid-color-value`,
     singleColorWrapId: `${prefix}-single-color-wrap`,
   };
@@ -345,4 +568,93 @@ function invertLinearGradientDirection(gradient) {
     return gradient.replace("90deg", "270deg");
   }
   return gradient;
+}
+
+function buildContinuousColormapCatalogByApplet(appletConfigs = {}) {
+  return Object.fromEntries(
+    Object.entries(appletConfigs).map(([appletId, appletConfig]) => [
+      appletId,
+      buildContinuousColormapCatalog(appletConfig?.visual),
+    ]),
+  );
+}
+
+function buildContinuousColormapCatalog(visualConfig = {}) {
+  const entries = Array.isArray(visualConfig?.colormap) ? visualConfig.colormap : [];
+  const options = [];
+  const gradients = {};
+  entries.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const name = String(entry.name || "").trim();
+    if (!name) {
+      return;
+    }
+    const valueStops = Array.isArray(entry.value) ? entry.value.map(normalizeColorStopHex).filter(Boolean) : [];
+    if (valueStops.length < 2) {
+      return;
+    }
+    options.push({
+      value: name,
+      label: formatColormapLabel(name),
+    });
+    gradients[name] = buildLinearGradientFromHexStops(valueStops);
+  });
+
+  return {
+    options,
+    gradients,
+    gradientsInverted: Object.fromEntries(
+      Object.entries(gradients).map(([name, gradient]) => [name, invertLinearGradientDirection(gradient)]),
+    ),
+  };
+}
+
+function normalizeColorStopHex(stop) {
+  if (typeof stop === "number" && Number.isFinite(stop)) {
+    const clamped = Math.min(0xffffff, Math.max(0, Math.round(stop)));
+    return `#${clamped.toString(16).padStart(6, "0")}`;
+  }
+  if (typeof stop !== "string") {
+    return null;
+  }
+  const raw = stop.trim().toLowerCase();
+  if (!raw) {
+    return null;
+  }
+  if (/^#[0-9a-f]{6}$/i.test(raw)) {
+    return raw;
+  }
+  if (/^0x[0-9a-f]{6}$/i.test(raw)) {
+    return `#${raw.slice(2)}`;
+  }
+  if (/^[0-9a-f]{6}$/i.test(raw)) {
+    return `#${raw}`;
+  }
+  return null;
+}
+
+function buildLinearGradientFromHexStops(hexStops) {
+  if (!Array.isArray(hexStops) || hexStops.length === 0) {
+    return "linear-gradient(90deg, #000000 0%, #000000 100%)";
+  }
+  if (hexStops.length === 1) {
+    return `linear-gradient(90deg, ${hexStops[0]} 0%, ${hexStops[0]} 100%)`;
+  }
+  const maxIndex = hexStops.length - 1;
+  const stops = hexStops.map((hex, index) => {
+    const ratio = index / maxIndex;
+    return `${hex} ${(ratio * 100).toFixed(2)}%`;
+  });
+  return `linear-gradient(90deg, ${stops.join(", ")})`;
+}
+
+function formatColormapLabel(name) {
+  return String(name || "")
+    .trim()
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

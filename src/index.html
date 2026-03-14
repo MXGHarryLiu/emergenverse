@@ -371,10 +371,16 @@
           <div class="colormap-legend mt-2" id="colormap-legend" aria-label="Shared colormap legend">
             <div class="colormap-legend-bar" id="colormap-legend-bar"></div>
             <div class="colormap-legend-meta">
-              <span id="colormap-cmin">cmin: 0.0</span>
-              <span id="colormap-cmax">cmax: 1.0</span>
+              <span id="colormap-cmin">min: 0.0</span>
+              <span id="colormap-cmax">max: 1.0</span>
             </div>
           </div>
+        </div>
+        <div id="shared-state-colors-panel" class="is-hidden mt-2">
+          <label class="form-label">
+            <span class="label-name"><i class="bi bi-droplet-half" aria-hidden="true"></i>Colors</span>
+          </label>
+          <div class="state-colors-list" id="state-colors-list"></div>
         </div>
 
         <div class="control-section" data-control-section="world" data-app-visible="*">

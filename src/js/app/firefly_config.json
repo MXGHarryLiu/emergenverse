@@ -1,0 +1,459 @@
+{
+  "label": "Firefly Sync",
+  "intro": {
+    "paragraphs": [
+      "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
+      "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure."
+    ]
+  },
+  "model": {
+    "subtitle": "Local oscillator coupling with blink resets and a global order parameter.",
+    "references": [
+      {
+        "label": "Wikipedia: Kuramoto model",
+        "url": "https://en.wikipedia.org/wiki/Kuramoto_model"
+      },
+      {
+        "label": "Wikipedia: Synchronization",
+        "url": "https://en.wikipedia.org/wiki/Synchronization"
+      }
+    ],
+    "items": [
+      {
+        "title": "Phase (\\(\\theta\\))",
+        "equation": "$$\\begin{aligned}\\frac{d\\theta}{dt}&=\\omega + \\frac{K}{N}\\sum_{j\\in\\mathcal{N}}\\sin(\\theta_j-\\theta) + \\eta(t)\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+\\left(\\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)\\right)\\Delta t\\end{aligned}$$",
+        "explanation": "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
+        "parameters": [
+          "<strong>Coupling</strong> (\\(K\\)) sets the synchronization strength.",
+          "<strong>Base Frequency</strong> (\\(\\omega\\)), <strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)), and <strong>Phase Noise</strong> (\\(\\eta\\)) shape the intrinsic rhythm spread."
+        ]
+      },
+      {
+        "title": "Blink Event",
+        "equation": "$$\\theta_i \\mapsto \\theta_i \\bmod 2\\pi,\\quad \\text{blink when } \\theta_i \\to 2\\pi$$",
+        "explanation": "A blink occurs when the phase completes a full cycle, after which the oscillator wraps back to the start of the next cycle."
+      },
+      {
+        "title": "Synchronization Order",
+        "equation": "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
+        "explanation": "The order parameter measures how tightly the fireflies align in phase, from incoherent flashing near zero to near-perfect synchrony near one."
+      }
+    ]
+  },
+  "unit": {
+    "length": {
+      "label": "m",
+      "description": "meter",
+      "toSI": 1
+    },
+    "mass": {
+      "label": "a.u.",
+      "description": "arbitrary unit"
+    },
+    "time": {
+      "label": "s",
+      "description": "second",
+      "toSI": 1
+    }
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "firefly-fps",
+        "label": "FPS",
+        "valueId": "firefly-fps-live",
+        "initial": "--"
+      },
+      {
+        "type": "chart",
+        "key": "firefly-count",
+        "label": "Count",
+        "liveInitial": "0"
+      },
+      {
+        "type": "chart",
+        "key": "firefly-order",
+        "label": "Order (R)",
+        "liveInitial": "0.000"
+      },
+      {
+        "type": "chart",
+        "key": "firefly-blink",
+        "label": "Blink Rate",
+        "liveInitial": "0.0 /s"
+      }
+    ]
+  },
+  "simulation": {
+    "params": [
+      {
+        "key": "simSpeed",
+        "label": "Simulation Speed",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 10,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stopwatch",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "count",
+        "label": "Count",
+        "default": 180,
+        "group": "initial",
+        "uiMin": 20,
+        "uiMax": 900,
+        "control": {
+          "type": "slider",
+          "icon": "bi-people-fill",
+          "step": 10,
+          "resetTrendCharts": true
+        }
+      },
+      {
+        "key": "size",
+        "label": "Object Visual Size",
+        "default": 0.8,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 2.5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-rulers",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "speed",
+        "label": "Speed",
+        "default": 1.2,
+        "unit": "m/s",
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 4.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-arrow-repeat",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "coupling",
+        "label": "Coupling (\\(K\\))",
+        "default": 2.2,
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 8,
+        "control": {
+          "type": "slider",
+          "icon": "bi-diagram-2",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "radius",
+        "label": "Interaction Radius",
+        "default": 18.0,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 1,
+        "uiMax": 60,
+        "control": {
+          "type": "slider",
+          "icon": "bi-broadcast",
+          "step": 0.5
+        }
+      },
+      {
+        "key": "frequencyHz",
+        "label": "Base Frequency",
+        "default": 1.8,
+        "unit": "Hz",
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 6.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-speedometer2",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "freqJitterHz",
+        "label": "Frequency Jitter",
+        "default": 0.2,
+        "unit": "Hz",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 2.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-slash-circle",
+          "step": 0.02
+        }
+      },
+      {
+        "key": "phaseNoise",
+        "label": "Phase Noise",
+        "default": 0.4,
+        "unit": "rad/s",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 3.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-shuffle",
+          "step": 0.02
+        }
+      }
+    ]
+  },
+  "visual": {
+    "colormap": [
+      {
+        "name": "turbo",
+        "value": [
+          "#30123b",
+          "#4145ab",
+          "#4685f4",
+          "#39c6c5",
+          "#77df6e",
+          "#b8de29",
+          "#f9ba38",
+          "#ee6a24",
+          "#c91f16"
+        ]
+      },
+      {
+        "name": "viridis",
+        "value": [
+          "#440154",
+          "#482878",
+          "#3e4a89",
+          "#31688e",
+          "#26828e",
+          "#1f9e89",
+          "#35b779",
+          "#6ece58",
+          "#b5de2b",
+          "#fee825"
+        ]
+      },
+      {
+        "name": "plasma",
+        "value": [
+          "#0d0887",
+          "#5b02a3",
+          "#9a179b",
+          "#cb4679",
+          "#ed7953",
+          "#fb9f3a",
+          "#fdca26",
+          "#f0f921"
+        ]
+      },
+      {
+        "name": "magma",
+        "value": [
+          "#000004",
+          "#180f3d",
+          "#440f76",
+          "#721f81",
+          "#9f2f7f",
+          "#cd4071",
+          "#f1605d",
+          "#fd9668",
+          "#fec98d",
+          "#fcfdbf"
+        ]
+      },
+      {
+        "name": "inferno",
+        "value": [
+          "#000004",
+          "#1b0c41",
+          "#4a0c6b",
+          "#781c6d",
+          "#a52c60",
+          "#cf4446",
+          "#ed6925",
+          "#fb9b06",
+          "#f7d13d",
+          "#fcffa4"
+        ]
+      },
+      {
+        "name": "cividis",
+        "value": [
+          "#00204d",
+          "#213f6f",
+          "#3f5f7f",
+          "#5d7f87",
+          "#7a9f8a",
+          "#99bf88",
+          "#b9dd7f",
+          "#dbf06a",
+          "#fff44f"
+        ]
+      },
+      {
+        "name": "coolwarm",
+        "value": [
+          "#3b4cc0",
+          "#688aef",
+          "#98b9ff",
+          "#c9d7f0",
+          "#ece5dc",
+          "#f7c7a6",
+          "#ee8468",
+          "#d34b44",
+          "#b40426"
+        ]
+      },
+      {
+        "name": "greys",
+        "value": [
+          "#111111",
+          "#3a3a3a",
+          "#5f5f5f",
+          "#878787",
+          "#afafaf",
+          "#d3d3d3",
+          "#f2f2f2"
+        ]
+      }
+    ],
+    "params": [
+      {
+        "key": "colorMode",
+        "default": "blink",
+        "options": [
+          {
+            "value": "solid",
+            "label": "Single color",
+            "unit": "",
+            "type": "single"
+          },
+          {
+            "value": "blink",
+            "label": "Blink",
+            "unit": "",
+            "type": "states",
+            "states": [
+              {
+                "key": "stateColorIdle",
+                "label": "Idle",
+                "default": "#4f7dff"
+              },
+              {
+                "key": "stateColorBlink",
+                "label": "Blink",
+                "default": "#ffd74a"
+              }
+            ]
+          },
+          {
+            "value": "frequency",
+            "label": "Frequency",
+            "unit": "Hz",
+            "type": "continuous"
+          }
+        ]
+      },
+      {
+        "key": "colormap",
+        "default": "turbo"
+      },
+      {
+        "key": "colormapInverted",
+        "default": false
+      },
+      {
+        "key": "solidColor",
+        "default": "#ffd86b"
+      },
+      {
+        "key": "stateColorIdle",
+        "default": "#4f7dff"
+      },
+      {
+        "key": "stateColorBlink",
+        "default": "#ffd74a"
+      }
+    ]
+  },
+  "camera": {
+    "params": [
+      {
+        "key": "projection",
+        "default": "perspective"
+      },
+      {
+        "key": "locked",
+        "default": false
+      },
+      {
+        "key": "fov",
+        "default": 50,
+        "uiMin": 20,
+        "uiMax": 90,
+        "step": 1
+      },
+      {
+        "key": "moveSpeed",
+        "default": 120,
+        "uiMin": 1,
+        "uiMax": 100000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "uiMin": 1,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "params": [
+      {
+        "key": "x",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "y",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "z",
+        "default": 100,
+        "uiMin": 30,
+        "uiMax": 260,
+        "step": 2
+      },
+      {
+        "key": "gridSize",
+        "default": 5,
+        "uiMin": 2,
+        "uiMax": 320,
+        "step": 2
+      },
+      {
+        "key": "boundaryMode",
+        "default": "cyclic-xyz"
+      }
+    ]
+  }
+}

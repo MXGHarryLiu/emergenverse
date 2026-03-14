@@ -1,132 +1,11 @@
 // Predator-prey applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import preyConfigData from "./prey_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Applet UI and metadata configuration.
-export const PREY_APPLET_CONFIG = defineAppletConfig({
-  label: "Prey Chain",
-  camera: {
-    params: [
-      { key: "projection", default: "orthographic" },
-      { key: "locked", default: false },
-      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
-      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
-    ],
-  },
-  params: {
-    avoidRadius: 14,
-    avoidWeight: 2.4,
-    predatorSpawnEnergy: 2.8,
-    maxCount: 1200,
-    scale: 0.62,
-    predatorScale: 1.0,
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "energy",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "energy", label: "Predator Energy" },
-        ],
-      },
-      { key: "colormap", default: "turbo" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#ff8d5f" },
-    ],
-  },
-  unit: {
-    length: { label: "m", description: "meter", toSI: 1 },
-    mass: { label: "a.u.", description: "arbitrary unit" },
-    time: { label: "s", description: "second", toSI: 1 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
-      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
-      { key: "boundaryMode", default: "cyclic-xy" },
-    ],
-  },
-  intro: {
-      paragraphs: [
-        "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
-        "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping.",
-      ],
-    },
-  model: {
-      subtitle: "Population balance coupled to local chase-and-escape motion.",
-      references: [
-        { label: "Wikipedia: Lotka-Volterra equations", url: "https://en.wikipedia.org/wiki/Lotka%E2%80%93Volterra_equations" },
-        { label: "Wikipedia: Food chain", url: "https://en.wikipedia.org/wiki/Food_chain" },
-      ],
-      items: [
-        {
-          title: "Population Balance",
-          equation: "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
-          explanation: "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
-          parameters: [
-            "<strong>Prey Count</strong> (\\(x\\)) sets the initial prey population.",
-            "<strong>Predator Count</strong> (\\(y\\)) sets the initial predator population.",
-            "<strong>Prey Birth Rate</strong> (\\(\\alpha\\)) sets the prey growth tendency.",
-            "<strong>Predation Rate</strong> (\\(\\beta\\)) scales encounter pressure.",
-            "<strong>Predator Gain</strong> (\\(\\delta\\)) controls how much predators benefit from captures.",
-            "<strong>Predator Energy Loss</strong> (\\(\\gamma\\)) sets background predator decline.",
-          ],
-        },
-        {
-          title: "Position (\\(x\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{p}}{dt}&=\\mathbf{v}\\\\\\mathbf{p}_k(t+\\Delta t)&=\\mathbf{p}_k(t)+\\mathbf{v}_k(t)\\Delta t\\end{aligned}$$",
-          explanation: "Each prey or predator moves forward using its current velocity.",
-        },
-        {
-          title: "Velocity (\\(v\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{norm}(\\mathbf{v}+\\mathbf{u}\\,\\Delta t)\\,s-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_{k}(t+\\Delta t)&=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}(t)+\\mathbf{u}_{k}(t)\\Delta t\\right)\\,s_k\\end{aligned}$$",
-          explanation: "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
-          parameters: [
-            "<strong>Prey Speed</strong> (\\(s_{prey}\\)) and <strong>Predator Speed</strong> (\\(s_{pred}\\)) set the travel rates.",
-          ],
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "prey-fps", label: "FPS", valueId: "prey-fps-live", initial: "--" },
-        { type: "chart", key: "prey-count", label: "Prey Count", liveInitial: "0" },
-        { type: "chart", key: "predator-count", label: "Predator Count", liveInitial: "0" },
-        { type: "chart", key: "prey-eaten", label: "Predation (cum.)", liveInitial: "0" },
-      ],
-    },
-  simulation: {
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "count", label: "Prey Count", default: 260, group: "initial", uiMin: 20, uiMax: 1200, control: { type: "slider", icon: "bi-circle-fill", step: 10, simulationSetter: "setPreyCount", resetTrendCharts: true } },
-        { key: "predatorCount", label: "Predator Count", default: 24, group: "initial", uiMin: 2, uiMax: 240, control: { type: "slider", icon: "bi-triangle-fill", step: 1, resetTrendCharts: true } },
-        { key: "speed", label: "Prey Speed", default: 4.5, unit: "m/s", group: "dynamic", uiMin: 0.5, uiMax: 18, control: { type: "slider", icon: "bi-speedometer2", step: 0.1 } },
-        { key: "predatorSpeed", label: "Predator Speed", default: 6.2, unit: "m/s", group: "dynamic", uiMin: 0.5, uiMax: 24, control: { type: "slider", icon: "bi-lightning-charge-fill", step: 0.1 } },
-        { key: "predatorSenseRadius", label: "Sense Radius", default: 16.0, unit: "m", group: "dynamic", uiMin: 1, uiMax: 60, control: { type: "slider", icon: "bi-broadcast", step: 0.5 } },
-        { key: "predationRadius", label: "Predation Radius", default: 1.6, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 8, control: { type: "slider", icon: "bi-crosshair2", step: 0.1 } },
-        { key: "birthRate", label: "Prey Birth Rate (\\(\\alpha\\))", default: 0.08, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 0.8, control: { type: "slider", icon: "bi-activity", step: 0.01 } },
-        { key: "predationRateBeta", label: "Predation Rate (\\(\\beta\\))", default: 1.0, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-graph-up-arrow", step: 0.05 } },
-        { key: "predatorEnergyGain", label: "Predator Gain (\\(\\delta\\))", default: 1.6, group: "dynamic", uiMin: 0.1, uiMax: 5, control: { type: "slider", icon: "bi-plus-circle", step: 0.05 } },
-        { key: "predatorEnergyLoss", label: "Predator Energy Loss (\\(\\gamma\\))", default: 0.45, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 2, control: { type: "slider", icon: "bi-dash-circle", step: 0.01 } },
-      ],
-    },
-});
+export const PREY_APPLET_CONFIG = validateAppletConfig(preyConfigData);
 
 // Shell runtime hooks.
 const PREY_APPLET_RUNTIME = {
@@ -696,6 +575,8 @@ function buildPreyColormapConfig({
 }) {
   const colorMode = params?.colorMode || "energy";
   const colormap = params?.colormap || "turbo";
+  const colorModeOption = getPreyColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
   if (colorMode === "solid") {
     return {
       visible: false,
@@ -720,10 +601,19 @@ function buildPreyColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: `cmin: ${Number(range.min).toFixed(2)}`,
-      maxText: `cmax: ${Number(range.max).toFixed(2)}`,
+      minText: `min: ${Number(range.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(range.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
     },
   };
+}
+
+function getPreyColorModeOption(colorMode) {
+  const visualParams = Array.isArray(PREY_APPLET_CONFIG.visual?.params)
+    ? PREY_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function randomWorldPosition(params) {

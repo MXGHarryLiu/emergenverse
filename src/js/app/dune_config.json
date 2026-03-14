@@ -1,0 +1,472 @@
+{
+  "label": "Dune Dynamics",
+  "intro": {
+    "paragraphs": [
+      "This applet models a sand bed as square columns that exchange sediment under steady wind. Wind moves grains downwind, while steep faces relax through avalanching.",
+      "Open the model equations view for the transport rule, the avalanche threshold, and the control mapping."
+    ]
+  },
+  "model": {
+    "subtitle": "Discrete height-field dunes with wind transport and repose-limited avalanches.",
+    "references": [
+      {
+        "label": "Wikipedia: Aeolian processes",
+        "url": "https://en.wikipedia.org/wiki/Aeolian_processes"
+      },
+      {
+        "label": "Wikipedia: Angle of repose",
+        "url": "https://en.wikipedia.org/wiki/Angle_of_repose"
+      }
+    ],
+    "items": [
+      {
+        "title": "Wind Transport",
+        "equation": "$$\\begin{aligned}\\frac{\\partial h}{\\partial t}&=-\\nabla\\cdot\\mathbf{q},\\quad q_{ij}=W\\,\\tau\\,h_{ij}\\\\h_{ij}^{t+\\Delta t}&=h_{ij}^{t}-q_{ij}\\,\\Delta t\\\\h_{i+u,j+v}^{t+\\Delta t}&=h_{i+u,j+v}^{t}+q_{ij}\\,\\Delta t\\end{aligned}$$",
+        "explanation": "Sediment is removed from one column and deposited one cell downwind. In this reduced model, wind strength multiplies the transport term rather than acting as a separate force law.",
+        "parameters": [
+          "<strong>Wind Strength</strong> (\\(W\\)) scales the aerodynamic forcing that drives downwind transport.",
+          "<strong>Transport Rate</strong> (\\(\\tau\\)) controls how much movable sand shifts to the next downwind cell."
+        ]
+      },
+      {
+        "title": "Avalanche Relaxation",
+        "equation": "$$\\Delta h_{ij\\to kl}=A\\,\\max\\!\\left(0,\\,|h_{ij}-h_{kl}|-s_r\\right)$$",
+        "explanation": "When the local slope exceeds the repose threshold, sand is redistributed downhill until the face relaxes.",
+        "parameters": [
+          "<strong>Repose Slope</strong> (\\(s_r\\)) sets the critical height difference before failure.",
+          "<strong>Avalanche Rate</strong> (\\(A\\)) controls how quickly unstable faces relax."
+        ]
+      },
+      {
+        "title": "Initial Bed",
+        "equation": "$$h_{ij}(0)=h_0+\\Delta h\\,\\xi_{ij},\\qquad \\xi_{ij}\\in[-1,1]$$",
+        "explanation": "The dune field starts from a uniform base height with optional random roughness. With <em>&Delta;h = 0</em>, the initial bed is flat.",
+        "parameters": [
+          "<strong>Base Height</strong> (\\(h_0\\)) sets the starting sand thickness.",
+          "<strong>Noise Amplitude</strong> (\\(\\Delta h\\)) controls how much initial roughness is added to the flat bed."
+        ]
+      },
+      {
+        "title": "Rendered Height",
+        "equation": "$$w_{ij}=S_{xy}\\,\\Delta x,\\qquad \\ell_{ij}=S_{xy}\\,\\Delta y,\\qquad z_{ij}=S_h\\,h_{ij}$$",
+        "explanation": "Each square column is drawn using the simulation cell size scaled into a visual footprint in x and y, together with a separate visual height scale in z. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint in the underlying model.",
+        "parameters": [
+          "<strong>Object Visual Size</strong> (\\(w = \\ell = s_{obj}\\)) sets the rendered column width and length in meters without changing the simulation grid.",
+          "<strong>Vertical Exaggeration</strong> (\\(S_h\\)) scales column height in the rendered scene."
+        ]
+      }
+    ]
+  },
+  "unit": {
+    "length": {
+      "label": "m",
+      "description": "meter",
+      "toSI": 1
+    },
+    "mass": {
+      "label": "a.u.",
+      "description": "arbitrary unit"
+    },
+    "time": {
+      "label": "s",
+      "description": "second",
+      "toSI": 1
+    }
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "dune-fps",
+        "label": "FPS"
+      },
+      {
+        "type": "stat",
+        "key": "dune-avalanche",
+        "label": "Avalanches"
+      },
+      {
+        "type": "chart",
+        "key": "dune-height",
+        "label": "Mean Height",
+        "unit": "m"
+      },
+      {
+        "type": "chart",
+        "key": "dune-relief",
+        "label": "Relief",
+        "unit": "m"
+      },
+      {
+        "type": "chart",
+        "key": "dune-transport",
+        "label": "Transport",
+        "unit": "m/s"
+      }
+    ]
+  },
+  "simulation": {
+    "params": [
+      {
+        "key": "simSpeed",
+        "label": "Simulation Speed",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 10,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stopwatch",
+          "step": 0.1
+        }
+      },
+      {
+        "key": "objectSizeM",
+        "label": "Object Visual Size (\\(s_{obj}\\))",
+        "default": 5.0,
+        "unit": "m",
+        "group": "initial",
+        "uiMin": 0.5,
+        "uiMax": 20.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-rulers",
+          "step": 0.1,
+          "simulationAction": "reset",
+          "resetTrendCharts": true
+        }
+      },
+      {
+        "key": "heightScale",
+        "label": "Vertical Exaggeration (\\(S_h\\))",
+        "default": 1.8,
+        "group": "dynamic",
+        "uiMin": 0.5,
+        "uiMax": 4.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-bar-chart-steps",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "windDirectionDeg",
+        "label": "Wind Direction (\\(\\theta_w\\))",
+        "default": 20,
+        "unit": "deg",
+        "group": "dynamic",
+        "uiMin": -180,
+        "uiMax": 180,
+        "control": {
+          "type": "slider",
+          "icon": "bi-compass",
+          "step": 1
+        }
+      },
+      {
+        "key": "windStrength",
+        "label": "Wind Strength (\\(W\\))",
+        "default": 0.9,
+        "group": "dynamic",
+        "uiMin": 0.0,
+        "uiMax": 3.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-wind",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "transportRate",
+        "label": "Transport Rate (\\(\\tau\\))",
+        "default": 0.28,
+        "group": "dynamic",
+        "uiMin": 0.0,
+        "uiMax": 1.5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-arrow-left-right",
+          "step": 0.02
+        }
+      },
+      {
+        "key": "reposeSlope",
+        "label": "Repose Slope (\\(s_r\\))",
+        "default": 1.4,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 4.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-triangle-half",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "avalancheRate",
+        "label": "Avalanche Rate (\\(A\\))",
+        "default": 0.7,
+        "group": "dynamic",
+        "uiMin": 0.0,
+        "uiMax": 2.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-chevron-down",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "baseHeight",
+        "label": "Base Height (\\(h_0\\))",
+        "default": 2.2,
+        "unit": "m",
+        "group": "initial",
+        "uiMin": 0.2,
+        "uiMax": 6.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-box-fill",
+          "step": 0.05,
+          "simulationAction": "reset",
+          "resetTrendCharts": true
+        }
+      },
+      {
+        "key": "noiseAmplitude",
+        "label": "Noise Amplitude (\\(\\Delta h\\))",
+        "default": 0.25,
+        "unit": "m",
+        "group": "initial",
+        "uiMin": 0.0,
+        "uiMax": 3.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stars",
+          "step": 0.05,
+          "simulationAction": "reset",
+          "resetTrendCharts": true
+        }
+      }
+    ]
+  },
+  "visual": {
+    "colormap": [
+      {
+        "name": "turbo",
+        "value": [
+          "#30123b",
+          "#4145ab",
+          "#4685f4",
+          "#39c6c5",
+          "#77df6e",
+          "#b8de29",
+          "#f9ba38",
+          "#ee6a24",
+          "#c91f16"
+        ]
+      },
+      {
+        "name": "viridis",
+        "value": [
+          "#440154",
+          "#482878",
+          "#3e4a89",
+          "#31688e",
+          "#26828e",
+          "#1f9e89",
+          "#35b779",
+          "#6ece58",
+          "#b5de2b",
+          "#fee825"
+        ]
+      },
+      {
+        "name": "plasma",
+        "value": [
+          "#0d0887",
+          "#5b02a3",
+          "#9a179b",
+          "#cb4679",
+          "#ed7953",
+          "#fb9f3a",
+          "#fdca26",
+          "#f0f921"
+        ]
+      },
+      {
+        "name": "magma",
+        "value": [
+          "#000004",
+          "#180f3d",
+          "#440f76",
+          "#721f81",
+          "#9f2f7f",
+          "#cd4071",
+          "#f1605d",
+          "#fd9668",
+          "#fec98d",
+          "#fcfdbf"
+        ]
+      },
+      {
+        "name": "inferno",
+        "value": [
+          "#000004",
+          "#1b0c41",
+          "#4a0c6b",
+          "#781c6d",
+          "#a52c60",
+          "#cf4446",
+          "#ed6925",
+          "#fb9b06",
+          "#f7d13d",
+          "#fcffa4"
+        ]
+      },
+      {
+        "name": "cividis",
+        "value": [
+          "#00204d",
+          "#213f6f",
+          "#3f5f7f",
+          "#5d7f87",
+          "#7a9f8a",
+          "#99bf88",
+          "#b9dd7f",
+          "#dbf06a",
+          "#fff44f"
+        ]
+      },
+      {
+        "name": "coolwarm",
+        "value": [
+          "#3b4cc0",
+          "#688aef",
+          "#98b9ff",
+          "#c9d7f0",
+          "#ece5dc",
+          "#f7c7a6",
+          "#ee8468",
+          "#d34b44",
+          "#b40426"
+        ]
+      },
+      {
+        "name": "greys",
+        "value": [
+          "#111111",
+          "#3a3a3a",
+          "#5f5f5f",
+          "#878787",
+          "#afafaf",
+          "#d3d3d3",
+          "#f2f2f2"
+        ]
+      }
+    ],
+    "params": [
+      {
+        "key": "colorMode",
+        "default": "mass",
+        "options": [
+          {
+            "value": "solid",
+            "label": "Single color",
+            "unit": "",
+            "type": "single"
+          },
+          {
+            "value": "mass",
+            "label": "Column Mass",
+            "unit": "a.u.",
+            "type": "continuous"
+          }
+        ]
+      },
+      {
+        "key": "colormap",
+        "default": "cividis"
+      },
+      {
+        "key": "colormapInverted",
+        "default": false
+      },
+      {
+        "key": "solidColor",
+        "default": "#D8B36A"
+      }
+    ]
+  },
+  "camera": {
+    "distance": 222,
+    "height": 96,
+    "params": [
+      {
+        "key": "projection",
+        "default": "perspective"
+      },
+      {
+        "key": "locked",
+        "default": false
+      },
+      {
+        "key": "fov",
+        "default": 50,
+        "uiMin": 20,
+        "uiMax": 90,
+        "step": 1
+      },
+      {
+        "key": "moveSpeed",
+        "default": 160,
+        "uiMin": 1,
+        "uiMax": 100000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "uiMin": 1,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "params": [
+      {
+        "key": "x",
+        "default": 120,
+        "uiMin": 60,
+        "uiMax": 220,
+        "step": 2
+      },
+      {
+        "key": "y",
+        "default": 120,
+        "uiMin": 60,
+        "uiMax": 220,
+        "step": 2
+      },
+      {
+        "key": "z",
+        "default": 120,
+        "uiMin": 60,
+        "uiMax": 220,
+        "step": 2
+      },
+      {
+        "key": "gridSize",
+        "default": 10,
+        "uiMin": 2,
+        "uiMax": 220,
+        "step": 2
+      },
+      {
+        "key": "boundaryMode",
+        "default": "cyclic-xy"
+      }
+    ]
+  }
+}

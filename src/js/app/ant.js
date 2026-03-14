@@ -1,156 +1,11 @@
 // Ant trail applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import antConfigData from "./ant_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Applet UI and metadata configuration.
-export const ANT_APPLET_CONFIG = defineAppletConfig({
-  label: "Ant Trails",
-  camera: {
-    params: [
-      { key: "projection", default: "orthographic" },
-      { key: "locked", default: false },
-      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
-      { key: "moveSpeed", default: 600, uiMin: 1, uiMax: 100000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
-    ],
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "state",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "state", label: "State (search/carry)" },
-          { value: "heading", label: "Heading" },
-        ],
-      },
-      { key: "colormap", default: "turbo" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#62d6f9" },
-    ],
-  },
-  unit: {
-    length: { label: "m", description: "meter", toSI: 1 },
-    mass: { label: "ug", description: "microgram", toSI: 1e-9 },
-    time: { label: "s", description: "second", toSI: 1 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 2000, uiMin: 500, uiMax: 10000, step: 50 },
-      { key: "y", default: 2000, uiMin: 500, uiMax: 10000, step: 50 },
-      { key: "z", default: 2000, uiMin: 500, uiMax: 8000, step: 50 },
-      { key: "gridSize", default: 100, uiMin: 50, uiMax: 10000, step: 50 },
-      { key: "boundaryMode", default: "cyclic-xy" },
-    ],
-    lengthUnit: { name: "mm", toSI: 0.001 },
-  },
-  intro: {
-      paragraphs: [
-        "This applet models trail formation from simple foraging behavior. Ants sample local cues, choose a turning direction, and reinforce routes by leaving behind a shared trail field.",
-        "Open the model equations view for the motion rule, the heading update, and the trail-field dynamics.",
-      ],
-    },
-  model: {
-      subtitle: "Agent motion coupled to a trail field on the foraging plane.",
-      references: [
-        { label: "Wikipedia: Trail pheromone", url: "https://en.wikipedia.org/wiki/Trail_pheromone" },
-        { label: "Wikipedia: Ant colony optimization algorithms", url: "https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms" },
-      ],
-      items: [
-        {
-          title: "Position (\\(x\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=v_a[\\cos\\theta,\\sin\\theta]\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+v_a[\\cos\\theta_i,\\sin\\theta_i]\\,\\Delta t\\end{aligned}$$",
-          explanation: "Each ant moves forward according to its current heading and walking speed.",
-          parameters: [
-            "<strong>Speed</strong> (\\(v_a\\)) sets the walking rate.",
-          ],
-        },
-        {
-          title: "Heading (\\(\\theta\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\theta}{dt}&=k_{\\theta}(S_R-S_L)+k_g\\,\\Delta\\theta_{\\mathrm{goal}}+\\xi\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+k_{\\theta}(S_R-S_L)\\,\\Delta t+k_g\\,\\Delta\\theta_{\\mathrm{goal}}\\,\\Delta t+\\xi_i\\,\\Delta t\\end{aligned}$$",
-          explanation: "Heading changes with trail sensing, goal attraction, and a stochastic exploration term.",
-          parameters: [
-            "<strong>Turn Gain</strong> (\\(k_{\\theta}\\)) scales steering responsiveness.",
-            "<strong>Goal Bias</strong> (\\(k_g\\)) strengthens return-to-target steering.",
-          ],
-        },
-        {
-          title: "Trail Field (\\(P\\))",
-          equation: "$$\\begin{aligned}\\frac{dP_j}{dt}&=-\\lambda P_j + D\\,\\nabla^2P_j + Q_j\\\\P_j(t+\\Delta t)&=(1-\\lambda\\,\\Delta t)P_j(t)+D\\,\\nabla^2P_j\\,\\Delta t+Q_j\\,\\Delta t\\end{aligned}$$",
-          explanation: "The trail field evaporates, diffuses across the floor, and receives new deposits from ants.",
-          parameters: [
-            "<strong>Deposit Rate</strong> (\\(Q_j\\)) controls how much trail is added.",
-            "<strong>Diffusion Rate</strong> (\\(D\\)) controls how quickly trails spread.",
-            "<strong>Evaporation Rate</strong> (\\(\\lambda\\)) controls how quickly trails fade.",
-          ],
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "ant-fps", label: "FPS", valueId: "ants-fps-live", initial: "--" },
-        { type: "stat", key: "ant-carrying", label: "Carrying", valueId: "ants-carrying-live", initial: "0", labelClass: "ant-carrying-label" },
-        { type: "chart", key: "ant-count", label: "Counts", liveInitial: "0" },
-        { type: "chart", key: "ant-trips", label: "Trips", liveInitial: "0" },
-        { type: "chart", key: "ant-pheromone", label: "Pheromone", liveInitial: "0.00" },
-      ],
-    },
-  interaction: {
-      params: [
-        {
-          key: "foodPlacementEnabled",
-          label: "Double Click To Add Food",
-          default: false,
-          control: { type: "switch", id: "ant-food-placement-enabled", icon: "bi bi-mouse2-fill" },
-        },
-        {
-          key: "foodAddMassUg",
-          label: "Food Added Per Click",
-          default: 50,
-          unit: "ug",
-          uiMin: 10,
-          uiMax: 100,
-          control: { type: "slider", id: "ant-food-add-mass", icon: "bi-circle-fill", step: 1 },
-        },
-      ],
-      notes: [
-        "Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass.",
-      ],
-    },
-  simulation: {
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 2.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "count", label: "Count", default: 120, group: "initial", uiMin: 20, uiMax: 400, control: { type: "slider", icon: "bi-people-fill", step: 5, resetTrendCharts: true } },
-        { key: "scale", label: "Object Visual Size", default: 0.03, unit: "m", group: "dynamic", uiMin: 0.010, uiMax: 0.050, control: { type: "slider", icon: "bi-rulers", step: 0.001 } },
-        { key: "speed", label: "Speed", default: 0.012, unit: "m/s", group: "dynamic", uiMin: 0.002, uiMax: 0.040, control: { type: "slider", icon: "bi-speedometer2", step: 0.001 } },
-        { key: "sensorDistance", label: "Sensor Distance", default: 0.08, unit: "m", group: "dynamic", uiMin: 0.01, uiMax: 0.40, control: { type: "slider", icon: "bi-broadcast", step: 0.005 } },
-        { key: "foodSenseDistance", label: "Food Sensing Distance", default: 0.18, unit: "m", group: "dynamic", uiMin: 0.02, uiMax: 0.70, control: { type: "slider", icon: "bi-bullseye", step: 0.01 } },
-        { key: "sensorAngle", label: "Sensor Angle", default: 35, unit: "deg", group: "dynamic", uiMin: 5, uiMax: 90, control: { type: "slider", icon: "bi-compass", step: 1 } },
-        { key: "turnGain", label: "Turn Gain (\\(k_{\\theta}\\))", default: 3.0, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 8, control: { type: "slider", icon: "bi-arrow-repeat", step: 0.05 } },
-        { key: "goalBias", label: "Goal Bias (\\(k_g\\))", default: 1.0, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 2, control: { type: "slider", icon: "bi-bullseye", step: 0.05 } },
-        { key: "departureRate", label: "Departure Rate", default: 6, unit: "Hz", group: "dynamic", uiMin: 0, uiMax: 20, control: { type: "slider", icon: "bi-box-arrow-up-right", step: 0.25 } },
-        { key: "depositRate", label: "Deposit Rate (\\(Q_j\\))", default: 5.0, group: "dynamic", uiMin: 0, uiMax: 20, control: { type: "slider", icon: "bi-droplet-fill", step: 0.25 } },
-        { key: "diffusionRate", label: "Diffusion Rate (\\(D\\))", default: 3.0, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 12, control: { type: "slider", icon: "bi-water", step: 0.05 } },
-        { key: "evapRate", label: "Evaporation Rate (\\(\\lambda\\))", default: 0.8, unit: "1/s", group: "dynamic", uiMin: 0, uiMax: 4, control: { type: "slider", icon: "bi-wind", step: 0.05 } },
-        { key: "noiseStrength", default: 0.2 },
-        { key: "pickupRadius", default: 0.04 },
-        { key: "pickupMassUg", default: 1 },
-        { key: "foodSourceMassUg", default: 1000 },
-      ],
-    },
-});
+export const ANT_APPLET_CONFIG = validateAppletConfig(antConfigData);
 
 // Shell runtime hooks.
 const ANT_APPLET_RUNTIME = {
@@ -207,30 +62,7 @@ const ANT_APPLET_RUNTIME = {
 };
 
 // File-local constants and helpers.
-export const ANT_DISCRETE_COLORMAP_OPTIONS = [
-  { value: "paired", label: "Paired" },
-  { value: "set1", label: "Set1" },
-  { value: "set2", label: "Set2" },
-  { value: "dark2", label: "Dark2" },
-  { value: "tableau10", label: "Tableau10" },
-];
-
-export const ANT_DISCRETE_LEGEND_GRADIENTS = {
-  paired: "linear-gradient(90deg, #a6cee3 0%, #a6cee3 50%, #1f78b4 50%, #1f78b4 100%)",
-  set1: "linear-gradient(90deg, #e41a1c 0%, #e41a1c 50%, #377eb8 50%, #377eb8 100%)",
-  set2: "linear-gradient(90deg, #66c2a5 0%, #66c2a5 50%, #fc8d62 50%, #fc8d62 100%)",
-  dark2: "linear-gradient(90deg, #1b9e77 0%, #1b9e77 50%, #d95f02 50%, #d95f02 100%)",
-  tableau10: "linear-gradient(90deg, #4e79a7 0%, #4e79a7 50%, #f28e2b 50%, #f28e2b 100%)",
-};
-
 const ANT_COLORMAPS = buildColormapLUT(ANT_APPLET_CONFIG.visual?.colormap);
-const ANT_DISCRETE_STATE_COLORMAPS = {
-  paired: [0xa6cee3, 0x1f78b4],
-  set1: [0xe41a1c, 0x377eb8],
-  set2: [0x66c2a5, 0xfc8d62],
-  dark2: [0x1b9e77, 0xd95f02],
-  tableau10: [0x4e79a7, 0xf28e2b],
-};
 const antLerpA = new THREE.Color();
 const antLerpB = new THREE.Color();
 
@@ -724,7 +556,7 @@ export class AntSimulation extends BaseSimulation {
     }
 
     if (mode === "state") {
-      const stateColors = getAntStateColors(this.params.colormap);
+      const stateColors = getAntStateColors(this.params);
       if (ant.carrying) {
         outColor.setHex(stateColors.carrying);
       } else {
@@ -1031,6 +863,8 @@ function buildAntColormapConfig({
 }) {
   const colorMode = params?.colorMode || "state";
   const colormap = params?.colormap || "turbo";
+  const colorModeOption = getAntColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
 
   if (colorMode === "solid") {
     return {
@@ -1044,18 +878,11 @@ function buildAntColormapConfig({
 
   if (colorMode === "state") {
     return {
-      visible: true,
+      visible: false,
       value: colormap,
-      options: ANT_DISCRETE_COLORMAP_OPTIONS,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient: ANT_DISCRETE_LEGEND_GRADIENTS[colormap] || ANT_DISCRETE_LEGEND_GRADIENTS.paired,
-        minText: "searching",
-        maxText: "carrying",
-      },
+      options: [],
+      setValue() {},
+      legend: null,
     };
   }
 
@@ -1069,10 +896,19 @@ function buildAntColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: "cmin: -180°",
-      maxText: "cmax: 180°",
+      minText: `min: -180${unit}`,
+      maxText: `max: 180${unit}`,
     },
   };
+}
+
+function getAntColorModeOption(colorMode) {
+  const visualParams = Array.isArray(ANT_APPLET_CONFIG.visual?.params)
+    ? ANT_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function wrapAxisLocal(value, halfExtent) {
@@ -1163,16 +999,8 @@ function sampleColormap(name, normalized, outColor) {
   return outColor;
 }
 
-function getAntStateColors(name) {
-  const palette = ANT_DISCRETE_STATE_COLORMAPS[name];
-  if (palette && palette.length >= 2) {
-    return {
-      searching: palette[0],
-      carrying: palette[1],
-    };
-  }
-  return {
-    searching: 0x5fd6fa,
-    carrying: 0xfaad42,
-  };
+function getAntStateColors(params) {
+  const searching = new THREE.Color(params?.stateColorSearching || "#5fd6fa").getHex();
+  const carrying = new THREE.Color(params?.stateColorCarrying || "#faad42").getHex();
+  return { searching, carrying };
 }

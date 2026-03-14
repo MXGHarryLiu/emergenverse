@@ -718,8 +718,10 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   const colorLabel = document.createElement("label");
   colorLabel.className = "form-label";
   colorLabel.setAttribute("for", colorModeId);
-  colorLabel.innerHTML =
-    `<span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>${colorModeLabel}</span>`;
+  colorLabel.innerHTML = `
+    <span class="label-name"><i class="bi bi-palette-fill" aria-hidden="true"></i>${colorModeLabel}</span>
+    <span class="label-value" id="${controlIds.colorModeValueId}"></span>
+  `;
   body.appendChild(colorLabel);
 
   const select = document.createElement("select");
@@ -737,6 +739,10 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   colormapHost.setAttribute("data-shared-colormap-host", appletId);
   body.appendChild(colormapHost);
 
+  const stateColorsHost = document.createElement("div");
+  stateColorsHost.setAttribute("data-shared-state-colors-host", appletId);
+  body.appendChild(stateColorsHost);
+
   if (controlIds.solidColorId && controlIds.solidColorValueId && controlIds.singleColorWrapId) {
     const wrap = document.createElement("div");
     wrap.id = controlIds.singleColorWrapId;
@@ -747,16 +753,27 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     const normalizedColor = defaultColor.startsWith("#") ? defaultColor : `#${defaultColor}`;
 
     wrap.innerHTML = `
-      <label class="form-label mt-2" for="${controlIds.solidColorId}">
+      <div class="form-label mt-2 single-color-row">
         <span class="label-name"><i class="bi bi-eyedropper" aria-hidden="true"></i>${solidColorLabel}</span>
-        <span class="label-value" id="${controlIds.solidColorValueId}">${normalizedColor.toUpperCase()}</span>
-      </label>
-      <input
-        type="color"
-        class="form-control form-control-color theme-color-input"
-        id="${controlIds.solidColorId}"
-        value="${normalizedColor.toLowerCase()}"
-      />
+        <div class="single-color-inline-row">
+          <button
+            type="button"
+            class="color-chip single-color-chip"
+            id="${controlIds.solidColorChipId}"
+            aria-label="${solidColorLabel}"
+          >
+            <span class="color-chip-swatch" id="${controlIds.solidColorSwatchId}" style="background:${normalizedColor.toLowerCase()};"></span>
+            <span class="color-chip-value" id="${controlIds.solidColorValueId}">${normalizedColor.toUpperCase()}</span>
+          </button>
+          <input
+            type="color"
+            class="form-control form-control-color theme-color-input single-color-inline-input"
+            id="${controlIds.solidColorId}"
+            value="${normalizedColor.toLowerCase()}"
+            aria-label="${solidColorLabel}"
+          />
+        </div>
+      </div>
     `;
     body.appendChild(wrap);
   }
@@ -817,7 +834,10 @@ function deriveVisualControlIds(appletId) {
   const prefix = String(appletId || "").trim();
   return {
     colorModeId: `${prefix}-color-mode`,
+    colorModeValueId: `${prefix}-color-mode-value`,
     solidColorId: `${prefix}-solid-color`,
+    solidColorChipId: `${prefix}-solid-color-chip`,
+    solidColorSwatchId: `${prefix}-solid-color-swatch`,
     solidColorValueId: `${prefix}-solid-color-value`,
     singleColorWrapId: `${prefix}-single-color-wrap`,
   };

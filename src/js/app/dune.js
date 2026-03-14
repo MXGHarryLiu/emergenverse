@@ -1,136 +1,11 @@
 // Sand dune applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import duneConfigData from "./dune_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Applet UI and metadata configuration.
-export const DUNE_APPLET_CONFIG = defineAppletConfig({
-  label: "Dune Dynamics",
-  camera: {
-    distance: 222,
-    height: 96,
-    params: [
-      { key: "projection", default: "perspective" },
-      { key: "locked", default: false },
-      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
-      { key: "moveSpeed", default: 160, uiMin: 1, uiMax: 100000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
-    ],
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "mass",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "mass", label: "Column Mass" },
-        ],
-      },
-      { key: "colormap", default: "cividis" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#D8B36A" },
-    ],
-  },
-  unit: {
-    length: { label: "m", description: "meter", toSI: 1 },
-    mass: { label: "a.u.", description: "arbitrary unit" },
-    time: { label: "s", description: "second", toSI: 1 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 120, uiMin: 60, uiMax: 220, step: 2 },
-      { key: "y", default: 120, uiMin: 60, uiMax: 220, step: 2 },
-      { key: "z", default: 120, uiMin: 60, uiMax: 220, step: 2 },
-      { key: "gridSize", default: 10, uiMin: 2, uiMax: 220, step: 2 },
-      { key: "boundaryMode", default: "cyclic-xy" },
-    ],
-  },
-  intro: {
-      paragraphs: [
-        "This applet models a sand bed as square columns that exchange sediment under steady wind. Wind moves grains downwind, while steep faces relax through avalanching.",
-        "Open the model equations view for the transport rule, the avalanche threshold, and the control mapping.",
-      ],
-    },
-  model: {
-      subtitle: "Discrete height-field dunes with wind transport and repose-limited avalanches.",
-      references: [
-        { label: "Wikipedia: Aeolian processes", url: "https://en.wikipedia.org/wiki/Aeolian_processes" },
-        { label: "Wikipedia: Angle of repose", url: "https://en.wikipedia.org/wiki/Angle_of_repose" },
-      ],
-      items: [
-        {
-          title: "Wind Transport",
-          equation: "$$\\begin{aligned}\\frac{\\partial h}{\\partial t}&=-\\nabla\\cdot\\mathbf{q},\\quad q_{ij}=W\\,\\tau\\,h_{ij}\\\\h_{ij}^{t+\\Delta t}&=h_{ij}^{t}-q_{ij}\\,\\Delta t\\\\h_{i+u,j+v}^{t+\\Delta t}&=h_{i+u,j+v}^{t}+q_{ij}\\,\\Delta t\\end{aligned}$$",
-          explanation: "Sediment is removed from one column and deposited one cell downwind. In this reduced model, wind strength multiplies the transport term rather than acting as a separate force law.",
-          parameters: [
-            "<strong>Wind Strength</strong> (\\(W\\)) scales the aerodynamic forcing that drives downwind transport.",
-            "<strong>Transport Rate</strong> (\\(\\tau\\)) controls how much movable sand shifts to the next downwind cell.",
-          ],
-        },
-        {
-          title: "Avalanche Relaxation",
-          equation: "$$\\Delta h_{ij\\to kl}=A\\,\\max\\!\\left(0,\\,|h_{ij}-h_{kl}|-s_r\\right)$$",
-          explanation: "When the local slope exceeds the repose threshold, sand is redistributed downhill until the face relaxes.",
-          parameters: [
-            "<strong>Repose Slope</strong> (\\(s_r\\)) sets the critical height difference before failure.",
-            "<strong>Avalanche Rate</strong> (\\(A\\)) controls how quickly unstable faces relax.",
-          ],
-        },
-        {
-          title: "Initial Bed",
-          equation: "$$h_{ij}(0)=h_0+\\Delta h\\,\\xi_{ij},\\qquad \\xi_{ij}\\in[-1,1]$$",
-          explanation: "The dune field starts from a uniform base height with optional random roughness. With <em>&Delta;h = 0</em>, the initial bed is flat.",
-          parameters: [
-            "<strong>Base Height</strong> (\\(h_0\\)) sets the starting sand thickness.",
-            "<strong>Noise Amplitude</strong> (\\(\\Delta h\\)) controls how much initial roughness is added to the flat bed.",
-          ],
-        },
-        {
-          title: "Rendered Height",
-          equation: "$$w_{ij}=S_{xy}\\,\\Delta x,\\qquad \\ell_{ij}=S_{xy}\\,\\Delta y,\\qquad z_{ij}=S_h\\,h_{ij}$$",
-          explanation: "Each square column is drawn using the simulation cell size scaled into a visual footprint in x and y, together with a separate visual height scale in z. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint in the underlying model.",
-          parameters: [
-            "<strong>Object Visual Size</strong> (\\(w = \\ell = s_{obj}\\)) sets the rendered column width and length in meters without changing the simulation grid.",
-            "<strong>Vertical Exaggeration</strong> (\\(S_h\\)) scales column height in the rendered scene.",
-          ],
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "dune-fps", label: "FPS" },
-        { type: "stat", key: "dune-avalanche", label: "Avalanches" },
-        { type: "chart", key: "dune-height", label: "Mean Height", unit: "m" },
-        { type: "chart", key: "dune-relief", label: "Relief", unit: "m" },
-        { type: "chart", key: "dune-transport", label: "Transport", unit: "m/s" },
-      ],
-    },
-  simulation: {
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "objectSizeM", label: "Object Visual Size (\\(s_{obj}\\))", default: 5.0, unit: "m", group: "initial", uiMin: 0.5, uiMax: 20.0, control: { type: "slider", icon: "bi-rulers", step: 0.1, simulationAction: "reset", resetTrendCharts: true } },
-        { key: "heightScale", label: "Vertical Exaggeration (\\(S_h\\))", default: 1.8, group: "dynamic", uiMin: 0.5, uiMax: 4.0, control: { type: "slider", icon: "bi-bar-chart-steps", step: 0.05 } },
-        { key: "windDirectionDeg", label: "Wind Direction (\\(\\theta_w\\))", default: 20, unit: "deg", group: "dynamic", uiMin: -180, uiMax: 180, control: { type: "slider", icon: "bi-compass", step: 1 } },
-        { key: "windStrength", label: "Wind Strength (\\(W\\))", default: 0.9, group: "dynamic", uiMin: 0.0, uiMax: 3.0, control: { type: "slider", icon: "bi-wind", step: 0.05 } },
-        { key: "transportRate", label: "Transport Rate (\\(\\tau\\))", default: 0.28, group: "dynamic", uiMin: 0.0, uiMax: 1.5, control: { type: "slider", icon: "bi-arrow-left-right", step: 0.02 } },
-        { key: "reposeSlope", label: "Repose Slope (\\(s_r\\))", default: 1.4, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 4.0, control: { type: "slider", icon: "bi-triangle-half", step: 0.05 } },
-        { key: "avalancheRate", label: "Avalanche Rate (\\(A\\))", default: 0.7, group: "dynamic", uiMin: 0.0, uiMax: 2.0, control: { type: "slider", icon: "bi-chevron-down", step: 0.05 } },
-        { key: "baseHeight", label: "Base Height (\\(h_0\\))", default: 2.2, unit: "m", group: "initial", uiMin: 0.2, uiMax: 6.0, control: { type: "slider", icon: "bi-box-fill", step: 0.05, simulationAction: "reset", resetTrendCharts: true } },
-        { key: "noiseAmplitude", label: "Noise Amplitude (\\(\\Delta h\\))", default: 0.25, unit: "m", group: "initial", uiMin: 0.0, uiMax: 3.0, control: { type: "slider", icon: "bi-stars", step: 0.05, simulationAction: "reset", resetTrendCharts: true } },
-      ],
-    },
-});
+export const DUNE_APPLET_CONFIG = validateAppletConfig(duneConfigData);
 
 // Shell runtime hooks.
 const DUNE_APPLET_RUNTIME = {
@@ -514,6 +389,8 @@ function buildDuneColormapConfig({
 }) {
   const colorMode = params?.colorMode || "mass";
   const colormap = params?.colormap || "cividis";
+  const colorModeOption = getDuneColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
   if (colorMode === "solid") {
     return {
       visible: false,
@@ -538,10 +415,19 @@ function buildDuneColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.cividis,
-      minText: `cmin: ${Number(range.min).toFixed(2)} a.u.`,
-      maxText: `cmax: ${Number(range.max).toFixed(2)} a.u.`,
+      minText: `min: ${Number(range.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(range.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
     },
   };
+}
+
+function getDuneColorModeOption(colorMode) {
+  const visualParams = Array.isArray(DUNE_APPLET_CONFIG.visual?.params)
+    ? DUNE_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function pickWindStep(angle) {

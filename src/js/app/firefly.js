@@ -1,116 +1,11 @@
 // Firefly synchronization applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import fireflyConfigData from "./firefly_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Applet UI and metadata configuration.
-export const FIREFLY_APPLET_CONFIG = defineAppletConfig({
-  label: "Firefly Sync",
-  camera: {
-    params: [
-      { key: "projection", default: "perspective" },
-      { key: "locked", default: false },
-      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
-      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
-    ],
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "blink",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "blink", label: "Blink State" },
-          { value: "frequency", label: "Frequency (Hz)" },
-        ],
-      },
-      { key: "colormap", default: "blue-yellow" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#ffd86b" },
-    ],
-  },
-  unit: {
-    length: { label: "m", description: "meter", toSI: 1 },
-    mass: { label: "a.u.", description: "arbitrary unit" },
-    time: { label: "s", description: "second", toSI: 1 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
-      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
-      { key: "boundaryMode", default: "cyclic-xyz" },
-    ],
-  },
-  intro: {
-      paragraphs: [
-        "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
-        "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure.",
-      ],
-    },
-  model: {
-      subtitle: "Local oscillator coupling with blink resets and a global order parameter.",
-      references: [
-        { label: "Wikipedia: Kuramoto model", url: "https://en.wikipedia.org/wiki/Kuramoto_model" },
-        { label: "Wikipedia: Synchronization", url: "https://en.wikipedia.org/wiki/Synchronization" },
-      ],
-      items: [
-        {
-          title: "Phase (\\(\\theta\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\theta}{dt}&=\\omega + \\frac{K}{N}\\sum_{j\\in\\mathcal{N}}\\sin(\\theta_j-\\theta) + \\eta(t)\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+\\left(\\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)\\right)\\Delta t\\end{aligned}$$",
-          explanation: "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
-          parameters: [
-            "<strong>Coupling</strong> (\\(K\\)) sets the synchronization strength.",
-            "<strong>Base Frequency</strong> (\\(\\omega\\)), <strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)), and <strong>Phase Noise</strong> (\\(\\eta\\)) shape the intrinsic rhythm spread.",
-          ],
-        },
-        {
-          title: "Blink Event",
-          equation: "$$\\theta_i \\mapsto \\theta_i \\bmod 2\\pi,\\quad \\text{blink when } \\theta_i \\to 2\\pi$$",
-          explanation: "A blink occurs when the phase completes a full cycle, after which the oscillator wraps back to the start of the next cycle.",
-        },
-        {
-          title: "Synchronization Order",
-          equation: "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
-          explanation: "The order parameter measures how tightly the fireflies align in phase, from incoherent flashing near zero to near-perfect synchrony near one.",
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "firefly-fps", label: "FPS", valueId: "firefly-fps-live", initial: "--" },
-        { type: "chart", key: "firefly-count", label: "Count", liveInitial: "0" },
-        { type: "chart", key: "firefly-order", label: "Order (R)", liveInitial: "0.000" },
-        { type: "chart", key: "firefly-blink", label: "Blink Rate", liveInitial: "0.0 /s" },
-      ],
-    },
-  simulation: {
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 1.0, group: "dynamic", uiMin: 0.1, uiMax: 10, control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "count", label: "Count", default: 180, group: "initial", uiMin: 20, uiMax: 900, control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
-        { key: "size", label: "Object Visual Size", default: 0.8, unit: "m", group: "dynamic", uiMin: 0.2, uiMax: 2.5, control: { type: "slider", icon: "bi-rulers", step: 0.05 } },
-        { key: "speed", label: "Speed", default: 1.2, unit: "m/s", group: "dynamic", uiMin: 0.1, uiMax: 4.0, control: { type: "slider", icon: "bi-arrow-repeat", step: 0.1 } },
-        { key: "coupling", label: "Coupling (\\(K\\))", default: 2.2, group: "dynamic", uiMin: 0, uiMax: 8, control: { type: "slider", icon: "bi-diagram-2", step: 0.05 } },
-        { key: "radius", label: "Interaction Radius", default: 18.0, unit: "m", group: "dynamic", uiMin: 1, uiMax: 60, control: { type: "slider", icon: "bi-broadcast", step: 0.5 } },
-        { key: "frequencyHz", label: "Base Frequency", default: 1.8, unit: "Hz", group: "dynamic", uiMin: 0.2, uiMax: 6.0, control: { type: "slider", icon: "bi-speedometer2", step: 0.05 } },
-        { key: "freqJitterHz", label: "Frequency Jitter", default: 0.2, unit: "Hz", group: "dynamic", uiMin: 0, uiMax: 2.0, control: { type: "slider", icon: "bi-slash-circle", step: 0.02 } },
-        { key: "phaseNoise", label: "Phase Noise", default: 0.4, unit: "rad/s", group: "dynamic", uiMin: 0, uiMax: 3.0, control: { type: "slider", icon: "bi-shuffle", step: 0.02 } },
-      ],
-    },
-});
+export const FIREFLY_APPLET_CONFIG = validateAppletConfig(fireflyConfigData);
 
 // Shell runtime hooks.
 const FIREFLY_APPLET_RUNTIME = {
@@ -159,33 +54,8 @@ const FIREFLY_APPLET_RUNTIME = {
 
 // File-local constants and helpers.
 const TWO_PI = Math.PI * 2;
-export const FIREFLY_DISCRETE_COLORMAP_OPTIONS = [
-  { value: "blue-yellow", label: "Blue-Yellow" },
-  { value: "paired", label: "Paired" },
-  { value: "set1", label: "Set1" },
-  { value: "set2", label: "Set2" },
-  { value: "dark2", label: "Dark2" },
-  { value: "tableau10", label: "Tableau10" },
-];
-
-export const FIREFLY_DISCRETE_LEGEND_GRADIENTS = {
-  "blue-yellow": "linear-gradient(90deg, #4f7dff 0%, #4f7dff 50%, #ffd74a 50%, #ffd74a 100%)",
-  paired: "linear-gradient(90deg, #a6cee3 0%, #a6cee3 50%, #1f78b4 50%, #1f78b4 100%)",
-  set1: "linear-gradient(90deg, #e41a1c 0%, #e41a1c 50%, #377eb8 50%, #377eb8 100%)",
-  set2: "linear-gradient(90deg, #66c2a5 0%, #66c2a5 50%, #fc8d62 50%, #fc8d62 100%)",
-  dark2: "linear-gradient(90deg, #1b9e77 0%, #1b9e77 50%, #d95f02 50%, #d95f02 100%)",
-  tableau10: "linear-gradient(90deg, #4e79a7 0%, #4e79a7 50%, #f28e2b 50%, #f28e2b 100%)",
-};
 
 const FIREFLY_COLORMAPS = buildColormapLUT(FIREFLY_APPLET_CONFIG.visual?.colormap);
-const FIREFLY_DISCRETE_STATE_COLORMAPS = {
-  "blue-yellow": [0x4f7dff, 0xffd74a],
-  paired: [0xa6cee3, 0x1f78b4],
-  set1: [0xe41a1c, 0x377eb8],
-  set2: [0x66c2a5, 0xfc8d62],
-  dark2: [0x1b9e77, 0xd95f02],
-  tableau10: [0x4e79a7, 0xf28e2b],
-};
 const fireflyLerpA = new THREE.Color();
 const fireflyLerpB = new THREE.Color();
 
@@ -423,7 +293,8 @@ export class FireflySimulation extends BaseSimulation {
 
     const scale = Math.max(0.08, this.params.size ?? 0.8);
     const frequencyRange = this.getFrequencyRange();
-    const discreteStateColors = getFireflyStateColors(this.params.colormap);
+    const idleColor = this.params.stateColorIdle || "#4f7dff";
+    const blinkColor = this.params.stateColorBlink || "#ffd74a";
 
     for (let i = 0; i < this.fireflies.length; i += 1) {
       const firefly = this.fireflies[i];
@@ -451,7 +322,7 @@ export class FireflySimulation extends BaseSimulation {
         // Frequency mode should show steady color, not phase blinking.
         this.tempColor.multiplyScalar(0.95);
       } else {
-        this.tempColor.setHex(isBlinking ? discreteStateColors.blink : discreteStateColors.idle);
+        this.tempColor.set(isBlinking ? blinkColor : idleColor);
         this.tempColor.multiplyScalar(blinkBrightness);
       }
       this.mesh.setColorAt(i, this.tempColor);
@@ -551,33 +422,16 @@ function buildFireflyColormapConfig({
   continuousColormapGradients,
 }) {
   const colorMode = params?.colorMode || "blink";
-  const colormap = params?.colormap || "blue-yellow";
-  if (colorMode === "solid") {
+  const colormap = params?.colormap || "turbo";
+  const colorModeOption = getFireflyColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
+  if (colorMode === "solid" || colorMode === "blink") {
     return {
       visible: false,
       value: colormap,
       options: continuousColormapOptions,
       setValue() {},
       legend: null,
-    };
-  }
-
-  if (colorMode === "blink") {
-    return {
-      visible: true,
-      value: colormap,
-      options: FIREFLY_DISCRETE_COLORMAP_OPTIONS,
-      setValue(value) {
-        params.colormap = value;
-        simulation?.syncInstances?.();
-      },
-      legend: {
-        gradient:
-          FIREFLY_DISCRETE_LEGEND_GRADIENTS[colormap] ||
-          FIREFLY_DISCRETE_LEGEND_GRADIENTS["blue-yellow"],
-        minText: "idle",
-        maxText: "blink",
-      },
     };
   }
 
@@ -595,10 +449,19 @@ function buildFireflyColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: `cmin: ${Number(range.min).toFixed(2)} Hz`,
-      maxText: `cmax: ${Number(range.max).toFixed(2)} Hz`,
+      minText: `min: ${Number(range.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(range.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
     },
   };
+}
+
+function getFireflyColorModeOption(colorMode) {
+  const visualParams = Array.isArray(FIREFLY_APPLET_CONFIG.visual?.params)
+    ? FIREFLY_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function randomWorldPosition(params) {
@@ -674,18 +537,4 @@ function sampleColormap(name, normalized, outColor) {
   fireflyLerpB.copy(colors[index + 1]);
   outColor.copy(fireflyLerpA).lerp(fireflyLerpB, fraction);
   return outColor;
-}
-
-function getFireflyStateColors(name) {
-  const palette = FIREFLY_DISCRETE_STATE_COLORMAPS[name];
-  if (palette && palette.length >= 2) {
-    return {
-      idle: palette[0],
-      blink: palette[1],
-    };
-  }
-  return {
-    idle: 0xa6cee3,
-    blink: 0x1f78b4,
-  };
 }

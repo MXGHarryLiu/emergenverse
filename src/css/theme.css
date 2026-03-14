@@ -269,6 +269,11 @@ body[data-theme="light"] .right-panel .form-label .label-value {
   border-color: rgba(96, 126, 177, 0.24);
 }
 
+body[data-theme="light"] .color-chip {
+  background: rgba(211, 222, 241, 0.76);
+  border-color: rgba(96, 126, 177, 0.24);
+}
+
 body[data-theme="light"] .section-slider-hub {
   background: rgba(220, 231, 249, 0.78);
   border-color: rgba(97, 126, 175, 0.26);

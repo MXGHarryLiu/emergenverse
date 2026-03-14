@@ -1,117 +1,11 @@
 // Boids applet config and simulation implementation.
 import * as THREE from "three";
-import { defineAppletConfig } from "./appletConfigUtils.js";
+import { validateAppletConfig } from "./appletConfigUtils.js";
+import boidConfigData from "./boid_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
 // Applet UI and metadata configuration.
-export const BOID_APPLET_CONFIG = defineAppletConfig({
-  label: "Boids",
-  camera: {
-    params: [
-      { key: "projection", default: "perspective" },
-      { key: "locked", default: false },
-      { key: "fov", default: 50, uiMin: 20, uiMax: 90, step: 1 },
-      { key: "moveSpeed", default: 120, uiMin: 1, uiMax: 100000, step: 1 },
-      { key: "rotationSpeed", default: 84, uiMin: 1, uiMax: 720, step: 1 },
-    ],
-  },
-  visual: {
-    colormap: [
-      { name: "turbo", value: [0x30123b, 0x4145ab, 0x4685f4, 0x39c6c5, 0x77df6e, 0xb8de29, 0xf9ba38, 0xee6a24, 0xc91f16] },
-      { name: "viridis", value: [0x440154, 0x482878, 0x3e4a89, 0x31688e, 0x26828e, 0x1f9e89, 0x35b779, 0x6ece58, 0xb5de2b, 0xfee825] },
-      { name: "plasma", value: [0x0d0887, 0x5b02a3, 0x9a179b, 0xcb4679, 0xed7953, 0xfb9f3a, 0xfdca26, 0xf0f921] },
-      { name: "magma", value: [0x000004, 0x180f3d, 0x440f76, 0x721f81, 0x9f2f7f, 0xcd4071, 0xf1605d, 0xfd9668, 0xfec98d, 0xfcfdbf] },
-      { name: "inferno", value: [0x000004, 0x1b0c41, 0x4a0c6b, 0x781c6d, 0xa52c60, 0xcf4446, 0xed6925, 0xfb9b06, 0xf7d13d, 0xfcffa4] },
-      { name: "cividis", value: [0x00204d, 0x213f6f, 0x3f5f7f, 0x5d7f87, 0x7a9f8a, 0x99bf88, 0xb9dd7f, 0xdbf06a, 0xfff44f] },
-      { name: "coolwarm", value: [0x3b4cc0, 0x688aef, 0x98b9ff, 0xc9d7f0, 0xece5dc, 0xf7c7a6, 0xee8468, 0xd34b44, 0xb40426] },
-      { name: "greys", value: [0x111111, 0x3a3a3a, 0x5f5f5f, 0x878787, 0xafafaf, 0xd3d3d3, 0xf2f2f2] },
-    ],
-    params: [
-      {
-        key: "colorMode",
-        default: "speed",
-        options: [
-          { value: "solid", label: "Single color" },
-          { value: "speed", label: "Speed (m/s)" },
-          { value: "altitude", label: "Altitude (z, m)" },
-          { value: "neighbors", label: "Neighbor Count" },
-          { value: "heading", label: "Heading (z component)" },
-        ],
-      },
-      { key: "colormap", default: "turbo" },
-      { key: "colormapInverted", default: false },
-      { key: "solidColor", default: "#4cd3b6" },
-    ],
-  },
-  unit: {
-    length: { label: "m", description: "meter", toSI: 1 },
-    mass: { label: "a.u.", description: "arbitrary unit" },
-    time: { label: "s", description: "second", toSI: 1 },
-  },
-  world: {
-    params: [
-      { key: "x", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 },
-      { key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 },
-      { key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 },
-      { key: "boundaryMode", default: "cyclic-xyz" },
-    ],
-  },
-  intro: {
-      paragraphs: [
-        "This applet shows flocking as a local coordination process. Each boid responds to nearby neighbors, and large-scale group motion emerges from those simple local interactions.",
-        "Open the model equations view for the update rules and the parameter-to-equation mapping.",
-      ],
-    },
-  model: {
-      references: [
-        { label: "Wikipedia: Boids", url: "https://en.wikipedia.org/wiki/Boids" },
-      ],
-      items: [
-        {
-          title: "Position (\\(x\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=\\mathbf{v}\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t\\end{aligned}$$",
-          explanation: "Each boid advances according to its current velocity during the next simulation step.",
-        },
-        {
-          title: "Velocity (\\(v\\))",
-          equation: "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{clip}(\\mathbf{v}+\\mathbf{a}\\,\\Delta t)-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_i(t+\\Delta t)&=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)\\end{aligned}$$",
-          explanation: "Velocity changes by the steering acceleration and is then clamped so the boid stays within its allowed motion limits.",
-        },
-        {
-          title: "Steering Composition",
-          equation: "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
-          explanation: "The steering vector is formed by combining alignment, cohesion, and separation responses to nearby flockmates.",
-          parameters: [
-            "<strong>Alignment Weight</strong> (\\(w_a\\)), <strong>Cohesion Weight</strong> (\\(w_c\\)), and <strong>Separation Weight</strong> (\\(w_s\\)) scale the three steering terms.",
-          ],
-        },
-      ],
-    },
-  stats: {
-      params: [
-        { type: "stat", key: "boid-fps", label: "FPS", valueId: "fps-live", initial: "--" },
-        { type: "chart", key: "count", label: "Counts", liveInitial: "0" },
-        { type: "chart", key: "speed", label: "Speed", liveInitial: "0.00 m/s", supportsDistribution: true },
-        { type: "chart", key: "neighbors", label: "Neighbors", liveInitial: "0.00" },
-      ],
-    },
-  simulation: {
-      params: [
-        { key: "simSpeed", label: "Simulation Speed", default: 1.0, uiMin: 0.1, uiMax: 10, group: "dynamic", control: { type: "slider", icon: "bi-stopwatch", step: 0.1 } },
-        { key: "count", label: "Count", default: 220, uiMin: 30, uiMax: 650, group: "initial", control: { type: "slider", icon: "bi-people-fill", step: 10, resetTrendCharts: true } },
-        { key: "scale", label: "Object Visual Size", default: 0.5, unit: "m", group: "dynamic", uiMin: 0.1, uiMax: 1.0, control: { type: "slider", icon: "bi-rulers", step: 0.1 } },
-        { key: "perceptionRadius", label: "Perception Radius", default: 18, unit: "m", group: "dynamic", uiMin: 2, uiMax: 60, control: { type: "slider", icon: "bi-eye-fill", step: 0.5 } },
-        { key: "separationDistance", label: "Separation Distance", default: 8, unit: "m", group: "dynamic", uiMin: 2, uiMax: 40, control: { type: "slider", icon: "bi-arrows-angle-contract", step: 0.5 } },
-        { key: "maxSpeed", label: "Max Speed", default: 8, unit: "m/s", group: "dynamic", uiMin: 1, uiMax: 25, control: { type: "slider", icon: "bi-speedometer2", step: 0.25 } },
-        { key: "maxAccel", label: "Max Acceleration", default: 6, unit: "m/s²", group: "dynamic", uiMin: 0.5, uiMax: 30, control: { type: "slider", icon: "bi-lightning-charge-fill", step: 0.25 } },
-        { key: "alignmentWeight", label: "Alignment Weight (\\(w_a\\))", default: 1.0, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-layout-three-columns", step: 0.05 } },
-        { key: "cohesionWeight", label: "Cohesion Weight (\\(w_c\\))", default: 0.9, group: "dynamic", uiMin: 0, uiMax: 3, control: { type: "slider", icon: "bi-diagram-3-fill", step: 0.05 } },
-        { key: "separationWeight", label: "Separation Weight (\\(w_s\\))", default: 1.35, group: "dynamic", uiMin: 0, uiMax: 4, control: { type: "slider", icon: "bi-arrow-left-right", step: 0.05 } },
-        { key: "minSpeed", default: 2.5 },
-      ],
-    },
-});
+export const BOID_APPLET_CONFIG = validateAppletConfig(boidConfigData);
 
 // Shell runtime hooks.
 const BOID_APPLET_RUNTIME = {
@@ -601,6 +495,8 @@ function buildBoidColormapConfig({
   const colorMode = params?.colorMode || "solid";
   const colormap = params?.colormap || "turbo";
   const range = getBoidColormapRange(colorMode, params);
+  const colorModeOption = getBoidColorModeOption(colorMode);
+  const unit = String(colorModeOption?.unit || "");
 
   return {
     visible: colorMode !== "solid",
@@ -612,8 +508,8 @@ function buildBoidColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: `cmin: ${Number(range.min).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
-      maxText: `cmax: ${Number(range.max).toFixed(range.digits)}${range.unit ? ` ${range.unit}` : ""}`,
+      minText: `min: ${Number(range.min).toFixed(range.digits)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(range.max).toFixed(range.digits)}${unit ? ` ${unit}` : ""}`,
     },
   };
 }
@@ -623,7 +519,6 @@ function getBoidColormapRange(colorMode, params) {
     return {
       min: 0,
       max: params?.maxSpeed ?? 1,
-      unit: "m/s",
       digits: 1,
     };
   }
@@ -632,7 +527,6 @@ function getBoidColormapRange(colorMode, params) {
     return {
       min: -halfZ,
       max: halfZ,
-      unit: "m",
       digits: 1,
     };
   }
@@ -640,11 +534,19 @@ function getBoidColormapRange(colorMode, params) {
     return {
       min: 0,
       max: 16,
-      unit: "",
       digits: 0,
     };
   }
-  return { min: -1, max: 1, unit: "", digits: 2 };
+  return { min: -1, max: 1, digits: 2 };
+}
+
+function getBoidColorModeOption(colorMode) {
+  const visualParams = Array.isArray(BOID_APPLET_CONFIG.visual?.params)
+    ? BOID_APPLET_CONFIG.visual.params
+    : [];
+  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
+  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
+  return options.find((option) => option?.value === colorMode) || null;
 }
 
 function buildColormapLUT(colormapEntries) {
