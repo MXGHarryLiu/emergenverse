@@ -214,7 +214,15 @@ export function getSectionInputControls(sectionConfig) {
 }
 
 export function createAppletParams(rootParams, appletId) {
-  return new Proxy(rootParams[appletId] ?? {}, {
+  const requestedId = String(appletId || "").trim();
+  const aliasId = requestedId === "ant"
+    ? "ants"
+    : requestedId === "ants"
+      ? "ant"
+      : null;
+  const targetParams = rootParams[requestedId] ?? (aliasId ? rootParams[aliasId] : undefined) ?? {};
+
+  return new Proxy(targetParams, {
     get(target, prop) {
       if (prop in target) {
         return target[prop];
@@ -237,7 +245,48 @@ function toFiniteNumber(value, fallback) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function normalizeWorldParams(worldConfig = {}, defaultBoundaryMode = "cyclic-xyz") {
+function normalizeUnitConfig(unitConfig) {
+  if (!unitConfig || typeof unitConfig !== "object") {
+    return null;
+  }
+
+  const allowedKeys = new Set(["length", "mass", "time"]);
+  const rawKeys = Object.keys(unitConfig);
+  const invalidKeys = rawKeys.filter((key) => !allowedKeys.has(key));
+  if (invalidKeys.length > 0) {
+    throw new Error(
+      `[appletConfigUtils] unit contains unsupported keys: ${invalidKeys.join(", ")}. Allowed: length, mass, time.`,
+    );
+  }
+
+  const normalized = {};
+  ["length", "mass", "time"].forEach((key) => {
+    const entry = unitConfig[key];
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const label = String(entry.label || "").trim();
+    if (!label) {
+      throw new Error(`[appletConfigUtils] unit.${key}.label is required.`);
+    }
+    const next = {
+      label,
+      description: String(entry.description || "").trim(),
+    };
+    if (entry.toSI !== undefined) {
+      const toSI = Number(entry.toSI);
+      if (!Number.isFinite(toSI) || toSI <= 0) {
+        throw new Error(`[appletConfigUtils] unit.${key}.toSI must be a positive finite number when provided.`);
+      }
+      next.toSI = toSI;
+    }
+    normalized[key] = next;
+  });
+
+  return normalized;
+}
+
+function normalizeWorldParams(worldConfig = {}) {
   const defaults = worldConfig.defaults ?? {};
   const range = worldConfig.range ?? {};
   const legacyStep = toFiniteNumber(range.step, 2);
@@ -295,7 +344,7 @@ function normalizeWorldParams(worldConfig = {}, defaultBoundaryMode = "cyclic-xy
   const boundaryParam = paramByKey.get("boundaryMode") || {};
   normalized.push({
     key: "boundaryMode",
-    default: String(boundaryParam.default ?? defaultBoundaryMode ?? "cyclic-xyz"),
+    default: String(boundaryParam.default ?? "cyclic-xyz"),
   });
 
   return normalized;
@@ -362,7 +411,7 @@ function normalizeCameraParams(cameraConfig = {}) {
     },
   };
 
-  return ["fov", "moveSpeed", "rotationSpeed"].map((key) => {
+  const numericParams = ["fov", "moveSpeed", "rotationSpeed"].map((key) => {
     const existing = paramByKey.get(key) || {};
     const fallback = defaultsByKey[key];
     return {
@@ -373,6 +422,23 @@ function normalizeCameraParams(cameraConfig = {}) {
       step: toFiniteNumber(existing.step, fallback.step),
     };
   });
+
+  const projectionParam = paramByKey.get("projection");
+  const lockedParam = paramByKey.get("locked");
+
+  return [
+    {
+      key: "projection",
+      default: String(projectionParam?.default ?? cameraConfig.defaultProjection ?? "perspective").trim().toLowerCase() === "orthographic"
+        ? "orthographic"
+        : "perspective",
+    },
+    {
+      key: "locked",
+      default: normalizeBoolean(lockedParam?.default, normalizeBoolean(cameraConfig.locked, false)),
+    },
+    ...numericParams,
+  ];
 }
 
 function normalizeBoolean(value, fallback) {
@@ -413,59 +479,40 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
 }
 
 export function validateAppletConfig(config) {
-  const worldLengthUnit = config.world?.lengthUnit ?? {
-    name: config.world?.unitLabel ?? "m",
-    toSI: 1,
+  const normalizedUnit = normalizeUnitConfig(config?.unit ?? null);
+  const worldLengthConfig = (config?.world && typeof config.world === "object" && config.world.lengthUnit)
+    ? config.world.lengthUnit
+    : {};
+  const worldLengthUnit = {
+    name: String(worldLengthConfig.name || "m"),
+    toSI: toFiniteNumber(worldLengthConfig.toSI, 1),
   };
-  const label = config.label ?? "Applet";
-  const shortLabel = config.shortLabel ?? label.split(/\s+/)[0] ?? label;
-  const category = typeof config.category === "string" && config.category.trim().length > 0
-    ? config.category.trim()
-    : "General";
-  const appletKey = typeof config.key === "string" && config.key.trim().length > 0
+  const label = config?.meta?.label ?? "Applet";
+  const appletKey = typeof config?.key === "string" && config.key.trim().length > 0
     ? config.key.trim()
-    : (typeof config.navKey === "string" && config.navKey.trim().length > 0
-      ? config.navKey.trim()
-      : "");
-  const configuredWorldBoundaryMode = Array.isArray(config.world?.params)
-    ? config.world.params.find((entry) => entry?.key === "boundaryMode")?.default
-    : undefined;
-  const resolvedDefaultBoundaryMode = String(
-    configuredWorldBoundaryMode ?? config.defaultBoundaryMode ?? "cyclic-xyz",
-  );
-  const worldParams = normalizeWorldParams(config.world ?? {}, resolvedDefaultBoundaryMode);
+    : "";
+  const worldParams = normalizeWorldParams(config.world ?? {});
   const legacyWorld = buildLegacyWorldShapeFromParams(worldParams);
-  const configuredCameraProjection = Array.isArray(config.camera?.params)
-    ? config.camera.params.find((entry) => {
-      const key = String(entry?.key || "").trim();
-      return key === "projection" || key === "defaultProjection" || key === "projectionMode";
-    })?.default
-    : undefined;
   const configuredCameraLocked = Array.isArray(config.camera?.params)
     ? config.camera.params.find((entry) => String(entry?.key || "").trim() === "locked")?.default
     : undefined;
   const cameraParams = normalizeCameraParams(config.camera ?? {});
+  const cameraProjectionParam = cameraParams.find((entry) => entry.key === "projection");
   const legacyCameraControls = buildLegacyCameraControlsFromParams(cameraParams);
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
   const cameraMoveSpeedParam = cameraParams.find((entry) => entry.key === "moveSpeed");
-  const resolvedDefaultProjection =
-    configuredCameraProjection ??
-    config.camera?.defaultProjection ??
-    config.defaultProjection ??
-    "perspective";
+  const worldBoundaryModeParam = worldParams.find((entry) => entry.key === "boundaryMode");
 
   return {
     label,
-    shortLabel,
     key: appletKey || undefined,
-    category,
-    params: config.params ?? null,
-    defaultProjection: resolvedDefaultProjection,
-    defaultBoundaryMode: resolvedDefaultBoundaryMode,
     camera: {
       distance: config.camera?.distance ?? 185,
       height: config.camera?.height ?? 80,
       fov: toFiniteNumber(cameraFovParam?.default, 50),
+      defaultProjection: String(cameraProjectionParam?.default || "perspective").trim().toLowerCase() === "orthographic"
+        ? "orthographic"
+        : "perspective",
       locked: normalizeBoolean(configuredCameraLocked, config.camera?.locked ?? false),
       params: cameraParams,
       keyboardMoveSpeedDefault: toFiniteNumber(cameraMoveSpeedParam?.default, 30000),
@@ -473,19 +520,20 @@ export function validateAppletConfig(config) {
     },
     world: {
       params: worldParams,
+      defaultBoundaryMode: String(worldBoundaryModeParam?.default || "cyclic-xyz").trim(),
       defaults: legacyWorld.defaults,
       range: legacyWorld.range,
       gridSize: legacyWorld.gridSize,
       lengthUnit: worldLengthUnit,
       unitLabel: worldLengthUnit.name,
     },
-    unit: config.unit ?? config.units ?? null,
-    intro: config.intro ?? config.left?.intro ?? null,
-    model: config.model ?? config.left?.model ?? null,
-    stats: config.stats ?? config.left?.stats ?? null,
-    simulation: config.simulation ?? config.right?.simulation ?? null,
-    interaction: config.interaction ?? config.right?.interaction ?? null,
-    visual: config.visual ?? config.right?.visual ?? null,
+    unit: normalizedUnit,
+    intro: config.intro ?? null,
+    model: config.model ?? null,
+    stats: config.stats ?? null,
+    simulation: config.simulation ?? null,
+    interaction: config.interaction ?? null,
+    visual: config.visual ?? null,
   };
 }
 

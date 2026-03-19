@@ -7,6 +7,7 @@ import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
 import { createSpaceshipHudController } from "./spaceship.js";
+import { createAppletSession } from "./session.js";
 import {
   normalizeAppletId as normalizeAppletIdParam,
   normalizeAppletIds as normalizeAppletIdsParam,
@@ -21,7 +22,7 @@ import {
   APPLET_ORDER,
 } from "./app/appletConfigs.js";
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
-import { SITE_VERSION } from "./versionConfig.js";
+import { SITE_VERSION } from "./version.js";
 import {
   drawTrendChart as renderTrendChart,
   pushTrendValue as appendTrendValue,
@@ -451,7 +452,7 @@ function initializeSimulationsWithAppletWorldState() {
   };
 
   APPLET_ORDER.forEach((appletId) => {
-    const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
+    const state = appletSession.ensureWorldState(appletId, createDefaultWorldState);
     params.worldSizeX = state.x;
     params.worldSizeY = state.y;
     params.worldSizeZ = state.z;
@@ -494,7 +495,7 @@ function getWorldParamDefinition(appletId, key) {
   if (normalizedKey === "boundaryMode") {
     return {
       key: "boundaryMode",
-      default: APPLET_CONFIGS[appletId]?.defaultBoundaryMode ?? DEFAULT_WORLD_PARAM_DEFINITIONS.boundaryMode.default,
+      default: DEFAULT_WORLD_PARAM_DEFINITIONS.boundaryMode.default,
     };
   }
 
@@ -502,7 +503,24 @@ function getWorldParamDefinition(appletId, key) {
 }
 
 function getWorldBoundaryModeDefault(appletId) {
+  const configDefault = APPLET_CONFIGS[appletId]?.world?.defaultBoundaryMode;
+  if (typeof configDefault === "string" && configDefault.trim().length > 0) {
+    return normalizeBoundaryMode(configDefault);
+  }
   return normalizeBoundaryMode(getWorldParamDefinition(appletId, "boundaryMode")?.default);
+}
+
+function getAppletDefaultProjection(appletId = activeApplet) {
+  const configDefault = APPLET_CONFIGS[appletId]?.camera?.defaultProjection;
+  if (typeof configDefault === "string" && configDefault.trim().length > 0) {
+    return configDefault.trim().toLowerCase() === "orthographic" ? "orthographic" : "perspective";
+  }
+  const cameraParams = Array.isArray(APPLET_CONFIGS[appletId]?.camera?.params)
+    ? APPLET_CONFIGS[appletId].camera.params
+    : [];
+  const projectionParam = cameraParams.find((entry) => String(entry?.key || "").trim() === "projection");
+  const projection = String(projectionParam?.default || "perspective").trim().toLowerCase();
+  return projection === "orthographic" ? "orthographic" : "perspective";
 }
 
 function getAppletLengthUnit(appletId = activeApplet) {
@@ -628,17 +646,35 @@ const ROUTING_OPTIONS = {
   appsSearchParam: "apps",
   maxApplets: MAX_LOADED_APPLET_COUNT,
 };
-const ORGANIC_APPLET_HINTS = new Set(["boid", "ant", "ants", "prey", "firefly"]);
 const appletCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 const appletInitialCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
-const appletWorldState = Object.fromEntries(
-  APPLET_ORDER.map((id) => [id, createDefaultWorldState(id)]),
-);
 let worldStatePersistenceEnabled = false;
 
-let activeApplet = DEFAULT_APPLET_ID;
-let loadedAppletIds = [DEFAULT_APPLET_ID];
-let loadedAppletIdSet = new Set(loadedAppletIds);
+const appletSession = createAppletSession({
+  defaultAppletId: DEFAULT_APPLET_ID,
+  maxLoadedAppletCount: MAX_LOADED_APPLET_COUNT,
+  validAppletIds: APPLET_IDS,
+  normalizeAppletId: (value) => normalizeAppletIdParam(value, ROUTING_OPTIONS),
+  normalizeAppletIds: (values, fallbackId) =>
+    normalizeAppletIdsParam(values, {
+      validAppletIds: APPLET_IDS,
+      defaultAppletId: fallbackId,
+      maxApplets: MAX_LOADED_APPLET_COUNT,
+    }),
+  initialWorldStateByApplet: Object.fromEntries(
+    APPLET_ORDER.map((id) => [id, createDefaultWorldState(id)]),
+  ),
+});
+
+let activeApplet = appletSession.getActiveApplet();
+let loadedAppletIds = appletSession.getLoadedAppletIds();
+let loadedAppletIdSet = appletSession.getLoadedAppletIdSet();
+
+function syncAppletSessionMirrors() {
+  activeApplet = appletSession.getActiveApplet();
+  loadedAppletIds = appletSession.getLoadedAppletIds();
+  loadedAppletIdSet = appletSession.getLoadedAppletIdSet();
+}
 let welcomeLauncherMode = "start";
 let welcomeSortMode = "grouped";
 let welcomeStatusMessage = "";
@@ -1060,7 +1096,7 @@ function setupControls() {
         params.cameraDistance = appletCameraDefaults.cameraDistance;
         params.cameraHeight = appletCameraDefaults.cameraHeight;
         params.cameraFov = appletCameraDefaults.cameraFov;
-        const projectionMode = APPLET_CONFIGS[activeApplet]?.defaultProjection || "perspective";
+        const projectionMode = getAppletDefaultProjection(activeApplet);
         if (projectionMode === "orthographic") {
           params.projectionMode = "orthographic";
           cameraController.switchToOrthographicTop(true);
@@ -1698,28 +1734,6 @@ function applySimulationDefaultsForApplet(appletId) {
 }
 
 // App Routing + Applet Switching + Persisted Per-Applet State
-function normalizeLoadedAppletIds(appletIds, fallbackAppletId = activeApplet) {
-  const normalizedFallbackId = normalizeAppletIdParam(fallbackAppletId, ROUTING_OPTIONS);
-  const normalizedIds = normalizeAppletIdsParam(appletIds, {
-    validAppletIds: APPLET_IDS,
-    defaultAppletId: normalizedFallbackId,
-    maxApplets: MAX_LOADED_APPLET_COUNT,
-  });
-
-  if (!normalizedIds.includes(normalizedFallbackId)) {
-    if (normalizedIds.length >= MAX_LOADED_APPLET_COUNT) {
-      normalizedIds.shift();
-    }
-    normalizedIds.push(normalizedFallbackId);
-  }
-
-  if (normalizedIds.length === 0) {
-    normalizedIds.push(normalizedFallbackId);
-  }
-
-  return normalizedIds.slice(0, MAX_LOADED_APPLET_COUNT);
-}
-
 function applyLoadedAppletTabVisibility() {
   dom.appletTabs?.forEach((tab) => {
     const tabApplet = String(tab.getAttribute("data-applet-item") || "").trim();
@@ -1756,8 +1770,14 @@ function getWelcomeCardSummary(appletId) {
 }
 
 function getAppletLauncherDomain(appletId) {
-  const normalizedId = String(appletId || "").toLowerCase().trim();
-  return ORGANIC_APPLET_HINTS.has(normalizedId) ? "Organic Systems" : "Physical Systems";
+  const group = String(APPLET_META[appletId]?.group || "").toLowerCase().trim();
+  if (group === "organic") {
+    return "Organic Systems";
+  }
+  if (group === "physical") {
+    return "Physical Systems";
+  }
+  return "Other Systems";
 }
 
 function getWelcomeCards() {
@@ -1780,6 +1800,7 @@ function getWelcomeGroups(sortMode = welcomeSortMode) {
   const groupedCards = new Map([
     ["Organic Systems", []],
     ["Physical Systems", []],
+    ["Other Systems", []],
   ]);
 
   cards.forEach((card) => {
@@ -1815,14 +1836,14 @@ function openOpenedAppsMenu() {
 function closeLoadedApplet(appletId, options = {}) {
   const { keepLauncherOpen = false } = options;
   const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
-  if (!loadedAppletIdSet.has(normalizedId)) {
+  if (!appletSession.isLoadedApplet(normalizedId)) {
     return false;
   }
 
   const nextLoadedAppletIds = loadedAppletIds.filter((id) => id !== normalizedId);
   if (nextLoadedAppletIds.length === 0) {
-    loadedAppletIds = [];
-    loadedAppletIdSet = new Set();
+    appletSession.clearLoadedApplets();
+    syncAppletSessionMirrors();
     applyLoadedAppletTabVisibility();
     renderOpenedAppsMenu();
     closeOpenedAppsMenu();
@@ -2171,7 +2192,7 @@ function setupAppRouting() {
         routeState?.activeAppletId,
         ROUTING_OPTIONS,
       );
-      const routeLoadedAppletIds = normalizeLoadedAppletIds(
+      const routeLoadedAppletIds = appletSession.normalizeLoadedAppletIds(
         routeState?.loadedAppletIds,
         routeActiveApplet,
       );
@@ -2201,17 +2222,16 @@ function createDefaultWorldState(appletId) {
 }
 
 function persistActiveAppletWorldState() {
-  if (!APPLET_IDS.has(activeApplet)) {
+  if (!appletSession.isValidAppletId(activeApplet)) {
     return;
   }
-
-  appletWorldState[activeApplet] = {
+  appletSession.persistActiveWorldState({
     x: params.worldSizeX,
     y: params.worldSizeY,
     z: params.worldSizeZ,
     gridSize: params.worldGridSize,
     boundaryMode: normalizeBoundaryMode(params.boundaryMode),
-  };
+  });
 }
 
 function applyWorldSliderConstraints(appletId) {
@@ -2227,8 +2247,7 @@ function applyWorldSliderConstraints(appletId) {
 
 function applyAppletWorldState(appletId) {
   const { gridSize: gridParam } = getWorldDimensionParams(appletId);
-  const state = appletWorldState[appletId] || createDefaultWorldState(appletId);
-  appletWorldState[appletId] = state;
+  const state = appletSession.ensureWorldState(appletId, createDefaultWorldState);
 
   applyWorldSliderConstraints(appletId);
 
@@ -2284,7 +2303,7 @@ function applyDefaultProjectionForApplet(appletId) {
   params.keyboardRotationSpeed = appletCameraControlConfig.rotationSpeed.defaultValue;
   params.cameraLocked = appletCameraDefaults.cameraLocked;
 
-  const projectionMode = APPLET_CONFIGS[appletId]?.defaultProjection || "perspective";
+  const projectionMode = getAppletDefaultProjection(appletId);
   if (projectionMode === "orthographic") {
     params.projectionMode = "orthographic";
     cameraController.switchToOrthographicTop();
@@ -2357,19 +2376,12 @@ function applyAppletMode(appletId, options = {}) {
     replaceHistory = false,
     loadedAppletIds: requestedLoadedAppletIds = null,
   } = options;
-  const normalizedRequestedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
-  const normalizedLoadedAppletIds = normalizeLoadedAppletIds(
-    requestedLoadedAppletIds ?? loadedAppletIds,
-    normalizedRequestedId,
-  );
-  loadedAppletIds = normalizedLoadedAppletIds;
-  loadedAppletIdSet = new Set(loadedAppletIds);
+  const sessionState = appletSession.applyMode(appletId, requestedLoadedAppletIds);
+  syncAppletSessionMirrors();
   applyLoadedAppletTabVisibility();
 
-  const normalizedId = loadedAppletIds.includes(normalizedRequestedId)
-    ? normalizedRequestedId
-    : loadedAppletIds[0] || DEFAULT_APPLET_ID;
-  const previousApplet = activeApplet;
+  const normalizedId = sessionState.activeApplet;
+  const previousApplet = sessionState.previousApplet;
   const wasProjectionInitialized = Boolean(appletProjectionInitialized[normalizedId]);
 
   if (previousApplet && previousApplet !== normalizedId && APPLET_IDS.has(previousApplet)) {
@@ -2377,7 +2389,6 @@ function applyAppletMode(appletId, options = {}) {
     persistActiveAppletWorldState();
   }
 
-  activeApplet = normalizedId;
   applySceneObjectVisibility(normalizedId);
   applyAppletWorldState(normalizedId);
   if (!appletSimulationPrimed[normalizedId]) {

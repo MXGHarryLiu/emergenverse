@@ -1,6 +1,6 @@
 // Overlay and modal behavior for help, model equations, about, share, export, and screenshot actions.
 import { APPLET_CONFIGS } from "./app/appletConfigs.js";
-import { SITE_VERSION } from "./versionConfig.js";
+import { SITE_VERSION } from "./version.js";
 
 // Module state
 const escapeOverlayBindings = [];
@@ -292,12 +292,14 @@ function setupModelInfoPopup(dom, getActiveApplet, popupPauseController) {
   };
 
   const appendReferenceCard = (modelConfig) => {
-    if (!Array.isArray(modelConfig.references) || modelConfig.references.length === 0) {
+    const references = Array.isArray(modelConfig.references) ? modelConfig.references : [];
+    const journalArticles = Array.isArray(modelConfig.journalArticles) ? modelConfig.journalArticles : [];
+    if (references.length === 0 && journalArticles.length === 0) {
       return;
     }
 
-    const references = document.createElement("section");
-    references.className = "equation-card";
+    const referencesCard = document.createElement("section");
+    referencesCard.className = "equation-card";
 
     const heading = document.createElement("div");
     heading.className = "equation-card-head";
@@ -306,11 +308,11 @@ function setupModelInfoPopup(dom, getActiveApplet, popupPauseController) {
     title.className = "equation-card-title";
     title.textContent = "References";
     heading.appendChild(title);
-    references.appendChild(heading);
+    referencesCard.appendChild(heading);
 
     const list = document.createElement("ul");
     list.className = "equation-card-list";
-    modelConfig.references.forEach((entry) => {
+    references.forEach((entry) => {
       const li = document.createElement("li");
       const link = document.createElement("a");
       link.href = entry.url;
@@ -320,8 +322,30 @@ function setupModelInfoPopup(dom, getActiveApplet, popupPauseController) {
       li.appendChild(link);
       list.appendChild(li);
     });
-    references.appendChild(list);
-    dom.modelInfoBody.appendChild(references);
+
+    if (journalArticles.length > 0) {
+      const li = document.createElement("li");
+      const prefix = document.createElement("span");
+      prefix.textContent = "Journal article(s): ";
+      li.appendChild(prefix);
+
+      journalArticles.forEach((entry, index) => {
+        const link = document.createElement("a");
+        link.href = entry.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = entry.title;
+        li.appendChild(link);
+        if (index < journalArticles.length - 1) {
+          li.appendChild(document.createTextNode("; "));
+        }
+      });
+
+      list.appendChild(li);
+    }
+
+    referencesCard.appendChild(list);
+    dom.modelInfoBody.appendChild(referencesCard);
   };
 
   const renderModelContent = (appletId) => {

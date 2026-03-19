@@ -122,7 +122,6 @@ function buildAppletDefinition(id, module, SimulationClass) {
     ...simulationParamDefaults,
     ...interactionParamDefaults,
     ...visualParamDefaults,
-    ...(config?.params ?? {}),
   };
   const runtime = resolveRuntimeHooks(module, id, SimulationClass);
   const hasClassVisualHook = typeof SimulationClass?.getColormapConfig === "function";
@@ -221,6 +220,7 @@ export const APPLET_CONFIGS = Object.fromEntries(
 export const APPLET_META = Object.fromEntries(
   APPLET_ORDER.map((id) => {
     const config = APPLET_DEFINITIONS[id].config;
+    const metaConfig = (config?.meta && typeof config.meta === "object") ? config.meta : {};
     const simulation = config?.simulation ?? {};
     const stats = config?.stats ?? {};
     const introSummary = String(config?.intro?.summary || "").trim()
@@ -237,8 +237,9 @@ export const APPLET_META = Object.fromEntries(
       id,
       {
         id,
-        label: config?.label ?? id,
-        shortLabel: config?.shortLabel ?? config?.label?.split(/\s+/)[0] ?? id,
+        label: metaConfig?.label ?? config?.label ?? id,
+        shortLabel: metaConfig?.shortLabel ?? metaConfig?.label?.split(/\s+/)[0] ?? id,
+        group: String(metaConfig?.group || "").trim().toLowerCase() || "physical",
         key: String(config?.key ?? id).trim() || id,
         introSummary,
         fpsValueId: deriveStatValueId(fpsStat, id),

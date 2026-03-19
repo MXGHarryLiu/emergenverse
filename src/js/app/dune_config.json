@@ -1,6 +1,9 @@
 {
-  "label": "Dune Dynamics",
   "key": "dune",
+  "meta": {
+    "label": "Dune Dynamics",
+    "group": "physical"
+  },
   "intro": {
     "summary": "Wind transport and avalanche dune formation",
     "paragraphs": [
@@ -18,6 +21,12 @@
       {
         "label": "Wikipedia: Angle of repose",
         "url": "https://en.wikipedia.org/wiki/Angle_of_repose"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "The Physics of Blown Sand and Desert Dunes",
+        "url": "https://archive.org/details/in.ernet.dli.2015.50215"
       }
     ],
     "items": [

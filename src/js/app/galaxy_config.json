@@ -1,6 +1,9 @@
 {
-  "label": "Galaxy Gravity",
   "key": "galaxy",
+  "meta": {
+    "label": "Galaxy Gravity",
+    "group": "physical"
+  },
   "intro": {
     "summary": "N-body gravity shaping orbital structure",
     "paragraphs": [
@@ -18,6 +21,12 @@
       {
         "label": "Wikipedia: Galaxy formation and evolution",
         "url": "https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "A Hierarchical O(N log N) Force-Calculation Algorithm",
+        "url": "https://doi.org/10.1038/324446a0"
       }
     ],
     "items": [

@@ -1,6 +1,9 @@
 {
-  "label": "Ant Trails",
   "key": "ant",
+  "meta": {
+    "label": "Ant Trails",
+    "group": "organic"
+  },
   "intro": {
     "summary": "Trail foraging with pheromone memory",
     "paragraphs": [
@@ -18,6 +21,16 @@
       {
         "label": "Wikipedia: Ant colony optimization algorithms",
         "url": "https://en.wikipedia.org/wiki/Ant_colony_optimization_algorithms"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "The Self-Organizing Exploratory Pattern of the Argentine Ant",
+        "url": "https://doi.org/10.1007/BF01417909"
+      },
+      {
+        "title": "Ant System: Optimization by a Colony of Cooperating Agents",
+        "url": "https://doi.org/10.1109/3477.484436"
       }
     ],
     "items": [
@@ -52,14 +65,14 @@
   },
   "unit": {
     "length": {
-      "label": "m",
-      "description": "meter",
-      "toSI": 1
+      "label": "mm",
+      "description": "millimeter",
+      "toSI": 0.001
     },
     "mass": {
-      "label": "ug",
-      "description": "microgram",
-      "toSI": 1E-09
+      "label": "mg",
+      "description": "milligram",
+      "toSI": 0.000001
     },
     "time": {
       "label": "s",
@@ -565,7 +578,7 @@
         "key": "foodAddMassUg",
         "label": "Food Added Per Click",
         "default": 50,
-        "unit": "ug",
+        "unit": "mg",
         "uiMin": 10,
         "uiMax": 100,
         "control": {
@@ -577,7 +590,7 @@
       }
     ],
     "notes": [
-      "Each pickup consumes 1 ug at a point target. Food marker radius is visual only and scales with mass."
+      "Each pickup consumes 1 mg at a point target. Food marker radius is visual only and scales with mass."
     ]
   }
 }

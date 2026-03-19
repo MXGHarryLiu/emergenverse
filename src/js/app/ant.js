@@ -44,8 +44,8 @@ const ANT_APPLET_RUNTIME = {
     const trips = stats.trips ?? 0;
     const meanPheromone = stats.meanPheromone ?? 0;
 
-    ui.setText("ants-carrying-live", String(carryingCount));
-    ui.updateChartMetrics("ants", [antCount, trips, meanPheromone], [
+    ui.setText("ant-carrying-live", String(carryingCount));
+    ui.updateChartMetrics("ant", [antCount, trips, meanPheromone], [
       String(antCount),
       String(trips),
       meanPheromone.toFixed(2),
@@ -68,7 +68,7 @@ const antLerpB = new THREE.Color();
 
 // Simulation implementation.
 export class AntSimulation extends BaseSimulation {
-  static APPLET_ID = "ants";
+  static APPLET_ID = "ant";
   static APPLET_RUNTIME = ANT_APPLET_RUNTIME;
   static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
     return buildAntColormapConfig({
@@ -285,7 +285,7 @@ export class AntSimulation extends BaseSimulation {
       if (event.button !== 0) {
         return;
       }
-      if (getActiveApplet() !== "ants" || !this.params.foodPlacementEnabled) {
+      if (getActiveApplet() !== "ant" || !this.params.foodPlacementEnabled) {
         return;
       }
 
@@ -527,12 +527,13 @@ export class AntSimulation extends BaseSimulation {
       return;
     }
 
-    const floorZ = -this.params.worldSizeZ * 0.5 + Math.max(0.006, (this.params.scale ?? 0.003) * 0.7);
+    const antScale = this.getAntBodyScale();
+    const floorZ = -this.params.worldSizeZ * 0.5 + Math.max(0.006, antScale * 0.7);
     for (let i = 0; i < this.ants.length; i += 1) {
       const ant = this.ants[i];
       this.tempObject.position.set(ant.position.x, ant.position.y, floorZ);
       this.tempObject.rotation.set(0, 0, ant.heading - Math.PI * 0.5);
-      this.tempObject.scale.setScalar(Math.max(0.0005, this.params.scale ?? 0.003));
+      this.tempObject.scale.setScalar(antScale);
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
@@ -545,6 +546,12 @@ export class AntSimulation extends BaseSimulation {
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }
+  }
+
+  getAntBodyScale() {
+    const baseScale = Math.max(0.0005, Number(this.params.scale) || 0.003);
+    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
+    return baseScale * worldMinAxis * 0.5;
   }
 
   applyAntColor(ant, outColor) {
@@ -812,7 +819,12 @@ export class AntSimulation extends BaseSimulation {
 
   getFoodRadiusFromMass(massUg) {
     const safeMass = Math.max(0, massUg);
-    return THREE.MathUtils.clamp(0.01 + Math.cbrt(safeMass) * 0.0015, 0.008, 0.08);
+    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
+    const worldScaleFactor = worldMinAxis * 0.5;
+    const rawRadius = (0.01 + Math.cbrt(safeMass) * 0.0015) * worldScaleFactor;
+    const minRadius = 0.008 * worldScaleFactor;
+    const maxRadius = 0.08 * worldScaleFactor;
+    return THREE.MathUtils.clamp(rawRadius, minRadius, maxRadius);
   }
 
   applyBoundaryConditions(ant) {

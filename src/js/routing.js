@@ -1,5 +1,13 @@
 // URL routing helpers for applet selection via query string.
 const DEFAULT_MAX_APPLETS = 3;
+const APPLET_ID_ALIASES = Object.freeze({
+  ants: "ant",
+});
+
+function normalizeAppletAlias(value) {
+  const normalized = String(value || "").toLowerCase().trim();
+  return APPLET_ID_ALIASES[normalized] || normalized;
+}
 
 function ensureActiveInLoadedOrder(loadedAppletIds, activeAppletId, maxApplets = DEFAULT_MAX_APPLETS) {
   const limit = Math.max(1, Number(maxApplets) || DEFAULT_MAX_APPLETS);
@@ -22,7 +30,7 @@ export function normalizeAppletId(value, { validAppletIds, defaultAppletId } = {
     return defaultAppletId;
   }
 
-  const normalized = value.toLowerCase().trim();
+  const normalized = normalizeAppletAlias(value);
   return validAppletIds?.has(normalized) ? normalized : defaultAppletId;
 }
 
@@ -37,7 +45,7 @@ export function normalizeAppletIds(
 
   text
     .split(/[,\s]+/)
-    .map((entry) => entry.toLowerCase().trim())
+    .map((entry) => normalizeAppletAlias(entry))
     .filter(Boolean)
     .forEach((id) => {
       if (!validAppletIds?.has(id) || seen.has(id)) {

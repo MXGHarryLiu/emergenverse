@@ -1,6 +1,9 @@
 {
-  "label": "Boids",
   "key": "boid",
+  "meta": {
+    "label": "Boids",
+    "group": "organic"
+  },
   "intro": {
     "summary": "Flocking from local alignment, cohesion, separation",
     "paragraphs": [
@@ -13,6 +16,12 @@
       {
         "label": "Wikipedia: Boids",
         "url": "https://en.wikipedia.org/wiki/Boids"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "Flocks, Herds, and Schools: A Distributed Behavioral Model",
+        "url": "https://www.red3d.com/cwr/papers/1987/boids.html"
       }
     ],
     "items": [

@@ -1,6 +1,9 @@
 {
-  "label": "Template Applet",
   "key": "template",
+  "meta": {
+    "label": "Template Applet",
+    "group": "physical"
+  },
   "intro": {
     "summary": "Starter scaffold for new simulation applets",
     "paragraphs": [

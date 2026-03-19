@@ -1,6 +1,9 @@
 {
-  "label": "Prey Chain",
   "key": "prey",
+  "meta": {
+    "label": "Prey Chain",
+    "group": "organic"
+  },
   "intro": {
     "summary": "Predator-prey cycles and chase dynamics",
     "paragraphs": [
@@ -18,6 +21,12 @@
       {
         "label": "Wikipedia: Food chain",
         "url": "https://en.wikipedia.org/wiki/Food_chain"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "Analytical Note on Certain Rhythmic Relations in Organic Systems",
+        "url": "https://doi.org/10.1073/pnas.6.7.410"
       }
     ],
     "items": [

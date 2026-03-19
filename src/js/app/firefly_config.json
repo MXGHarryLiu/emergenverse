@@ -1,6 +1,9 @@
 {
-  "label": "Firefly Sync",
   "key": "firefly",
+  "meta": {
+    "label": "Firefly Sync",
+    "group": "organic"
+  },
   "intro": {
     "summary": "Oscillator coupling and flash synchronization",
     "paragraphs": [
@@ -18,6 +21,12 @@
       {
         "label": "Wikipedia: Synchronization",
         "url": "https://en.wikipedia.org/wiki/Synchronization"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "Synchronization of Pulse-Coupled Biological Oscillators",
+        "url": "https://doi.org/10.1137/0150098"
       }
     ],
     "items": [
