@@ -79,10 +79,10 @@ export function createVisualControls({
       return selectedValue;
     }
 
-    const validValues = new Set(options.map((item) => item.value));
-    const nextValue = validValues.has(selectedValue) ? selectedValue : options[0].value;
+    const validValues = new Set(options.map((item) => item.key));
+    const nextValue = validValues.has(selectedValue) ? selectedValue : options[0].key;
     const currentValues = Array.from(select.options).map((option) => option.value);
-    const nextValues = options.map((item) => item.value);
+    const nextValues = options.map((item) => item.key);
     const requiresRebuild =
       currentValues.length !== nextValues.length ||
       currentValues.some((value, index) => value !== nextValues[index]);
@@ -91,7 +91,7 @@ export function createVisualControls({
       select.innerHTML = "";
       options.forEach((item) => {
         const option = document.createElement("option");
-        option.value = item.value;
+        option.value = item.key;
         option.textContent = item.label;
         select.appendChild(option);
       });
@@ -117,9 +117,16 @@ export function createVisualControls({
     const appletParams = params?.[appletId];
     const colorModeParam = getColorModeParam(appletId);
     const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-    const selectedValue = String(appletParams?.colorMode || colorModeParam?.default || options[0]?.value || "").trim();
-    const selectedOption = options.find((option) => option?.value === selectedValue) || null;
-    const shortValue = String(selectedOption?.value || selectedValue || "");
+    const selectedValue = String(
+      appletParams?.colorMode ||
+      colorModeParam?.default ||
+      options[0]?.key ||
+      "",
+    ).trim();
+    const selectedOption = options.find(
+      (option) => String(option?.key ?? "").trim() === selectedValue,
+    ) || null;
+    const shortValue = String(selectedOption?.key ?? selectedValue ?? "");
     const longLabel = String(selectedOption?.label || shortValue);
     const unit = String(selectedOption?.unit || "").trim();
     const tooltip = unit ? `${longLabel}, ${unit}` : longLabel;
@@ -177,11 +184,47 @@ export function createVisualControls({
       : [];
     const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
     const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-    const activeMode = String(appletParams?.colorMode || colorModeParam?.default || options[0]?.value || "").trim();
+    const firstOptionKey = String(options[0]?.key ?? "").trim();
+    const activeMode = String(appletParams?.colorMode || colorModeParam?.default || firstOptionKey || "").trim();
     if (!activeMode) {
       return null;
     }
-    return options.find((option) => option?.value === activeMode) || null;
+    return options.find(
+      (option) => String(option?.key ?? "").trim() === activeMode,
+    ) || null;
+  }
+
+  function toSolidColorParamKey(entryKey) {
+    const token = String(entryKey || "").trim();
+    if (!token) {
+      return "";
+    }
+    const pascal = token
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join("");
+    return pascal ? `solidColor${pascal}` : "";
+  }
+
+  function getSolidColorEntries(appletId) {
+    const appletConfig = APPLET_CONFIGS[appletId];
+    const entries = Array.isArray(appletConfig?.visual?.color) ? appletConfig.visual.color : [];
+    return entries
+      .map((entry) => {
+        const key = String(entry?.key || "").trim();
+        if (!key) {
+          return null;
+        }
+        const paramKey = toSolidColorParamKey(key);
+        if (!paramKey) {
+          return null;
+        }
+        const label = String(entry?.label || key).trim() || key;
+        const fallback = normalizeStateColorValue(String(entry?.default || "#ffffff"), "#ffffff");
+        return { key, label, paramKey, fallback };
+      })
+      .filter(Boolean);
   }
 
   function getColormapConfig(appletId) {
@@ -322,6 +365,74 @@ export function createVisualControls({
     });
   }
 
+  function syncSolidColorsPanel(appletId) {
+    const panel = dom.stateColorsPanel.panel;
+    const list = dom.stateColorsPanel.list;
+    const appletParams = params?.[appletId];
+    const simulation = simulations[appletId];
+    const colorEntries = getSolidColorEntries(appletId);
+    if (!panel || !list || !appletParams || colorEntries.length === 0) {
+      hideStateColorsPanel();
+      return;
+    }
+
+    mountStateColorsPanel(appletId);
+    panel.classList.remove("is-hidden");
+    list.innerHTML = "";
+
+    colorEntries.forEach((entry, index) => {
+      const currentValue = normalizeStateColorValue(
+        String(appletParams[entry.paramKey] || entry.fallback),
+        entry.fallback,
+      );
+      appletParams[entry.paramKey] = currentValue;
+
+      const row = document.createElement("div");
+      row.className = "state-color-row";
+
+      const title = document.createElement("div");
+      title.className = "state-color-title";
+      title.textContent = `${index + 1}. ${entry.label}`;
+
+      const controls = document.createElement("div");
+      controls.className = "state-color-controls";
+
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "color-chip state-color-chip";
+      chip.setAttribute("aria-label", `${entry.label} color`);
+
+      const swatch = document.createElement("span");
+      swatch.className = "color-chip-swatch";
+      swatch.style.background = currentValue;
+
+      const valueText = document.createElement("span");
+      valueText.className = "color-chip-value";
+      valueText.textContent = currentValue.toUpperCase();
+
+      const input = document.createElement("input");
+      input.type = "color";
+      input.className = "form-control form-control-color theme-color-input state-color-input";
+      input.value = currentValue;
+      input.addEventListener("input", () => {
+        const nextValue = normalizeStateColorValue(input.value, entry.fallback);
+        appletParams[entry.paramKey] = nextValue;
+        valueText.textContent = nextValue.toUpperCase();
+        swatch.style.background = nextValue;
+        simulation?.syncInstances?.();
+      });
+      chip.addEventListener("click", () => input.click());
+
+      chip.appendChild(swatch);
+      chip.appendChild(valueText);
+      controls.appendChild(chip);
+      controls.appendChild(input);
+      row.appendChild(title);
+      row.appendChild(controls);
+      list.appendChild(row);
+    });
+  }
+
   function syncColormapPanel() {
     const activeApplet = getActiveApplet?.();
     const config = getColormapConfig(activeApplet);
@@ -336,6 +447,15 @@ export function createVisualControls({
     if (colorModeType === "states") {
       hideColormapPanel();
       syncStateColorsPanel(activeApplet, colorModeOption);
+      return;
+    }
+
+    if (
+      String(colorModeOption?.key ?? "").trim() === "solid" &&
+      getSolidColorEntries(activeApplet).length > 0
+    ) {
+      hideColormapPanel();
+      syncSolidColorsPanel(activeApplet);
       return;
     }
 
@@ -372,7 +492,11 @@ export function createVisualControls({
       return;
     }
 
-    controls.singleColorWrap.classList.toggle("is-hidden", appletParams.colorMode !== "solid");
+    const hasSolidEntries = getSolidColorEntries(appletId).length > 0;
+    controls.singleColorWrap.classList.toggle(
+      "is-hidden",
+      appletParams.colorMode !== "solid" || hasSolidEntries,
+    );
   }
 
   function bindColorModeControls() {
@@ -587,8 +711,8 @@ function buildContinuousColormapCatalog(visualConfig = {}) {
     if (!entry || typeof entry !== "object") {
       return;
     }
-    const name = String(entry.name || "").trim();
-    if (!name) {
+    const key = String((entry?.key ?? "")).trim();
+    if (!key) {
       return;
     }
     const valueStops = Array.isArray(entry.value) ? entry.value.map(normalizeColorStopHex).filter(Boolean) : [];
@@ -596,10 +720,10 @@ function buildContinuousColormapCatalog(visualConfig = {}) {
       return;
     }
     options.push({
-      value: name,
-      label: formatColormapLabel(name),
+      key,
+      label: formatColormapLabel(key),
     });
-    gradients[name] = buildLinearGradientFromHexStops(valueStops);
+    gradients[key] = buildLinearGradientFromHexStops(valueStops);
   });
 
   return {

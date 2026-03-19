@@ -108,7 +108,7 @@ export class PreySimulation extends BaseSimulation {
     this.velocity3 = new THREE.Vector3();
     this.spawnOffset = new THREE.Vector3();
     this.predatorColor = new THREE.Color();
-    this.predatorSolidColor = new THREE.Color(this.params.solidColor || "#ff8d5f");
+    this.predatorSolidColor = new THREE.Color(getPreySolidColor(this.params, "predator"));
     this.predatorEnergyRange = {
       min: 0,
       max: Math.max(0.1, (this.params.predatorSpawnEnergy ?? 2.8) * 2.4),
@@ -353,6 +353,11 @@ export class PreySimulation extends BaseSimulation {
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.85;
     const preyScale = Math.max(0.1, this.params.scale ?? 0.62);
     const predatorScale = Math.max(0.1, this.params.predatorScale ?? 1.0);
+    const mode = this.params.colorMode ?? "energy";
+
+    // Prey body color is not driven by predator colormap/energy mode.
+    // Keep prey single-color setting persistent across modes.
+    this.preyMaterial.color.set(getPreySolidColor(this.params, "prey"));
 
     if (this.preyMesh) {
       for (let i = 0; i < this.preys.length; i += 1) {
@@ -368,7 +373,6 @@ export class PreySimulation extends BaseSimulation {
     }
 
     if (this.predatorMesh) {
-      const mode = this.params.colorMode ?? "energy";
       const range =
         mode === "energy"
           ? this.computePredatorEnergyRange()
@@ -441,7 +445,7 @@ export class PreySimulation extends BaseSimulation {
   applyPredatorColor(predator, range, outColor) {
     const mode = this.params.colorMode ?? "energy";
     if (mode === "solid") {
-      this.predatorSolidColor.set(this.params.solidColor || "#ff8d5f");
+      this.predatorSolidColor.set(getPreySolidColor(this.params, "predator"));
       outColor.copy(this.predatorSolidColor);
       ensureVisibleColor(outColor, 0.2);
       return;
@@ -613,7 +617,34 @@ function getPreyColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getPreySolidColorDefaults() {
+  const colorEntries = Array.isArray(PREY_APPLET_CONFIG.visual?.color)
+    ? PREY_APPLET_CONFIG.visual.color
+    : [];
+  const predatorEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "predator");
+  const preyEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "prey");
+  const predatorFallback = normalizeHexColor(predatorEntry?.default, "#ff8d5f");
+  const preyFallback = normalizeHexColor(preyEntry?.default, "#65dca5");
+  return { predator: predatorFallback, prey: preyFallback };
+}
+
+function getPreySolidColor(params, type) {
+  const defaults = getPreySolidColorDefaults();
+  if (type === "prey") {
+    return normalizeHexColor(params?.solidColorPrey ?? defaults.prey, defaults.prey);
+  }
+  return normalizeHexColor(params?.solidColorPredator ?? defaults.predator, defaults.predator);
 }
 
 function randomWorldPosition(params) {
@@ -665,7 +696,7 @@ function buildColormapLUT(colormapEntries) {
   const maps = {};
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   entries.forEach((entry) => {
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       return;

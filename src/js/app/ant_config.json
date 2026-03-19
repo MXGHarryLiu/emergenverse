@@ -73,7 +73,7 @@
     "mass": {
       "label": "mg",
       "description": "milligram",
-      "toSI": 0.000001
+      "toSI": 1E-06
     },
     "time": {
       "label": "s",
@@ -319,7 +319,7 @@
   "visual": {
     "colormap": [
       {
-        "name": "turbo",
+        "key": "turbo",
         "value": [
           "#30123b",
           "#4145ab",
@@ -333,7 +333,7 @@
         ]
       },
       {
-        "name": "viridis",
+        "key": "viridis",
         "value": [
           "#440154",
           "#482878",
@@ -348,7 +348,7 @@
         ]
       },
       {
-        "name": "plasma",
+        "key": "plasma",
         "value": [
           "#0d0887",
           "#5b02a3",
@@ -361,7 +361,7 @@
         ]
       },
       {
-        "name": "magma",
+        "key": "magma",
         "value": [
           "#000004",
           "#180f3d",
@@ -376,7 +376,7 @@
         ]
       },
       {
-        "name": "inferno",
+        "key": "inferno",
         "value": [
           "#000004",
           "#1b0c41",
@@ -391,7 +391,7 @@
         ]
       },
       {
-        "name": "cividis",
+        "key": "cividis",
         "value": [
           "#00204d",
           "#213f6f",
@@ -405,7 +405,7 @@
         ]
       },
       {
-        "name": "coolwarm",
+        "key": "coolwarm",
         "value": [
           "#3b4cc0",
           "#688aef",
@@ -419,7 +419,7 @@
         ]
       },
       {
-        "name": "greys",
+        "key": "greys",
         "value": [
           "#111111",
           "#3a3a3a",
@@ -437,13 +437,13 @@
         "default": "state",
         "options": [
           {
-            "value": "solid",
+            "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
           },
           {
-            "value": "state",
+            "key": "state",
             "label": "State",
             "unit": "",
             "type": "states",
@@ -461,7 +461,7 @@
             ]
           },
           {
-            "value": "heading",
+            "key": "heading",
             "label": "Heading",
             "unit": "°",
             "type": "continuous"
@@ -477,16 +477,26 @@
         "default": false
       },
       {
-        "key": "solidColor",
-        "default": "#62d6f9"
-      },
-      {
         "key": "stateColorSearching",
         "default": "#5fd6fa"
       },
       {
         "key": "stateColorCarrying",
         "default": "#faad42"
+      }
+    ],
+    "color": [
+      {
+        "key": "ant",
+        "default": "#62d6f9"
+      },
+      {
+        "key": "food",
+        "default": "#ffad52"
+      },
+      {
+        "key": "nest",
+        "default": "#5b9dff"
       }
     ]
   },

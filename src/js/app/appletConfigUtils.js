@@ -25,6 +25,21 @@ function normalizeParamControlType(type) {
   return "slider";
 }
 
+const KEY_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function assertValidIdentifierKey(rawKey, contextPath) {
+  const key = String(rawKey ?? "").trim();
+  if (!key) {
+    throw new Error(`[appletConfigUtils] ${contextPath} requires non-empty "key".`);
+  }
+  if (!KEY_IDENTIFIER_PATTERN.test(key)) {
+    throw new Error(
+      `[appletConfigUtils] ${contextPath} key "${key}" is invalid. Use variable-style identifiers: [A-Za-z_][A-Za-z0-9_]*.`,
+    );
+  }
+  return key;
+}
+
 function getNumericPrecision(value) {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -486,6 +501,91 @@ function normalizeCameraParams(cameraConfig = {}) {
   ];
 }
 
+function normalizeVisualConfig(visualConfig) {
+  if (!visualConfig || typeof visualConfig !== "object") {
+    return null;
+  }
+
+  const normalized = { ...visualConfig };
+
+  const colormapEntries = Array.isArray(visualConfig.colormap) ? visualConfig.colormap : [];
+  normalized.colormap = colormapEntries
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry, index) => {
+      if (Object.prototype.hasOwnProperty.call(entry, "name")) {
+        throw new Error(
+          `[appletConfigUtils] visual.colormap[${index}] uses legacy "name". Use "key".`,
+        );
+      }
+      const key = assertValidIdentifierKey(entry.key, `visual.colormap[${index}]`);
+      return {
+        ...entry,
+        key,
+      };
+    });
+
+  const visualParams = Array.isArray(visualConfig.params) ? visualConfig.params : [];
+  normalized.params = visualParams
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry, paramIndex) => {
+      if (!Array.isArray(entry.options)) {
+        return entry;
+      }
+      const options = entry.options
+        .filter((option) => option && typeof option === "object")
+        .map((option, optionIndex) => {
+          if (Object.prototype.hasOwnProperty.call(option, "value")) {
+            const paramKey = String(entry.key ?? "").trim() || `params[${paramIndex}]`;
+            throw new Error(
+              `[appletConfigUtils] visual.params option "${paramKey}" at index ${optionIndex} uses legacy "value". Use "key".`,
+            );
+          }
+          const paramKey = String(entry.key ?? "").trim() || `params[${paramIndex}]`;
+          const key = assertValidIdentifierKey(
+            option.key,
+            `visual.params option "${paramKey}" at index ${optionIndex}`,
+          );
+          return {
+            ...option,
+            key,
+          };
+        });
+      return {
+        ...entry,
+        options,
+      };
+    });
+
+  return normalized;
+}
+
+function validateKeyedParams(params, contextPath) {
+  if (!Array.isArray(params)) {
+    return;
+  }
+  params.forEach((entry, index) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(entry, "key")) {
+      assertValidIdentifierKey(entry.key, `${contextPath}[${index}]`);
+    }
+    if (Array.isArray(entry.states)) {
+      entry.states.forEach((stateEntry, stateIndex) => {
+        if (!stateEntry || typeof stateEntry !== "object") {
+          return;
+        }
+        if (Object.prototype.hasOwnProperty.call(stateEntry, "key")) {
+          assertValidIdentifierKey(
+            stateEntry.key,
+            `${contextPath}[${index}].states[${stateIndex}]`,
+          );
+        }
+      });
+    }
+  });
+}
+
 function normalizeBoolean(value, fallback) {
   if (typeof value === "boolean") {
     return value;
@@ -538,7 +638,7 @@ export function validateAppletConfig(config) {
   const shortLabel = String(meta?.shortLabel || "").trim();
   const thumbnail = String(meta?.thumbnail || "").trim();
   const appletKey = typeof config?.key === "string" && config.key.trim().length > 0
-    ? config.key.trim()
+    ? assertValidIdentifierKey(config.key.trim(), "root")
     : "";
   const worldParams = normalizeWorldParams(config.world ?? {});
   const legacyWorld = buildLegacyWorldShapeFromParams(worldParams);
@@ -551,6 +651,20 @@ export function validateAppletConfig(config) {
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
   const cameraMoveSpeedParam = cameraParams.find((entry) => entry.key === "moveSpeed");
   const worldBoundaryModeParam = worldParams.find((entry) => entry.key === "boundaryMode");
+  const normalizedVisual = normalizeVisualConfig(config.visual ?? null);
+
+  validateKeyedParams(config?.simulation?.params, "simulation.params");
+  validateKeyedParams(config?.camera?.params, "camera.params");
+  validateKeyedParams(config?.world?.params, "world.params");
+  validateKeyedParams(config?.interaction?.params, "interaction.params");
+  validateKeyedParams(config?.stats?.params, "stats.params");
+  validateKeyedParams(normalizedVisual?.params, "visual.params");
+  validateKeyedParams(normalizedVisual?.color, "visual.color");
+  if (Array.isArray(normalizedVisual?.colormap)) {
+    normalizedVisual.colormap.forEach((entry, index) => {
+      assertValidIdentifierKey(entry?.key, `visual.colormap[${index}]`);
+    });
+  }
 
   return {
     label,
@@ -588,7 +702,7 @@ export function validateAppletConfig(config) {
     stats: config.stats ?? null,
     simulation: config.simulation ?? null,
     interaction: config.interaction ?? null,
-    visual: config.visual ?? null,
+    visual: normalizedVisual,
   };
 }
 

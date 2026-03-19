@@ -2,7 +2,8 @@
   "key": "dune",
   "meta": {
     "label": "Dune Dynamics",
-    "group": "physical"
+    "group": "physical",
+    "thumbnail": "bi-triangle-half"
   },
   "intro": {
     "summary": "Wind transport and avalanche dune formation",
@@ -264,7 +265,7 @@
   "visual": {
     "colormap": [
       {
-        "name": "turbo",
+        "key": "turbo",
         "value": [
           "#30123b",
           "#4145ab",
@@ -278,7 +279,7 @@
         ]
       },
       {
-        "name": "viridis",
+        "key": "viridis",
         "value": [
           "#440154",
           "#482878",
@@ -293,7 +294,7 @@
         ]
       },
       {
-        "name": "plasma",
+        "key": "plasma",
         "value": [
           "#0d0887",
           "#5b02a3",
@@ -306,7 +307,7 @@
         ]
       },
       {
-        "name": "magma",
+        "key": "magma",
         "value": [
           "#000004",
           "#180f3d",
@@ -321,7 +322,7 @@
         ]
       },
       {
-        "name": "inferno",
+        "key": "inferno",
         "value": [
           "#000004",
           "#1b0c41",
@@ -336,7 +337,7 @@
         ]
       },
       {
-        "name": "cividis",
+        "key": "cividis",
         "value": [
           "#00204d",
           "#213f6f",
@@ -350,7 +351,7 @@
         ]
       },
       {
-        "name": "coolwarm",
+        "key": "coolwarm",
         "value": [
           "#3b4cc0",
           "#688aef",
@@ -364,7 +365,7 @@
         ]
       },
       {
-        "name": "greys",
+        "key": "greys",
         "value": [
           "#111111",
           "#3a3a3a",
@@ -382,13 +383,13 @@
         "default": "mass",
         "options": [
           {
-            "value": "solid",
+            "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
           },
           {
-            "value": "mass",
+            "key": "mass",
             "label": "Column Mass",
             "unit": "a.u.",
             "type": "continuous"
@@ -402,10 +403,12 @@
       {
         "key": "colormapInverted",
         "default": false
-      },
+      }
+    ],
+    "color": [
       {
-        "key": "solidColor",
-        "default": "#D8B36A"
+        "key": "dune",
+        "default": "#d8b36a"
       }
     ]
   },

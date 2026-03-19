@@ -87,7 +87,7 @@ export class FireflySimulation extends BaseSimulation {
 
     this.tempObject = new THREE.Object3D();
     this.tempColor = new THREE.Color();
-    this.solidColorValue = new THREE.Color(this.params.solidColor || "#ffd86b");
+    this.solidColorValue = new THREE.Color(getFireflySolidColor(this.params));
     this.phaseStepBuffer = [];
     this.blinkRateSmoothed = 0;
     this.steer = new THREE.Vector3();
@@ -312,7 +312,7 @@ export class FireflySimulation extends BaseSimulation {
       const isBlinking = pulse > 0.5;
 
       if (this.params.colorMode === "solid") {
-        this.solidColorValue.set(this.params.solidColor || "#ffd86b");
+        this.solidColorValue.set(getFireflySolidColor(this.params));
         this.tempColor.copy(this.solidColorValue);
       } else if (this.params.colorMode === "frequency") {
         const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
@@ -461,7 +461,30 @@ function getFireflyColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getFireflySolidColorDefault() {
+  const colorEntries = Array.isArray(FIREFLY_APPLET_CONFIG.visual?.color)
+    ? FIREFLY_APPLET_CONFIG.visual.color
+    : [];
+  const entry = colorEntries.find((item) => String(item?.key || "").trim() === "firefly");
+  const fallbackEntry = colorEntries[0] || null;
+  const fallback = "#ffd86b";
+  return normalizeHexColor(entry?.default ?? fallbackEntry?.default ?? fallback, fallback);
+}
+
+function getFireflySolidColor(params) {
+  const fallback = getFireflySolidColorDefault();
+  return normalizeHexColor(params?.solidColorFirefly ?? fallback, fallback);
 }
 
 function randomWorldPosition(params) {
@@ -508,7 +531,7 @@ function buildColormapLUT(colormapEntries) {
   const maps = {};
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   entries.forEach((entry) => {
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       return;

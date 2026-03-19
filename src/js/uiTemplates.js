@@ -484,7 +484,7 @@ function createSimulationSelectRow(appletId, selectConfig) {
   select.id = inputId;
   (Array.isArray(selectConfig.options) ? selectConfig.options : []).forEach((optionConfig) => {
     const option = document.createElement("option");
-    option.value = String(optionConfig.value);
+    option.value = String(optionConfig.key ?? "");
     option.textContent = String(optionConfig.label);
     select.appendChild(option);
   });
@@ -734,7 +734,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   select.id = colorModeId;
   colorModeOptions.forEach((item) => {
     const option = document.createElement("option");
-    option.value = item.value;
+    option.value = String(item?.key ?? "");
     option.textContent = item.label;
     select.appendChild(option);
   });

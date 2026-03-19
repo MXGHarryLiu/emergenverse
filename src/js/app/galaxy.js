@@ -120,7 +120,7 @@ export class GalaxySimulation extends BaseSimulation {
     this.capacity = 0;
     this.tempObject = new THREE.Object3D();
     this.tempColor = new THREE.Color();
-    this.solidColorValue = new THREE.Color(this.params.solidColor || "#c9ddff");
+    this.solidColorValue = new THREE.Color(getGalaxySolidColor(this.params));
     this.tmpDelta = new THREE.Vector3();
     this.tmpCenterDelta = new THREE.Vector3();
     this.speedBounds = { min: 0, max: 1 };
@@ -276,7 +276,7 @@ export class GalaxySimulation extends BaseSimulation {
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
       if (this.params.colorMode === "solid") {
-        this.solidColorValue.set(this.params.solidColor || "#c9ddff");
+        this.solidColorValue.set(getGalaxySolidColor(this.params));
         this.tempColor.copy(this.solidColorValue);
       } else {
         const speed = p.velocity.length();
@@ -503,7 +503,30 @@ function getGalaxyColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getGalaxySolidColorDefault() {
+  const colorEntries = Array.isArray(GALAXY_APPLET_CONFIG.visual?.color)
+    ? GALAXY_APPLET_CONFIG.visual.color
+    : [];
+  const entry = colorEntries.find((item) => String(item?.key || "").trim() === "galaxy");
+  const fallbackEntry = colorEntries[0] || null;
+  const fallback = "#c9ddff";
+  return normalizeHexColor(entry?.default ?? fallbackEntry?.default ?? fallback, fallback);
+}
+
+function getGalaxySolidColor(params) {
+  const fallback = getGalaxySolidColorDefault();
+  return normalizeHexColor(params?.solidColorGalaxy ?? fallback, fallback);
 }
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
@@ -567,7 +590,7 @@ function buildColormapLUT(colormapEntries) {
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   for (let i = 0; i < entries.length; i += 1) {
     const entry = entries[i];
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       continue;

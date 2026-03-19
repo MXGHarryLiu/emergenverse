@@ -2,7 +2,8 @@
   "key": "template",
   "meta": {
     "label": "Template Applet",
-    "group": "physical"
+    "group": "physical",
+    "thumbnail": "bi-code-square"
   },
   "intro": {
     "summary": "Starter scaffold for new simulation applets",
@@ -50,12 +51,12 @@
     "params": [
       {
         "type": "stat",
-        "key": "template-fps",
+        "key": "templateFps",
         "label": "FPS"
       },
       {
         "type": "chart",
-        "key": "template-count",
+        "key": "templateCount",
         "label": "Count"
       }
     ]
@@ -109,7 +110,7 @@
   "visual": {
     "colormap": [
       {
-        "name": "turbo",
+        "key": "turbo",
         "value": [
           "#30123b",
           "#4145ab",
@@ -129,13 +130,13 @@
         "default": "solid",
         "options": [
           {
-            "value": "solid",
+            "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
           },
           {
-            "value": "speed",
+            "key": "speed",
             "label": "Speed",
             "unit": "",
             "type": "continuous"
@@ -149,9 +150,11 @@
       {
         "key": "colormapInverted",
         "default": false
-      },
+      }
+    ],
+    "color": [
       {
-        "key": "solidColor",
+        "key": "template",
         "default": "#4cd3b6"
       }
     ]

@@ -13,7 +13,7 @@ export const TEMPLATE_APPLET_CONFIG = validateAppletConfig(templateConfigData);
 const TEMPLATE_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("template-count", () => "0", {
+      createChartMetricsEntry("templateCount", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
@@ -113,7 +113,7 @@ function getTemplateColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
 }
 
 function createTemplateAgent() {

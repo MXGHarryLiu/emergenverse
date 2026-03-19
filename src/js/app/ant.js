@@ -191,9 +191,7 @@ export class AntSimulation extends BaseSimulation {
   onTheme(theme) {
     this.material.specular.set(theme === "light" ? 0x2a2a2a : 0x171717);
     this.pheromoneMaterial.opacity = theme === "light" ? 0.6 : 0.72;
-    this.foodMarkerMaterial.color.set(theme === "light" ? 0xf4a340 : 0xffad52);
     this.foodMarkerMaterial.specular.set(theme === "light" ? 0x3a2918 : 0x251a12);
-    this.nestMarkerMaterial.color.set(theme === "light" ? 0x4d8df2 : 0x5b9dff);
     // MeshBasicMaterial has no specular term.
   }
 
@@ -411,9 +409,12 @@ export class AntSimulation extends BaseSimulation {
 
       if (ant.carrying) {
         // Returning ants do not "see" nest directly.
-        // They follow home pheromone gradient and the pickup heading reversal.
+        // They primarily follow home pheromone gradient, with a nest-heading bias for robust homing.
+        const nestHeading = Math.atan2(this.nest.y - ant.position.y, this.nest.x - ant.position.x);
+        const nestHeadingError = shortestAngleDelta(nestHeading - ant.heading);
         const sensorySteer = (rightSignal - leftSignal) * turnGain * 1.3;
-        ant.heading = wrapAngle(ant.heading + (sensorySteer + stochastic * 0.35) * dt);
+        const nestSteer = nestHeadingError * goalBias * 0.85;
+        ant.heading = wrapAngle(ant.heading + (sensorySteer + nestSteer + stochastic * 0.35) * dt);
       } else {
         const sensorySteer = (rightSignal - leftSignal) * turnGain;
         const goalSteer = headingError * goalBias;
@@ -563,7 +564,7 @@ export class AntSimulation extends BaseSimulation {
   applyAntColor(ant, outColor) {
     const mode = this.params.colorMode ?? "state";
     if (mode === "solid") {
-      this.antSolidColor.set(this.params.solidColor || "#62d6f9");
+      this.antSolidColor.set(getAntSolidColor(this.params, "ant"));
       outColor.copy(this.antSolidColor);
       return;
     }
@@ -593,6 +594,11 @@ export class AntSimulation extends BaseSimulation {
     if (!this.foodMesh) {
       return;
     }
+
+    // Food and nest are not controlled by colormap/state modes; keep their
+    // configured single-color values persistent across all color modes.
+    this.foodMarkerMaterial.color.set(getAntSolidColor(this.params, "food"));
+    this.nestMarkerMaterial.color.set(getAntSolidColor(this.params, "nest"));
 
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.0025;
     const capacity = this.foodMeshCapacity;
@@ -943,7 +949,40 @@ function getAntColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getAntSolidColorDefaults() {
+  const colorEntries = Array.isArray(ANT_APPLET_CONFIG.visual?.color)
+    ? ANT_APPLET_CONFIG.visual.color
+    : [];
+  const antEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "ant");
+  const foodEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "food");
+  const nestEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "nest");
+  return {
+    ant: normalizeHexColor(antEntry?.default, "#62d6f9"),
+    food: normalizeHexColor(foodEntry?.default, "#ffad52"),
+    nest: normalizeHexColor(nestEntry?.default, "#5b9dff"),
+  };
+}
+
+function getAntSolidColor(params, type) {
+  const defaults = getAntSolidColorDefaults();
+  if (type === "food") {
+    return normalizeHexColor(params?.solidColorFood ?? defaults.food, defaults.food);
+  }
+  if (type === "nest") {
+    return normalizeHexColor(params?.solidColorNest ?? defaults.nest, defaults.nest);
+  }
+  return normalizeHexColor(params?.solidColorAnt ?? defaults.ant, defaults.ant);
 }
 
 function wrapAxisLocal(value, halfExtent) {
@@ -1003,7 +1042,7 @@ function buildColormapLUT(colormapEntries) {
   const maps = {};
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   entries.forEach((entry) => {
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       return;

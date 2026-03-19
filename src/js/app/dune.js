@@ -291,7 +291,7 @@ export class DuneSimulation extends BaseSimulation {
         this.mesh.setMatrixAt(index, this.tempObject.matrix);
 
         if ((this.params.colorMode ?? "mass") === "solid") {
-          duneSolidColor.set(this.params.solidColor || "#D8B36A");
+          duneSolidColor.set(getDuneSolidColor(this.params));
           this.mesh.setColorAt(index, duneSolidColor);
           continue;
         }
@@ -427,7 +427,30 @@ function getDuneColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getDuneSolidColorDefault() {
+  const colorEntries = Array.isArray(DUNE_APPLET_CONFIG.visual?.color)
+    ? DUNE_APPLET_CONFIG.visual.color
+    : [];
+  const entry = colorEntries.find((item) => String(item?.key || "").trim() === "dune");
+  const fallbackEntry = colorEntries[0] || null;
+  const fallback = "#d8b36a";
+  return normalizeHexColor(entry?.default ?? fallbackEntry?.default ?? fallback, fallback);
+}
+
+function getDuneSolidColor(params) {
+  const fallback = getDuneSolidColorDefault();
+  return normalizeHexColor(params?.solidColorDune ?? fallback, fallback);
 }
 
 function pickWindStep(angle) {
@@ -447,7 +470,7 @@ function buildColormapLUT(colormapEntries) {
   const maps = {};
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   entries.forEach((entry) => {
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       return;

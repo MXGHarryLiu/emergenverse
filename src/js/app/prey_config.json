@@ -2,7 +2,8 @@
   "key": "prey",
   "meta": {
     "label": "Prey Chain",
-    "group": "organic"
+    "group": "organic",
+    "thumbnail": "bi-bullseye"
   },
   "intro": {
     "summary": "Predator-prey cycles and chase dynamics",
@@ -261,7 +262,7 @@
   "visual": {
     "colormap": [
       {
-        "name": "turbo",
+        "key": "turbo",
         "value": [
           "#30123b",
           "#4145ab",
@@ -275,7 +276,7 @@
         ]
       },
       {
-        "name": "viridis",
+        "key": "viridis",
         "value": [
           "#440154",
           "#482878",
@@ -290,7 +291,7 @@
         ]
       },
       {
-        "name": "plasma",
+        "key": "plasma",
         "value": [
           "#0d0887",
           "#5b02a3",
@@ -303,7 +304,7 @@
         ]
       },
       {
-        "name": "magma",
+        "key": "magma",
         "value": [
           "#000004",
           "#180f3d",
@@ -318,7 +319,7 @@
         ]
       },
       {
-        "name": "inferno",
+        "key": "inferno",
         "value": [
           "#000004",
           "#1b0c41",
@@ -333,7 +334,7 @@
         ]
       },
       {
-        "name": "cividis",
+        "key": "cividis",
         "value": [
           "#00204d",
           "#213f6f",
@@ -347,7 +348,7 @@
         ]
       },
       {
-        "name": "coolwarm",
+        "key": "coolwarm",
         "value": [
           "#3b4cc0",
           "#688aef",
@@ -361,7 +362,7 @@
         ]
       },
       {
-        "name": "greys",
+        "key": "greys",
         "value": [
           "#111111",
           "#3a3a3a",
@@ -379,13 +380,13 @@
         "default": "energy",
         "options": [
           {
-            "value": "solid",
+            "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
           },
           {
-            "value": "energy",
+            "key": "energy",
             "label": "Predator Energy",
             "unit": "a.u.",
             "type": "continuous"
@@ -399,10 +400,16 @@
       {
         "key": "colormapInverted",
         "default": false
+      }
+    ],
+    "color": [
+      {
+        "key": "predator",
+        "default": "#ff8d5f"
       },
       {
-        "key": "solidColor",
-        "default": "#ff8d5f"
+        "key": "prey",
+        "default": "#65dca5"
       }
     ]
   },

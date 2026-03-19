@@ -2,7 +2,8 @@
   "key": "firefly",
   "meta": {
     "label": "Firefly Sync",
-    "group": "organic"
+    "group": "organic",
+    "thumbnail": "bi-lightning-charge"
   },
   "intro": {
     "summary": "Oscillator coupling and flash synchronization",
@@ -226,7 +227,7 @@
   "visual": {
     "colormap": [
       {
-        "name": "turbo",
+        "key": "turbo",
         "value": [
           "#30123b",
           "#4145ab",
@@ -240,7 +241,7 @@
         ]
       },
       {
-        "name": "viridis",
+        "key": "viridis",
         "value": [
           "#440154",
           "#482878",
@@ -255,7 +256,7 @@
         ]
       },
       {
-        "name": "plasma",
+        "key": "plasma",
         "value": [
           "#0d0887",
           "#5b02a3",
@@ -268,7 +269,7 @@
         ]
       },
       {
-        "name": "magma",
+        "key": "magma",
         "value": [
           "#000004",
           "#180f3d",
@@ -283,7 +284,7 @@
         ]
       },
       {
-        "name": "inferno",
+        "key": "inferno",
         "value": [
           "#000004",
           "#1b0c41",
@@ -298,7 +299,7 @@
         ]
       },
       {
-        "name": "cividis",
+        "key": "cividis",
         "value": [
           "#00204d",
           "#213f6f",
@@ -312,7 +313,7 @@
         ]
       },
       {
-        "name": "coolwarm",
+        "key": "coolwarm",
         "value": [
           "#3b4cc0",
           "#688aef",
@@ -326,7 +327,7 @@
         ]
       },
       {
-        "name": "greys",
+        "key": "greys",
         "value": [
           "#111111",
           "#3a3a3a",
@@ -344,13 +345,13 @@
         "default": "blink",
         "options": [
           {
-            "value": "solid",
+            "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
           },
           {
-            "value": "blink",
+            "key": "blink",
             "label": "Blink",
             "unit": "",
             "type": "states",
@@ -368,7 +369,7 @@
             ]
           },
           {
-            "value": "frequency",
+            "key": "frequency",
             "label": "Frequency",
             "unit": "Hz",
             "type": "continuous"
@@ -384,16 +385,18 @@
         "default": false
       },
       {
-        "key": "solidColor",
-        "default": "#ffd86b"
-      },
-      {
         "key": "stateColorIdle",
         "default": "#4f7dff"
       },
       {
         "key": "stateColorBlink",
         "default": "#ffd74a"
+      }
+    ],
+    "color": [
+      {
+        "key": "firefly",
+        "default": "#ffd86b"
       }
     ]
   },

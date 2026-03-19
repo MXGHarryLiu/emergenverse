@@ -105,7 +105,7 @@ export class BoidSimulation extends BaseSimulation {
     this.instanceColor = new THREE.Color();
     this.colormapLerpA = new THREE.Color();
     this.colormapLerpB = new THREE.Color();
-    this.solidColorValue = new THREE.Color(this.params.solidColor);
+    this.solidColorValue = new THREE.Color(getBoidSolidColor(this.params));
 
     this.colormaps = buildColormapLUT(BOID_APPLET_CONFIG.visual?.colormap);
   }
@@ -173,6 +173,7 @@ export class BoidSimulation extends BaseSimulation {
     const halfZ = this.params.worldSizeZ * 0.5;
     const colorBounds =
       this.params.colorMode === "solid" ? null : this.getColorScalarBounds(halfZ);
+    const solidColor = getBoidSolidColor(this.params);
 
     for (let i = 0; i < this.boids.length; i += 1) {
       const boid = this.boids[i];
@@ -191,7 +192,7 @@ export class BoidSimulation extends BaseSimulation {
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
       if (this.params.colorMode === "solid") {
-        this.solidColorValue.set(this.params.solidColor);
+        this.solidColorValue.set(solidColor);
         this.instanceColor.copy(this.solidColorValue);
       } else {
         const scalar = this.computeColorScalar(boid, halfZ);
@@ -546,7 +547,30 @@ function getBoidColorModeOption(colorMode) {
     : [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => option?.value === colorMode) || null;
+  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
+}
+
+function normalizeHexColor(value, fallback = "#ffffff") {
+  const text = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) {
+    return text;
+  }
+  return fallback;
+}
+
+function getBoidSolidColorDefault() {
+  const colorEntries = Array.isArray(BOID_APPLET_CONFIG.visual?.color)
+    ? BOID_APPLET_CONFIG.visual.color
+    : [];
+  const boidEntry = colorEntries.find((entry) => String(entry?.key || "").trim() === "boid");
+  const fallbackEntry = colorEntries[0] || null;
+  const fallback = "#4cd3b6";
+  return normalizeHexColor(boidEntry?.default ?? fallbackEntry?.default ?? fallback, fallback);
+}
+
+function getBoidSolidColor(params) {
+  const fallback = getBoidSolidColorDefault();
+  return normalizeHexColor(params?.solidColorBoid ?? params?.solidColor ?? fallback, fallback);
 }
 
 function buildColormapLUT(colormapEntries) {
@@ -554,7 +578,7 @@ function buildColormapLUT(colormapEntries) {
   const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
   for (let i = 0; i < entries.length; i += 1) {
     const entry = entries[i];
-    const name = String(entry?.name || "").trim();
+    const name = String((entry?.key ?? "")).trim();
     const stops = Array.isArray(entry?.value) ? entry.value : [];
     if (!name || stops.length === 0) {
       continue;
