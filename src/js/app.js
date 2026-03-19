@@ -7,6 +7,19 @@ import { SimulationManager } from "./simulationManager.js";
 import { createVisualControls } from "./visualControls.js";
 import { setupUiOverlays } from "./uiOverlays.js";
 import { createSpaceshipHudController } from "./spaceship.js";
+import {
+  applyLoadedAppletTabVisibility as applyLoadedAppletTabVisibilityUi,
+  closeOpenedAppsMenu as closeOpenedAppsMenuUi,
+  hideLauncherNavigator as hideLauncherNavigatorUi,
+  openOpenedAppsMenu as openOpenedAppsMenuUi,
+  renderAppletNavigationFromConfig as renderAppletNavigationFromConfigUi,
+  renderOpenedAppsMenu as renderOpenedAppsMenuUi,
+  renderLauncherNavigator as renderLauncherNavigatorUi,
+  setupLauncherEntryPoints as setupLauncherEntryPointsUi,
+  setupOpenedAppsMenu as setupOpenedAppsMenuUi,
+  setupLauncherNavigator as setupLauncherNavigatorUi,
+  showLauncherNavigator as showLauncherNavigatorUi,
+} from "./nav.js";
 import { createAppletSession } from "./session.js";
 import {
   normalizeAppletId as normalizeAppletIdParam,
@@ -196,99 +209,14 @@ function applyCameraControlConfig(appletId = activeApplet, options = {}) {
 }
 
 function renderAppletNavigationFromConfig() {
-  const desktopHost = document.getElementById("applet-nav");
-  const mobileHost = document.getElementById("mobile-applet-nav");
-  if (!desktopHost && !mobileHost) {
-    return;
-  }
-
-  if (desktopHost) {
-    desktopHost.replaceChildren();
-
-    const navInline = document.createElement("div");
-    navInline.className = "applet-nav-inline";
-
-    const currentButton = document.createElement("button");
-    currentButton.type = "button";
-    currentButton.className = "applet-nav-current";
-    currentButton.id = "opened-apps-toggle";
-    currentButton.setAttribute("title", "Switch or close opened applets");
-    currentButton.setAttribute("aria-label", "Switch or close opened applets");
-    currentButton.setAttribute("aria-controls", "opened-apps-menu");
-    currentButton.setAttribute("aria-expanded", "false");
-
-    const currentLabel = document.createElement("span");
-    currentLabel.className = "applet-nav-current-label";
-    currentLabel.id = "opened-apps-title";
-    currentLabel.textContent = String(APPLET_META[DEFAULT_APPLET_ID]?.key ?? DEFAULT_APPLET_ID);
-    currentButton.appendChild(currentLabel);
-
-    const currentIcon = document.createElement("i");
-    currentIcon.className = "bi bi-caret-down-fill";
-    currentIcon.setAttribute("aria-hidden", "true");
-    currentButton.appendChild(currentIcon);
-
-    const addButton = document.createElement("button");
-    addButton.type = "button";
-    addButton.className = "applet-nav-add";
-    addButton.id = "launcher-open";
-    addButton.setAttribute("title", "Open launcher");
-    addButton.setAttribute("aria-label", "Open launcher");
-    addButton.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i>';
-
-    navInline.append(currentButton, addButton);
-
-    const menu = document.createElement("div");
-    menu.className = "opened-apps-menu is-hidden";
-    menu.id = "opened-apps-menu";
-    menu.setAttribute("aria-hidden", "true");
-
-    const menuList = document.createElement("div");
-    menuList.className = "opened-apps-menu-list";
-    menuList.id = "opened-apps-menu-list";
-
-    menu.append(menuList);
-    desktopHost.append(navInline, menu);
-  }
-
-  if (mobileHost) {
-    mobileHost.replaceChildren();
-    APPLET_ORDER.forEach((id, index) => {
-      const meta = APPLET_META[id] || {};
-      const tabLabel = String(meta.key ?? id);
-      const titleLabel = String(meta.label ?? meta.key ?? tabLabel);
-
-      const mobileRow = document.createElement("div");
-      mobileRow.className = "mobile-applet-row";
-
-      const mobileButton = document.createElement("button");
-      mobileButton.className = "mobile-applet-tab";
-      if (index === 0) {
-        mobileButton.classList.add("is-active");
-      }
-      mobileButton.type = "button";
-      mobileButton.setAttribute("data-applet-item", id);
-      mobileButton.setAttribute("aria-selected", String(index === 0));
-      mobileButton.setAttribute("title", `${titleLabel} applet`);
-      mobileButton.textContent = tabLabel;
-      mobileRow.appendChild(mobileButton);
-
-      const closeButton = document.createElement("button");
-      closeButton.type = "button";
-      closeButton.className = "mobile-applet-close";
-      closeButton.setAttribute("title", `Close ${titleLabel}`);
-      closeButton.setAttribute("aria-label", `Close ${titleLabel}`);
-      closeButton.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
-      closeButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        closeLoadedApplet(id, { keepLauncherOpen: false });
-      });
-      mobileRow.appendChild(closeButton);
-
-      mobileHost.appendChild(mobileRow);
-    });
-  }
+  renderAppletNavigationFromConfigUi({
+    defaultAppletId: DEFAULT_APPLET_ID,
+    appletOrder: APPLET_ORDER,
+    appletMeta: APPLET_META,
+    onCloseMobileApplet: (id, options) => {
+      closeLoadedApplet(id, options);
+    },
+  });
 }
 
 // DOM References + Shared UI State
@@ -391,12 +319,12 @@ const dom = {
   openedAppsMenu: document.getElementById("opened-apps-menu"),
   openedAppsMenuList: document.getElementById("opened-apps-menu-list"),
   mobileNavLauncher: document.getElementById("mobile-nav-launcher"),
-  welcomeOverlay: document.getElementById("welcome-overlay"),
-  welcomeGridGroups: document.getElementById("welcome-grid-groups"),
-  welcomeStatusCopy: document.getElementById("welcome-status-copy"),
-  welcomeSiteVersion: document.getElementById("welcome-site-version"),
-  welcomeSortToggle: document.getElementById("welcome-sort-toggle"),
-  welcomeClose: document.getElementById("welcome-close"),
+  launcherOverlay: document.getElementById("launcher-overlay"),
+  launcherGridGroups: document.getElementById("launcher-grid-groups"),
+  launcherStatusCopy: document.getElementById("launcher-status-copy"),
+  launcherSiteVersion: document.getElementById("launcher-site-version"),
+  launcherSortToggle: document.getElementById("launcher-sort-toggle"),
+  launcherClose: document.getElementById("launcher-close"),
 };
 
 const elementCache = new Map();
@@ -683,9 +611,16 @@ function syncAppletSessionMirrors() {
   loadedAppletIds = appletSession.getLoadedAppletIds();
   loadedAppletIdSet = appletSession.getLoadedAppletIdSet();
 }
-let welcomeLauncherMode = "start";
-let welcomeSortMode = "grouped";
-let welcomeStatusMessage = "";
+const launcherState = {
+  mode: "start",
+  sortMode: "grouped",
+  statusMessage: "",
+};
+const launcherPauseState = {
+  active: false,
+  appletId: null,
+  pausedBefore: true,
+};
 const appletPausedPreferences = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, params.paused]),
 );
@@ -816,7 +751,7 @@ rebuildBoundsAndGrid();
 initializeSimulationsWithAppletWorldState();
 setupCompactSectionSliders();
 setupMobileNavigation();
-setupWelcomeNavigator();
+setupLauncherNavigator();
 setupOpenedAppsMenu();
 setupLauncherEntryPoints();
 setupControls();
@@ -1898,102 +1833,19 @@ function applySimulationDefaultsForApplet(appletId) {
 
 // App Routing + Applet Switching + Persisted Per-Applet State
 function applyLoadedAppletTabVisibility() {
-  dom.appletTabs?.forEach((tab) => {
-    const tabApplet = String(tab.getAttribute("data-applet-item") || "").trim();
-    const isVisible = loadedAppletIdSet.has(tabApplet);
-    const row = tab.closest(".mobile-applet-row");
-    if (row) {
-      row.classList.toggle("is-hidden", !isVisible);
-    }
-    tab.classList.toggle("is-hidden", !isVisible);
-    tab.disabled = !isVisible;
-    tab.setAttribute("aria-hidden", String(!isVisible));
-    const closeButton = row?.querySelector(".mobile-applet-close");
-    if (closeButton) {
-      const canClose = isVisible && loadedAppletIds.length > 0;
-      closeButton.classList.toggle("is-hidden", !canClose);
-      closeButton.disabled = !canClose;
-    }
-    if (!isVisible) {
-      tab.classList.remove("is-active");
-      tab.setAttribute("aria-selected", "false");
-    }
+  applyLoadedAppletTabVisibilityUi({
+    appletTabs: dom.appletTabs,
+    loadedAppletIdSet,
+    loadedAppletIds,
   });
-}
-
-function getWelcomeCardSummary(appletId) {
-  const summary = String(APPLET_META[appletId]?.introSummary || "").trim();
-  if (!summary) {
-    return "Emergent behavior exploration";
-  }
-  if (summary.length <= 156) {
-    return summary;
-  }
-  return `${summary.slice(0, 153).trimEnd()}...`;
-}
-
-function getAppletLauncherDomain(appletId) {
-  const group = String(APPLET_META[appletId]?.group || "").toLowerCase().trim();
-  if (group === "organic") {
-    return "Organic Systems";
-  }
-  if (group === "physical") {
-    return "Physical Systems";
-  }
-  return "Other Systems";
-}
-
-function getWelcomeCards() {
-  return APPLET_ORDER
-    .map((id) => ({
-      id,
-      label: String(APPLET_META[id]?.label || id),
-      summary: getWelcomeCardSummary(id),
-      domain: getAppletLauncherDomain(id),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-function getWelcomeGroups(sortMode = welcomeSortMode) {
-  const cards = getWelcomeCards();
-  if (sortMode === "alphabet") {
-    return [{ title: "All Applets", cards }];
-  }
-
-  const groupedCards = new Map([
-    ["Organic Systems", []],
-    ["Physical Systems", []],
-    ["Other Systems", []],
-  ]);
-
-  cards.forEach((card) => {
-    if (!groupedCards.has(card.domain)) {
-      groupedCards.set(card.domain, []);
-    }
-    groupedCards.get(card.domain).push(card);
-  });
-
-  return Array.from(groupedCards.entries())
-    .filter(([, cards]) => cards.length > 0)
-    .map(([title, cards]) => ({ title, cards }));
 }
 
 function closeOpenedAppsMenu() {
-  if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
-    return;
-  }
-  dom.openedAppsMenu.classList.add("is-hidden");
-  dom.openedAppsMenu.setAttribute("aria-hidden", "true");
-  dom.openedAppsToggle.setAttribute("aria-expanded", "false");
+  closeOpenedAppsMenuUi(dom);
 }
 
 function openOpenedAppsMenu() {
-  if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
-    return;
-  }
-  dom.openedAppsMenu.classList.remove("is-hidden");
-  dom.openedAppsMenu.setAttribute("aria-hidden", "false");
-  dom.openedAppsToggle.setAttribute("aria-expanded", "true");
+  openOpenedAppsMenuUi(dom);
 }
 
 function closeLoadedApplet(appletId, options = {}) {
@@ -2016,7 +1868,7 @@ function closeLoadedApplet(appletId, options = {}) {
     url.searchParams.delete("apps");
     window.history.pushState({ app: null, apps: "" }, "", url);
 
-    showWelcomeNavigator({ mode: "start" });
+    showLauncherNavigator({ mode: "start" });
     return true;
   }
 
@@ -2031,122 +1883,49 @@ function closeLoadedApplet(appletId, options = {}) {
   });
 
   if (keepLauncherOpen) {
-    welcomeLauncherMode = "manage";
-    welcomeStatusMessage = "";
-    renderWelcomeNavigator();
+    launcherState.mode = "manage";
+    launcherState.statusMessage = "";
+    renderLauncherNavigator();
   }
 
   return true;
 }
 
 function renderOpenedAppsMenu() {
-  if (!dom.openedAppsMenuList || !dom.openedAppsToggle) {
-    return;
-  }
-
-  if (dom.openedAppsTitle) {
-    dom.openedAppsTitle.textContent = loadedAppletIds.length > 0
-      ? String(APPLET_META[activeApplet]?.key ?? activeApplet)
-      : "launcher";
-  }
-
-  dom.openedAppsToggle.disabled = loadedAppletIds.length === 0;
-  dom.openedAppsToggle.setAttribute("title", `Manage opened applets (${loadedAppletIds.length})`);
-  dom.openedAppsToggle.setAttribute("aria-label", `Manage opened applets (${loadedAppletIds.length})`);
-
-  const canClose = loadedAppletIds.length > 0;
-  const fragment = document.createDocumentFragment();
-
-  loadedAppletIds.forEach((appletId) => {
-    const row = document.createElement("div");
-    row.className = "opened-apps-menu-row";
-
-    const openButton = document.createElement("button");
-    openButton.type = "button";
-    openButton.className = "opened-apps-menu-open";
-    if (appletId === activeApplet) {
-      openButton.classList.add("is-active");
-    }
-    openButton.textContent = APPLET_META[appletId]?.key ?? appletId;
-    openButton.addEventListener("click", () => {
+  renderOpenedAppsMenuUi({
+    dom,
+    appletMeta: APPLET_META,
+    activeApplet,
+    loadedAppletIds,
+    onOpenApplet: (appletId) => {
       applyAppletMode(appletId, {
         loadedAppletIds,
         updateUrl: true,
         replaceHistory: false,
       });
       closeOpenedAppsMenu();
-    });
-
-    row.appendChild(openButton);
-
-    if (canClose) {
-      const closeButton = document.createElement("button");
-      closeButton.type = "button";
-      closeButton.className = "opened-apps-menu-close";
-      closeButton.setAttribute("aria-label", `Close ${APPLET_META[appletId]?.label ?? appletId}`);
-      closeButton.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
-      closeButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const closed = closeLoadedApplet(appletId, { keepLauncherOpen: false });
-        if (!closed) {
-          return;
-        }
-      });
-      row.appendChild(closeButton);
-    }
-
-    fragment.appendChild(row);
+    },
+    onCloseApplet: (appletId) => {
+      closeLoadedApplet(appletId, { keepLauncherOpen: false });
+    },
   });
-
-  dom.openedAppsMenuList.replaceChildren(fragment);
 }
 
 function setupOpenedAppsMenu() {
-  if (!dom.openedAppsToggle || !dom.openedAppsMenu) {
-    return;
-  }
-
-  dom.openedAppsToggle.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const isHidden = dom.openedAppsMenu.classList.contains("is-hidden");
-    if (isHidden) {
-      openOpenedAppsMenu();
-    } else {
-      closeOpenedAppsMenu();
-    }
-  });
-
-  document.addEventListener("click", (event) => {
-    if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
-      return;
-    }
-    const target = event.target;
-    const clickedInsideMenu = dom.openedAppsMenu.contains(target);
-    const clickedToggle = dom.openedAppsToggle.contains(target);
-    if (!clickedInsideMenu && !clickedToggle) {
-      closeOpenedAppsMenu();
-    }
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      closeOpenedAppsMenu();
-    }
-  });
+  setupOpenedAppsMenuUi({ dom });
 }
 
-function handleWelcomeCardClick(appletId) {
+function handleLauncherCardClick(appletId) {
   const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
-  welcomeStatusMessage = "";
+  launcherState.statusMessage = "";
 
-  if (welcomeLauncherMode !== "manage") {
+  if (launcherState.mode !== "manage") {
     applyAppletMode(normalizedId, {
       loadedAppletIds: [normalizedId],
       updateUrl: true,
       replaceHistory: false,
     });
-    hideWelcomeNavigator();
+    hideLauncherNavigator();
     return;
   }
 
@@ -2156,13 +1935,13 @@ function handleWelcomeCardClick(appletId) {
       updateUrl: true,
       replaceHistory: false,
     });
-    hideWelcomeNavigator();
+    hideLauncherNavigator();
     return;
   }
 
   if (loadedAppletIds.length >= MAX_LOADED_APPLET_COUNT) {
-    welcomeStatusMessage = `Opened ${loadedAppletIds.length}/${MAX_LOADED_APPLET_COUNT}. Close one to add another.`;
-    renderWelcomeNavigator();
+    launcherState.statusMessage = `Opened ${loadedAppletIds.length}/${MAX_LOADED_APPLET_COUNT}. Close one to add another.`;
+    renderLauncherNavigator();
     return;
   }
 
@@ -2172,178 +1951,102 @@ function handleWelcomeCardClick(appletId) {
     updateUrl: true,
     replaceHistory: false,
   });
-  hideWelcomeNavigator();
+  hideLauncherNavigator();
 }
 
-function renderWelcomeNavigator() {
-  if (!dom.welcomeGridGroups) {
-    return;
-  }
-
-  const groups = getWelcomeGroups(welcomeSortMode);
-  const fragment = document.createDocumentFragment();
-
-  groups.forEach((group) => {
-    const section = document.createElement("section");
-    section.className = "welcome-group";
-
-    const title = document.createElement("h2");
-    title.className = "welcome-group-title";
-    title.textContent = group.title;
-    section.appendChild(title);
-
-    const grid = document.createElement("div");
-    grid.className = "welcome-card-grid";
-
-    group.cards.forEach((card) => {
-      const showOpenState = welcomeLauncherMode === "manage";
-      const isOpen = loadedAppletIdSet.has(card.id);
-      const canClose = showOpenState && isOpen && loadedAppletIds.length > 0;
-      const cardButton = document.createElement("button");
-      cardButton.type = "button";
-      cardButton.className = "welcome-card";
-      if (showOpenState && isOpen) {
-        cardButton.classList.add("is-opened");
-      }
-      if (showOpenState && card.id === activeApplet) {
-        cardButton.classList.add("is-active-applet");
-      }
-      cardButton.setAttribute("data-welcome-applet", card.id);
-      cardButton.setAttribute("aria-label", `Open ${card.label}`);
-
-      const cardHead = document.createElement("div");
-      cardHead.className = "welcome-card-head";
-
-      const cardTitle = document.createElement("h3");
-      cardTitle.className = "welcome-card-title";
-      cardTitle.textContent = card.label;
-
-      cardHead.appendChild(cardTitle);
-
-      if (showOpenState && isOpen && loadedAppletIds.length > 0) {
-        const openMark = document.createElement(canClose ? "button" : "span");
-        openMark.className = "welcome-card-close";
-        openMark.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
-        if (canClose) {
-          openMark.type = "button";
-          openMark.setAttribute("aria-label", `Close ${card.label}`);
-          openMark.setAttribute("title", "Click to close");
-          openMark.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            closeLoadedApplet(card.id, { keepLauncherOpen: true });
-          });
-        } else {
-          openMark.classList.add("is-static");
-          openMark.setAttribute("title", "Click card to open");
-          openMark.setAttribute("aria-hidden", "true");
-        }
-        cardHead.appendChild(openMark);
-      }
-
-      const summaryText = document.createElement("p");
-      summaryText.className = "welcome-card-copy";
-      summaryText.textContent = card.summary;
-
-      cardButton.appendChild(cardHead);
-      cardButton.appendChild(summaryText);
-      cardButton.setAttribute(
-        "title",
-        canClose ? "Click card to switch. X closes applet." : "Click card to open",
-      );
-      cardButton.addEventListener("click", () => handleWelcomeCardClick(card.id));
-
-      grid.appendChild(cardButton);
-    });
-
-    section.appendChild(grid);
-    fragment.appendChild(section);
+function renderLauncherNavigator() {
+  renderLauncherNavigatorUi({
+    dom,
+    appletOrder: APPLET_ORDER,
+    appletMeta: APPLET_META,
+    activeApplet,
+    loadedAppletIds,
+    loadedAppletIdSet,
+    maxLoadedAppletCount: MAX_LOADED_APPLET_COUNT,
+    launcherState,
+    onLauncherCardClick: handleLauncherCardClick,
+    onCloseAppletFromCard: (appletId) => {
+      closeLoadedApplet(appletId, { keepLauncherOpen: true });
+    },
   });
-
-  dom.welcomeGridGroups.replaceChildren(fragment);
-
-  if (dom.welcomeStatusCopy) {
-    const hasStatus = Boolean(welcomeStatusMessage);
-    dom.welcomeStatusCopy.classList.toggle("is-hidden", !hasStatus);
-    dom.welcomeStatusCopy.textContent = hasStatus ? welcomeStatusMessage : "";
-  }
-  if (dom.welcomeSortToggle) {
-    const grouped = welcomeSortMode !== "alphabet";
-    const modeLabel = grouped ? "grouped" : "alphabetical";
-    const nextLabel = grouped ? "alphabetical" : "grouped";
-    dom.welcomeSortToggle.setAttribute("title", `Sort: ${modeLabel}. Click for ${nextLabel}.`);
-    dom.welcomeSortToggle.setAttribute("aria-label", `Sort: ${modeLabel}. Click for ${nextLabel}.`);
-    dom.welcomeSortToggle.innerHTML = grouped
-      ? '<i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>'
-      : '<i class="bi bi-sort-alpha-down" aria-hidden="true"></i>';
-  }
-  if (dom.welcomeClose) {
-    dom.welcomeClose.classList.add("is-hidden");
-  }
 }
 
-function showWelcomeNavigator(options = {}) {
-  if (!dom.welcomeOverlay) {
-    return;
-  }
-
-  document.documentElement.classList.remove("boot-show-launcher");
+function showLauncherNavigator(options = {}) {
+  pauseForLauncherIfNeeded();
   const { mode = "start" } = options;
-  welcomeLauncherMode = mode === "manage" ? "manage" : "start";
-  welcomeStatusMessage = "";
-  closeMobileNavigation();
-  closeOpenedAppsMenu();
-  renderWelcomeNavigator();
-
-  dom.welcomeOverlay.classList.remove("is-hidden");
-  dom.welcomeOverlay.setAttribute("aria-hidden", "false");
-  document.body.classList.add("welcome-visible");
+  showLauncherNavigatorUi({
+    dom,
+    launcherState,
+    mode,
+    onCloseMobileNavigation: closeMobileNavigation,
+    onCloseOpenedAppsMenu: closeOpenedAppsMenu,
+    onRenderLauncherNavigator: renderLauncherNavigator,
+  });
 }
 
-function hideWelcomeNavigator() {
-  if (!dom.welcomeOverlay) {
-    return;
-  }
-  document.documentElement.classList.remove("boot-show-launcher");
-  dom.welcomeOverlay.classList.add("is-hidden");
-  dom.welcomeOverlay.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("welcome-visible");
-  welcomeStatusMessage = "";
-  closeOpenedAppsMenu();
+function hideLauncherNavigator() {
+  hideLauncherNavigatorUi({
+    dom,
+    launcherState,
+    onCloseOpenedAppsMenu: closeOpenedAppsMenu,
+  });
+  restoreLauncherPauseIfNeeded();
 }
 
-function setupWelcomeNavigator() {
-  if (!dom.welcomeOverlay) {
-    return;
-  }
-  if (dom.welcomeSiteVersion) {
-    dom.welcomeSiteVersion.textContent = String(SITE_VERSION || "--");
-  }
-
-  dom.welcomeSortToggle?.addEventListener("click", () => {
-    welcomeSortMode = welcomeSortMode === "grouped" ? "alphabet" : "grouped";
-    renderWelcomeNavigator();
+function setupLauncherNavigator() {
+  setupLauncherNavigatorUi({
+    dom,
+    siteVersion: SITE_VERSION,
+    launcherState,
+    onRenderLauncherNavigator: renderLauncherNavigator,
+    onHideLauncherNavigator: hideLauncherNavigator,
   });
-
-  dom.welcomeClose?.addEventListener("click", () => {
-    if (welcomeLauncherMode === "manage") {
-      hideWelcomeNavigator();
-    }
-  });
-
-  dom.welcomeOverlay.addEventListener("click", (event) => {
-    if (event.target === dom.welcomeOverlay && welcomeLauncherMode === "manage") {
-      hideWelcomeNavigator();
-    }
-  });
-
-  renderWelcomeNavigator();
 }
 
 function setupLauncherEntryPoints() {
-  dom.launcherOpen?.addEventListener("click", () => {
-    showWelcomeNavigator({ mode: "manage" });
+  setupLauncherEntryPointsUi({
+    launcherOpen: dom.launcherOpen,
+    onOpenLauncher: () => {
+      showLauncherNavigator({ mode: "manage" });
+    },
   });
+}
+
+function pauseForLauncherIfNeeded() {
+  if (launcherPauseState.active) {
+    return;
+  }
+  if (loadedAppletIds.length === 0) {
+    return;
+  }
+
+  launcherPauseState.active = true;
+  launcherPauseState.appletId = activeApplet;
+  launcherPauseState.pausedBefore = Boolean(params.paused);
+
+  if (!launcherPauseState.pausedBefore) {
+    params.paused = true;
+    updateSimulationStateUI();
+  }
+}
+
+function restoreLauncherPauseIfNeeded() {
+  if (!launcherPauseState.active) {
+    return;
+  }
+
+  const pausedAppletId = launcherPauseState.appletId;
+  if (pausedAppletId && APPLET_IDS.has(pausedAppletId)) {
+    appletPausedPreferences[pausedAppletId] = launcherPauseState.pausedBefore;
+    if (activeApplet === pausedAppletId) {
+      params.paused = launcherPauseState.pausedBefore;
+      updateSimulationStateUI();
+    }
+  }
+
+  launcherPauseState.active = false;
+  launcherPauseState.appletId = null;
+  launcherPauseState.pausedBefore = true;
 }
 
 function setupAppRouting() {
@@ -2365,9 +2068,9 @@ function setupAppRouting() {
       });
 
       if (hasAppletParam) {
-        hideWelcomeNavigator();
+        hideLauncherNavigator();
       } else {
-        showWelcomeNavigator({ mode: "start" });
+        showLauncherNavigator({ mode: "start" });
       }
     },
   });
@@ -2634,7 +2337,12 @@ function applyAppletMode(appletId, options = {}) {
   updateProjectionToggleUI();
   spaceshipHud.update();
   if (previousApplet && APPLET_IDS.has(previousApplet)) {
-    appletPausedPreferences[previousApplet] = params.paused;
+    const preservePausedBeforeLauncher =
+      launcherPauseState.active &&
+      previousApplet === launcherPauseState.appletId;
+    appletPausedPreferences[previousApplet] = preservePausedBeforeLauncher
+      ? launcherPauseState.pausedBefore
+      : params.paused;
   }
   params.paused = appletPausedPreferences[normalizedId];
   APPLET_DEFINITIONS[normalizedId].runtime?.applyStats?.(
@@ -2817,7 +2525,7 @@ function setupMobileNavigation() {
   if (dom.mobileNavLauncher) {
     dom.mobileNavLauncher.classList.remove("is-hidden");
     dom.mobileNavLauncher.addEventListener("click", () => {
-      showWelcomeNavigator({ mode: "manage" });
+      showLauncherNavigator({ mode: "manage" });
       closeMobileNavigation();
     });
   }

@@ -525,6 +525,7 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
 
 export function validateAppletConfig(config) {
   const normalizedUnit = normalizeUnitConfig(config?.unit ?? null);
+  const meta = (config?.meta && typeof config.meta === "object") ? config.meta : {};
   const worldLengthConfig = (config?.world && typeof config.world === "object" && config.world.lengthUnit)
     ? config.world.lengthUnit
     : {};
@@ -532,7 +533,10 @@ export function validateAppletConfig(config) {
     name: String(worldLengthConfig.name || "m"),
     toSI: toFiniteNumber(worldLengthConfig.toSI, 1),
   };
-  const label = config?.meta?.label ?? "Applet";
+  const label = meta?.label ?? "Applet";
+  const group = String(meta?.group || "").trim();
+  const shortLabel = String(meta?.shortLabel || "").trim();
+  const thumbnail = String(meta?.thumbnail || "").trim();
   const appletKey = typeof config?.key === "string" && config.key.trim().length > 0
     ? config.key.trim()
     : "";
@@ -550,6 +554,12 @@ export function validateAppletConfig(config) {
 
   return {
     label,
+    meta: {
+      label,
+      ...(shortLabel ? { shortLabel } : {}),
+      ...(group ? { group } : {}),
+      ...(thumbnail ? { thumbnail } : {}),
+    },
     key: appletKey || undefined,
     camera: {
       distance: config.camera?.distance ?? 185,

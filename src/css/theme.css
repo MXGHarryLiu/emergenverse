@@ -64,37 +64,55 @@ body[data-theme="light"] .mobile-nav-drawer {
   background: linear-gradient(90deg, rgba(234, 241, 253, 0.96), rgba(224, 234, 250, 0.9));
 }
 
-body[data-theme="light"] .welcome-overlay {
+body[data-theme="light"] .launcher-overlay {
   background:
     radial-gradient(circle at 18% 20%, rgba(94, 130, 198, 0.24), transparent 40%),
     radial-gradient(circle at 82% 78%, rgba(80, 169, 180, 0.18), transparent 44%),
     linear-gradient(160deg, rgba(224, 233, 248, 0.94), rgba(214, 226, 246, 0.96));
 }
 
-body[data-theme="light"] .welcome-surface {
+body[data-theme="light"] .launcher-surface {
   background: transparent;
   border-color: transparent;
 }
 
-body[data-theme="light"] .welcome-card {
+body[data-theme="light"] .launcher-card {
   background: rgba(231, 240, 253, 0.72);
 }
 
-body[data-theme="light"] .welcome-card.is-opened {
+body[data-theme="light"] .launcher-card.is-opened {
   background: rgba(216, 236, 245, 0.88);
 }
 
-body[data-theme="light"] .welcome-card-close {
+body[data-theme="light"] .launcher-card-close {
   color: #62759a;
   background: rgba(226, 236, 250, 0.92);
   border-color: rgba(104, 132, 178, 0.32);
 }
 
-body[data-theme="light"] .welcome-card-close:hover,
-body[data-theme="light"] .welcome-card-close:focus-visible {
+body[data-theme="light"] .launcher-card-close:hover,
+body[data-theme="light"] .launcher-card-close:focus-visible {
   color: #2f8b8c;
   background: rgba(209, 224, 246, 0.96);
   border-color: rgba(98, 126, 173, 0.7);
+}
+
+body[data-theme="light"] .launcher-card-thumb {
+  background: rgba(223, 233, 248, 0.9);
+  border-color: rgba(104, 132, 178, 0.28);
+}
+
+body[data-theme="light"] .launcher-card-thumb-icon {
+  color: #3a5d8f;
+}
+
+body[data-theme="light"] .launcher-card-thumb-img {
+  filter: saturate(0.78) contrast(0.96) brightness(0.9);
+}
+
+body[data-theme="dark"] .launcher-card-thumb-img,
+body:not([data-theme]) .launcher-card-thumb-img {
+  filter: saturate(1) contrast(1.06) brightness(1.04);
 }
 
 body[data-theme="light"] .applet-nav-current {

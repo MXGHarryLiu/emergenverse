@@ -2,7 +2,8 @@
   "key": "ant",
   "meta": {
     "label": "Ant Trails",
-    "group": "organic"
+    "group": "organic",
+    "thumbnail": "bi-bug"
   },
   "intro": {
     "summary": "Trail foraging with pheromone memory",

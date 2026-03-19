@@ -358,7 +358,7 @@ export class AntSimulation extends BaseSimulation {
       sensorDistance,
       this.toWorldLength(this.params.foodSenseDistance ?? this.params.sensorDistance, 0.18),
     );
-    const foodPickupRadius = Math.max(0.005, this.toWorldLength(this.params.pickupRadius, 0.04));
+    const foodPickupRadius = Math.max(0.005, Number(this.params.pickupRadius) || 0.04);
     const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
     const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
     const turnGain = Math.max(0, this.params.turnGain);
@@ -440,7 +440,10 @@ export class AntSimulation extends BaseSimulation {
         ) <
           nestRadius * nestRadius;
       const foodSource = this.getFoodSourceAtPosition(ant.position, foodPickupRadius);
-      if (!ant.carrying && foodSource) {
+      const sourceOutsideNest = Boolean(foodSource) &&
+        foodSource.position.distanceToSquared(this.nest) >
+          (nestRadius + foodPickupRadius) * (nestRadius + foodPickupRadius);
+      if (!ant.carrying && !reachedNest && sourceOutsideNest && foodSource) {
         ant.carrying = true;
         ant.waitingAtNest = false;
         ant.heading = wrapAngle(ant.heading + Math.PI);
@@ -672,7 +675,11 @@ export class AntSimulation extends BaseSimulation {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
     const minAxis = Math.max(0.05, Math.min(halfX, halfY));
-    const minRadius = Math.max(minAxis * 0.12, 0.08);
+    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
+    const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
+    const pickupRadius = Math.max(0.005, Number(this.params.pickupRadius) || 0.04);
+    const minSafeRadius = nestRadius + pickupRadius + Math.max(0.02, worldMinAxis * 0.01);
+    const minRadius = Math.max(minAxis * 0.12, 0.08, minSafeRadius);
     const maxRadius = Math.max(minRadius + 0.02, minAxis * 0.5);
     const angle = Math.random() * Math.PI * 2;
     const radius = THREE.MathUtils.randFloat(minRadius, maxRadius);

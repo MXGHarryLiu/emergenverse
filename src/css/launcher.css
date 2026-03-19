@@ -1,0 +1,314 @@
+/* Launcher Overlay */
+.launcher-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  padding: clamp(0.75rem, 2.2vw, 1.6rem);
+  background:
+    radial-gradient(circle at 18% 20%, rgba(90, 164, 255, 0.26), transparent 40%),
+    radial-gradient(circle at 82% 78%, rgba(76, 211, 182, 0.2), transparent 44%),
+    linear-gradient(160deg, rgba(5, 12, 26, 0.94), rgba(7, 18, 36, 0.96));
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.launcher-surface {
+  width: min(1120px, 100%);
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 0.9rem;
+  padding: clamp(1rem, 2.2vw, 1.5rem);
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.launcher-head {
+  display: grid;
+  gap: 0.46rem;
+}
+
+.launcher-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.launcher-title {
+  margin: 0;
+  font: 700 clamp(1.35rem, 2.5vw, 2rem) / 1.08 "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--title-color);
+}
+
+.launcher-copy {
+  margin: 0;
+  max-width: 66ch;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+
+.launcher-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.launcher-toolbar-copy {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.launcher-toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.launcher-grid-groups {
+  display: grid;
+  gap: 1rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.launcher-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.launcher-group-title {
+  margin: 0;
+  color: var(--title-color);
+  font: 700 0.82rem/1.1 "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.launcher-card-grid {
+  display: grid;
+  gap: 0.68rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+.launcher-card {
+  appearance: none;
+  width: 100%;
+  border: none;
+  border-radius: 0.86rem;
+  background: rgba(8, 18, 35, 0.42);
+  color: inherit;
+  text-align: left;
+  padding: 0.72rem 0.8rem;
+  display: grid;
+  gap: 0.35rem;
+  min-height: 9rem;
+  height: 9rem;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.launcher-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.62rem;
+  align-items: flex-start;
+}
+
+.launcher-card-body.has-thumbnail {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.launcher-card-content {
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.launcher-card-thumb {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.55rem;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  background: rgba(14, 26, 48, 0.45);
+  flex: 0 0 auto;
+}
+
+.launcher-card-thumb.is-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.launcher-card-thumb-icon {
+  font-size: 1.15rem;
+  color: var(--title-color);
+  opacity: 0.9;
+}
+
+.launcher-card-thumb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  filter: saturate(0.95) contrast(1.04) brightness(1.03);
+}
+
+.launcher-card:hover,
+.launcher-card:focus-visible {
+  background: rgba(11, 24, 45, 0.62);
+  transform: translateY(-1px);
+}
+
+.launcher-card.is-opened {
+  background: rgba(16, 43, 63, 0.72);
+}
+
+.launcher-card.is-active-applet {
+  box-shadow: inset 0 0 0 1px rgba(76, 211, 182, 0.52);
+}
+
+.launcher-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.launcher-card-title {
+  margin: 0;
+  font: 700 0.94rem/1.18 "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.02em;
+  color: var(--title-color);
+}
+
+.launcher-card-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(16, 31, 54, 0.76);
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  padding: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.launcher-card-close:hover,
+.launcher-card-close:focus-visible {
+  border-color: rgba(112, 171, 255, 0.6);
+  background: rgba(20, 38, 67, 0.8);
+  color: var(--accent);
+}
+
+.launcher-card-close.is-static {
+  opacity: 0.9;
+  cursor: default;
+}
+
+.launcher-card-copy {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.launcher-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.launcher-credit-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+}
+
+.launcher-credit-row a {
+  color: var(--accent-2);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(90, 164, 255, 0.45);
+}
+
+.launcher-credit-row a:hover,
+.launcher-credit-row a:focus-visible {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.launcher-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+body.launcher-visible .launcher-overlay {
+  display: block !important;
+}
+
+html.boot-show-launcher #launcher-overlay.is-hidden {
+  display: block !important;
+}
+
+@media (max-width: 980px) {
+  .launcher-overlay {
+    padding: 0.6rem;
+  }
+
+  .launcher-surface {
+    border-radius: 0.82rem;
+    padding: 0.88rem;
+    gap: 0.75rem;
+  }
+
+  .launcher-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .launcher-toolbar {
+    align-items: flex-start;
+  }
+
+  .launcher-toolbar-copy {
+    width: 100%;
+    font-size: 0.74rem;
+  }
+
+  .launcher-toolbar-actions {
+    width: 100%;
+  }
+
+  .launcher-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

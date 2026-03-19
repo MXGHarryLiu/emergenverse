@@ -1,0 +1,112 @@
+/* Spaceship HUD */
+.spaceship-hud {
+  position: absolute;
+  right: 0.72rem;
+  bottom: 2.45rem;
+  min-width: 13rem;
+  max-width: min(14.5rem, calc(100% - 1.5rem));
+  padding: 0.14rem 0.3rem 0.08rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #d7e7ff;
+  backdrop-filter: none;
+  z-index: 16;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.spaceship-hud-main {
+  display: block;
+  margin-top: -0.98rem;
+}
+
+.spaceship-hud-scope {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: block;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.spaceship-hud-foot {
+  margin-top: -0.18rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.52rem 0.56rem 0.52rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.62rem;
+  background: rgba(7, 13, 28, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 20px rgba(2, 8, 19, 0.28);
+}
+
+.spaceship-hud-actions {
+  margin-top: 0;
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.spaceship-hud-actions .btn {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.66rem;
+  line-height: 1.15;
+}
+
+.spaceship-hud-action-btn {
+  width: 1.82rem;
+  height: 1.82rem;
+  min-width: 1.82rem;
+  min-height: 1.82rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+}
+
+.spaceship-hud-action-btn i {
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.spaceship-hud-action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+.spaceship-hud-action-btn.is-active {
+  border-color: rgba(76, 211, 182, 0.72);
+  background: rgba(38, 98, 92, 0.52);
+  color: #aaf8ea;
+}
+
+.spaceship-hud-action-btn.is-off {
+  border-color: rgba(130, 180, 255, 0.28);
+  background: rgba(10, 21, 41, 0.28);
+  color: var(--text-soft);
+}
+
+.spaceship-speed-chip {
+  min-height: 1.74rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.06rem 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.42rem;
+  background: rgba(10, 21, 41, 0.48);
+  color: #e6f2ff;
+  font: 700 0.74rem/1 "Space Grotesk", "Segoe UI", sans-serif;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-left: auto;
+}
