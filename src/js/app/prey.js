@@ -11,21 +11,21 @@ export const PREY_APPLET_CONFIG = validateAppletConfig(preyConfigData);
 const PREY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("prey-count", () => "0", {
+      createChartMetricsEntry("count", () => "0", {
         stroke: "#6be39f",
         fill: "rgba(107, 227, 159, 0.16)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("predator-count", () => "0", {
+      createChartMetricsEntry("predator", () => "0", {
         stroke: "#ff9b70",
         fill: "rgba(255, 155, 112, 0.18)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("prey-eaten", () => "0", {
+      createChartMetricsEntry("eaten", () => "0", {
         stroke: "#f0cf72",
         fill: "rgba(240, 207, 114, 0.18)",
         axisLabel: "events",

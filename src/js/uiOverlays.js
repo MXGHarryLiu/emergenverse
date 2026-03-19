@@ -45,7 +45,6 @@ export function setupUiOverlays({
     onPauseStateChange,
   });
 }
-
 // Generic overlay helpers
 function bindDismissibleOverlay({ openButton, closeButton, backdrop, onOpen, onClose }) {
   if (!closeButton || !backdrop) {
@@ -374,7 +373,77 @@ function setupExportPopup(dom, getActiveApplet, getExportData) {
     }
   };
 
+  const buildExportPayload = () =>
+    typeof getExportData === "function"
+      ? getExportData()
+      : {
+          app: "emergenverse",
+          exportedAt: new Date().toISOString(),
+          activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
+          params: {},
+        };
+
+  const getFormattedPreviewText = (payload) => `${JSON.stringify(payload, null, 2)}\n`;
+
+  const renderExportPreview = (text) => {
+    if (dom.exportPreviewCode) {
+      dom.exportPreviewCode.textContent = text;
+    }
+    if (dom.exportPreviewLines) {
+      const trimmed = text.endsWith("\n") ? text.slice(0, -1) : text;
+      const lineCount = Math.max(1, trimmed.split("\n").length);
+      const numbers = Array.from({ length: lineCount }, (_, index) => String(index + 1)).join("\n");
+      dom.exportPreviewLines.textContent = numbers;
+    }
+    if (dom.exportPreviewCode && dom.exportPreviewLines) {
+      dom.exportPreviewLines.scrollTop = dom.exportPreviewCode.scrollTop;
+    }
+  };
+
+  let latestPreviewPayload = buildExportPayload();
+  let latestPreviewText = getFormattedPreviewText(latestPreviewPayload);
+
+  const refreshExportPreview = () => {
+    latestPreviewPayload = buildExportPayload();
+    latestPreviewText = getFormattedPreviewText(latestPreviewPayload);
+    renderExportPreview(latestPreviewText);
+  };
+
+  const copyPreviewText = async () => {
+    if (!latestPreviewText) {
+      refreshExportPreview();
+    }
+
+    let copied = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(latestPreviewText);
+        copied = true;
+      } catch (_error) {
+        copied = false;
+      }
+    }
+
+    if (!copied && typeof document.execCommand === "function" && dom.exportPreviewCode) {
+      const selection = window.getSelection?.();
+      if (selection && typeof document.createRange === "function") {
+        const range = document.createRange();
+        range.selectNodeContents(dom.exportPreviewCode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      copied = document.execCommand("copy");
+      const selectionAfterCopy = window.getSelection?.();
+      selectionAfterCopy?.removeAllRanges?.();
+    }
+
+    setStatus(copied
+      ? "Copied formatted JSON preview."
+      : "Could not copy automatically. Select and copy the JSON preview manually.");
+  };
+
   const openPopup = () => {
+    refreshExportPreview();
     setStatus(EXPORT_STATUS_DEFAULT);
     openOverlay(dom.exportInfoBackdrop);
   };
@@ -385,20 +454,21 @@ function setupExportPopup(dom, getActiveApplet, getExportData) {
   dom.exportInfoClose.addEventListener("click", closePopup);
   bindBackdropToClose(dom.exportInfoBackdrop, closePopup);
   bindEscapeToOverlay(dom.exportInfoBackdrop, closePopup);
+  dom.exportPreviewCopy?.addEventListener("click", copyPreviewText);
+  dom.exportPreviewCode?.addEventListener("scroll", () => {
+    if (!dom.exportPreviewLines) {
+      return;
+    }
+    dom.exportPreviewLines.scrollTop = dom.exportPreviewCode.scrollTop;
+  });
 
   dom.exportParamsJson.addEventListener("click", async () => {
     try {
-      const payload =
-        typeof getExportData === "function"
-          ? getExportData()
-          : {
-              app: "emergenverse",
-              exportedAt: new Date().toISOString(),
-              activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
-              params: {},
-            };
+      refreshExportPreview();
+      const payload = latestPreviewPayload;
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `emergenverse-params-${payload.activeApplet || "applet"}-${stamp}.json`;
+      const activeApplet = typeof getActiveApplet === "function" ? getActiveApplet() : "applet";
+      const filename = `emergenverse-params-${activeApplet || "applet"}-${stamp}.json`;
       const result = await triggerJsonDownload(payload, filename);
       if (result === "cancelled") {
         setStatus("Export cancelled.");

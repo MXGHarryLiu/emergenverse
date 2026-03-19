@@ -9,7 +9,8 @@ import { setupUiOverlays } from "./uiOverlays.js";
 import { createSpaceshipHudController } from "./spaceship.js";
 import {
   normalizeAppletId as normalizeAppletIdParam,
-  setAppletInUrl as setAppletInUrlParam,
+  normalizeAppletIds as normalizeAppletIdsParam,
+  setAppletRouteInUrl as setAppletRouteInUrlParam,
   setupAppRouting as setupUrlRouting,
 } from "./routing.js";
 import { getSectionInputControls } from "./app/appletConfigUtils.js";
@@ -167,28 +168,65 @@ function renderAppletNavigationFromConfig() {
     return;
   }
 
-  desktopHost?.replaceChildren();
-  mobileHost?.replaceChildren();
-  APPLET_ORDER.forEach((id, index) => {
-    const meta = APPLET_META[id] || {};
-    const tabLabel = String(meta.shortLabel ?? meta.label ?? id);
-    const titleLabel = String(meta.label ?? tabLabel);
+  if (desktopHost) {
+    desktopHost.replaceChildren();
 
-    if (desktopHost) {
-      const desktopButton = document.createElement("button");
-      desktopButton.className = "applet-tab";
-      if (index === 0) {
-        desktopButton.classList.add("is-active");
-      }
-      desktopButton.type = "button";
-      desktopButton.setAttribute("data-applet-item", id);
-      desktopButton.setAttribute("aria-selected", String(index === 0));
-      desktopButton.setAttribute("title", `${titleLabel} applet`);
-      desktopButton.textContent = tabLabel;
-      desktopHost.appendChild(desktopButton);
-    }
+    const navInline = document.createElement("div");
+    navInline.className = "applet-nav-inline";
 
-    if (mobileHost) {
+    const currentButton = document.createElement("button");
+    currentButton.type = "button";
+    currentButton.className = "applet-nav-current";
+    currentButton.id = "opened-apps-toggle";
+    currentButton.setAttribute("title", "Switch or close opened applets");
+    currentButton.setAttribute("aria-label", "Switch or close opened applets");
+    currentButton.setAttribute("aria-controls", "opened-apps-menu");
+    currentButton.setAttribute("aria-expanded", "false");
+
+    const currentLabel = document.createElement("span");
+    currentLabel.className = "applet-nav-current-label";
+    currentLabel.id = "opened-apps-title";
+    currentLabel.textContent = String(APPLET_META[DEFAULT_APPLET_ID]?.key ?? DEFAULT_APPLET_ID);
+    currentButton.appendChild(currentLabel);
+
+    const currentIcon = document.createElement("i");
+    currentIcon.className = "bi bi-caret-down-fill";
+    currentIcon.setAttribute("aria-hidden", "true");
+    currentButton.appendChild(currentIcon);
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "applet-nav-add";
+    addButton.id = "launcher-open";
+    addButton.setAttribute("title", "Open launcher");
+    addButton.setAttribute("aria-label", "Open launcher");
+    addButton.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i>';
+
+    navInline.append(currentButton, addButton);
+
+    const menu = document.createElement("div");
+    menu.className = "opened-apps-menu is-hidden";
+    menu.id = "opened-apps-menu";
+    menu.setAttribute("aria-hidden", "true");
+
+    const menuList = document.createElement("div");
+    menuList.className = "opened-apps-menu-list";
+    menuList.id = "opened-apps-menu-list";
+
+    menu.append(menuList);
+    desktopHost.append(navInline, menu);
+  }
+
+  if (mobileHost) {
+    mobileHost.replaceChildren();
+    APPLET_ORDER.forEach((id, index) => {
+      const meta = APPLET_META[id] || {};
+      const tabLabel = String(meta.key ?? id);
+      const titleLabel = String(meta.label ?? meta.key ?? tabLabel);
+
+      const mobileRow = document.createElement("div");
+      mobileRow.className = "mobile-applet-row";
+
       const mobileButton = document.createElement("button");
       mobileButton.className = "mobile-applet-tab";
       if (index === 0) {
@@ -199,9 +237,24 @@ function renderAppletNavigationFromConfig() {
       mobileButton.setAttribute("aria-selected", String(index === 0));
       mobileButton.setAttribute("title", `${titleLabel} applet`);
       mobileButton.textContent = tabLabel;
-      mobileHost.appendChild(mobileButton);
-    }
-  });
+      mobileRow.appendChild(mobileButton);
+
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "mobile-applet-close";
+      closeButton.setAttribute("title", `Close ${titleLabel}`);
+      closeButton.setAttribute("aria-label", `Close ${titleLabel}`);
+      closeButton.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+      closeButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeLoadedApplet(id, { keepLauncherOpen: false });
+      });
+      mobileRow.appendChild(closeButton);
+
+      mobileHost.appendChild(mobileRow);
+    });
+  }
 }
 
 // DOM References + Shared UI State
@@ -269,6 +322,9 @@ const dom = {
   exportInfoClose: document.getElementById("export-info-close"),
   exportInfoBackdrop: document.getElementById("export-info-backdrop"),
   exportParamsJson: document.getElementById("export-params-json"),
+  exportPreviewCopy: document.getElementById("export-preview-copy"),
+  exportPreviewCode: document.getElementById("export-preview-code"),
+  exportPreviewLines: document.getElementById("export-preview-lines"),
   exportStatus: document.getElementById("export-status"),
   viewportScreenshotBtn: document.getElementById("viewport-screenshot-btn"),
   screenshotInfoClose: document.getElementById("screenshot-info-close"),
@@ -295,6 +351,18 @@ const dom = {
   spaceshipSasToggle: document.getElementById("spaceship-sas-toggle"),
   spaceshipHaltRotation: document.getElementById("spaceship-halt-rotation"),
   spaceshipHaltMotion: document.getElementById("spaceship-halt-motion"),
+  launcherOpen: document.getElementById("launcher-open"),
+  openedAppsToggle: document.getElementById("opened-apps-toggle"),
+  openedAppsTitle: document.getElementById("opened-apps-title"),
+  openedAppsMenu: document.getElementById("opened-apps-menu"),
+  openedAppsMenuList: document.getElementById("opened-apps-menu-list"),
+  mobileNavLauncher: document.getElementById("mobile-nav-launcher"),
+  welcomeOverlay: document.getElementById("welcome-overlay"),
+  welcomeGridGroups: document.getElementById("welcome-grid-groups"),
+  welcomeStatusCopy: document.getElementById("welcome-status-copy"),
+  welcomeSiteVersion: document.getElementById("welcome-site-version"),
+  welcomeSortToggle: document.getElementById("welcome-sort-toggle"),
+  welcomeClose: document.getElementById("welcome-close"),
 };
 
 const elementCache = new Map();
@@ -526,11 +594,16 @@ const compactSelectRegistry = new Map();
 const compactSectionState = {};
 let isClearingCompactControls = false;
 let activeCompactSelectId = null;
+const MAX_LOADED_APPLET_COUNT = 3;
 const APPLET_IDS = new Set(APPLET_ORDER);
 const ROUTING_OPTIONS = {
   validAppletIds: APPLET_IDS,
   defaultAppletId: DEFAULT_APPLET_ID,
+  appSearchParam: "app",
+  appsSearchParam: "apps",
+  maxApplets: MAX_LOADED_APPLET_COUNT,
 };
+const ORGANIC_APPLET_HINTS = new Set(["boid", "ant", "ants", "prey", "firefly"]);
 const appletCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 const appletInitialCameraState = Object.fromEntries(APPLET_ORDER.map((id) => [id, null]));
 const appletWorldState = Object.fromEntries(
@@ -539,6 +612,11 @@ const appletWorldState = Object.fromEntries(
 let worldStatePersistenceEnabled = false;
 
 let activeApplet = DEFAULT_APPLET_ID;
+let loadedAppletIds = [DEFAULT_APPLET_ID];
+let loadedAppletIdSet = new Set(loadedAppletIds);
+let welcomeLauncherMode = "start";
+let welcomeSortMode = "grouped";
+let welcomeStatusMessage = "";
 const appletPausedPreferences = Object.fromEntries(
   APPLET_ORDER.map((id) => [id, params.paused]),
 );
@@ -669,7 +747,12 @@ rebuildBoundsAndGrid();
 initializeSimulationsWithAppletWorldState();
 setupCompactSectionSliders();
 setupMobileNavigation();
+setupWelcomeNavigator();
+setupOpenedAppsMenu();
+setupLauncherEntryPoints();
 setupControls();
+applyLoadedAppletTabVisibility();
+renderOpenedAppsMenu();
 setupRangeFocusEscape();
 setupPanelToggles();
 setupPanelResizers();
@@ -689,10 +772,9 @@ setupUiOverlays({
   },
   onPauseStateChange: () => updateSimulationStateUI(),
   getExportData: () => ({
-    app: "emergenverse",
     exportedAt: new Date().toISOString(),
-    activeApplet,
-    params: JSON.parse(JSON.stringify(params)),
+    params: JSON.parse(JSON.stringify(params[activeApplet] || {})),
+    stats: JSON.parse(JSON.stringify(lastAppletStats[activeApplet] || {})),
   }),
 });
 setupTrendCharts();
@@ -832,7 +914,7 @@ function setupControls() {
   dom.appletTabs?.forEach((tab) => {
     tab.addEventListener("click", () => {
       const mode = tab.getAttribute("data-applet-item");
-      if (!mode) {
+      if (!mode || !loadedAppletIdSet.has(mode)) {
         return;
       }
       applyAppletMode(mode, { updateUrl: true, replaceHistory: false });
@@ -1561,10 +1643,473 @@ function applySimulationDefaultsForApplet(appletId) {
 }
 
 // App Routing + Applet Switching + Persisted Per-Applet State
+function normalizeLoadedAppletIds(appletIds, fallbackAppletId = activeApplet) {
+  const normalizedFallbackId = normalizeAppletIdParam(fallbackAppletId, ROUTING_OPTIONS);
+  const normalizedIds = normalizeAppletIdsParam(appletIds, {
+    validAppletIds: APPLET_IDS,
+    defaultAppletId: normalizedFallbackId,
+    maxApplets: MAX_LOADED_APPLET_COUNT,
+  });
+
+  if (!normalizedIds.includes(normalizedFallbackId)) {
+    if (normalizedIds.length >= MAX_LOADED_APPLET_COUNT) {
+      normalizedIds.shift();
+    }
+    normalizedIds.push(normalizedFallbackId);
+  }
+
+  if (normalizedIds.length === 0) {
+    normalizedIds.push(normalizedFallbackId);
+  }
+
+  return normalizedIds.slice(0, MAX_LOADED_APPLET_COUNT);
+}
+
+function applyLoadedAppletTabVisibility() {
+  dom.appletTabs?.forEach((tab) => {
+    const tabApplet = String(tab.getAttribute("data-applet-item") || "").trim();
+    const isVisible = loadedAppletIdSet.has(tabApplet);
+    const row = tab.closest(".mobile-applet-row");
+    if (row) {
+      row.classList.toggle("is-hidden", !isVisible);
+    }
+    tab.classList.toggle("is-hidden", !isVisible);
+    tab.disabled = !isVisible;
+    tab.setAttribute("aria-hidden", String(!isVisible));
+    const closeButton = row?.querySelector(".mobile-applet-close");
+    if (closeButton) {
+      const canClose = isVisible && loadedAppletIds.length > 1;
+      closeButton.classList.toggle("is-hidden", !canClose);
+      closeButton.disabled = !canClose;
+    }
+    if (!isVisible) {
+      tab.classList.remove("is-active");
+      tab.setAttribute("aria-selected", "false");
+    }
+  });
+}
+
+function getWelcomeCardSummary(appletId) {
+  const summary = String(APPLET_META[appletId]?.introSummary || "").trim();
+  if (!summary) {
+    return "Emergent behavior exploration";
+  }
+  if (summary.length <= 156) {
+    return summary;
+  }
+  return `${summary.slice(0, 153).trimEnd()}...`;
+}
+
+function getAppletLauncherDomain(appletId) {
+  const normalizedId = String(appletId || "").toLowerCase().trim();
+  return ORGANIC_APPLET_HINTS.has(normalizedId) ? "Organic Systems" : "Physical Systems";
+}
+
+function getWelcomeCards() {
+  return APPLET_ORDER
+    .map((id) => ({
+      id,
+      label: String(APPLET_META[id]?.label || id),
+      summary: getWelcomeCardSummary(id),
+      domain: getAppletLauncherDomain(id),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function getWelcomeGroups(sortMode = welcomeSortMode) {
+  const cards = getWelcomeCards();
+  if (sortMode === "alphabet") {
+    return [{ title: "All Applets", cards }];
+  }
+
+  const groupedCards = new Map([
+    ["Organic Systems", []],
+    ["Physical Systems", []],
+  ]);
+
+  cards.forEach((card) => {
+    if (!groupedCards.has(card.domain)) {
+      groupedCards.set(card.domain, []);
+    }
+    groupedCards.get(card.domain).push(card);
+  });
+
+  return Array.from(groupedCards.entries())
+    .filter(([, cards]) => cards.length > 0)
+    .map(([title, cards]) => ({ title, cards }));
+}
+
+function closeOpenedAppsMenu() {
+  if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
+    return;
+  }
+  dom.openedAppsMenu.classList.add("is-hidden");
+  dom.openedAppsMenu.setAttribute("aria-hidden", "true");
+  dom.openedAppsToggle.setAttribute("aria-expanded", "false");
+}
+
+function openOpenedAppsMenu() {
+  if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
+    return;
+  }
+  dom.openedAppsMenu.classList.remove("is-hidden");
+  dom.openedAppsMenu.setAttribute("aria-hidden", "false");
+  dom.openedAppsToggle.setAttribute("aria-expanded", "true");
+}
+
+function closeLoadedApplet(appletId, options = {}) {
+  const { keepLauncherOpen = false } = options;
+  const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
+  if (!loadedAppletIdSet.has(normalizedId) || loadedAppletIds.length <= 1) {
+    return false;
+  }
+
+  const nextLoadedAppletIds = loadedAppletIds.filter((id) => id !== normalizedId);
+  const nextActiveApplet = activeApplet === normalizedId || !nextLoadedAppletIds.includes(activeApplet)
+    ? nextLoadedAppletIds[0]
+    : activeApplet;
+
+  applyAppletMode(nextActiveApplet, {
+    loadedAppletIds: nextLoadedAppletIds,
+    updateUrl: true,
+    replaceHistory: false,
+  });
+
+  if (keepLauncherOpen) {
+    welcomeLauncherMode = "manage";
+    welcomeStatusMessage = "";
+    renderWelcomeNavigator();
+  }
+
+  return true;
+}
+
+function renderOpenedAppsMenu() {
+  if (!dom.openedAppsMenuList || !dom.openedAppsToggle) {
+    return;
+  }
+
+  if (dom.openedAppsTitle) {
+    dom.openedAppsTitle.textContent = String(APPLET_META[activeApplet]?.key ?? activeApplet);
+  }
+
+  dom.openedAppsToggle.disabled = loadedAppletIds.length === 0;
+  dom.openedAppsToggle.setAttribute("title", `Manage opened applets (${loadedAppletIds.length})`);
+  dom.openedAppsToggle.setAttribute("aria-label", `Manage opened applets (${loadedAppletIds.length})`);
+
+  const canClose = loadedAppletIds.length > 1;
+  const fragment = document.createDocumentFragment();
+
+  loadedAppletIds.forEach((appletId) => {
+    const row = document.createElement("div");
+    row.className = "opened-apps-menu-row";
+
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "opened-apps-menu-open";
+    if (appletId === activeApplet) {
+      openButton.classList.add("is-active");
+    }
+    openButton.textContent = APPLET_META[appletId]?.key ?? appletId;
+    openButton.addEventListener("click", () => {
+      applyAppletMode(appletId, {
+        loadedAppletIds,
+        updateUrl: true,
+        replaceHistory: false,
+      });
+      closeOpenedAppsMenu();
+    });
+
+    row.appendChild(openButton);
+
+    if (canClose) {
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "opened-apps-menu-close";
+      closeButton.setAttribute("aria-label", `Close ${APPLET_META[appletId]?.label ?? appletId}`);
+      closeButton.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+      closeButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const closed = closeLoadedApplet(appletId, { keepLauncherOpen: false });
+        if (!closed) {
+          return;
+        }
+      });
+      row.appendChild(closeButton);
+    }
+
+    fragment.appendChild(row);
+  });
+
+  dom.openedAppsMenuList.replaceChildren(fragment);
+}
+
+function setupOpenedAppsMenu() {
+  if (!dom.openedAppsToggle || !dom.openedAppsMenu) {
+    return;
+  }
+
+  dom.openedAppsToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isHidden = dom.openedAppsMenu.classList.contains("is-hidden");
+    if (isHidden) {
+      openOpenedAppsMenu();
+    } else {
+      closeOpenedAppsMenu();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!dom.openedAppsMenu || !dom.openedAppsToggle) {
+      return;
+    }
+    const target = event.target;
+    const clickedInsideMenu = dom.openedAppsMenu.contains(target);
+    const clickedToggle = dom.openedAppsToggle.contains(target);
+    if (!clickedInsideMenu && !clickedToggle) {
+      closeOpenedAppsMenu();
+    }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeOpenedAppsMenu();
+    }
+  });
+}
+
+function handleWelcomeCardClick(appletId) {
+  const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
+  welcomeStatusMessage = "";
+
+  if (welcomeLauncherMode !== "manage") {
+    applyAppletMode(normalizedId, {
+      loadedAppletIds: [normalizedId],
+      updateUrl: true,
+      replaceHistory: false,
+    });
+    hideWelcomeNavigator();
+    return;
+  }
+
+  if (loadedAppletIdSet.has(normalizedId)) {
+    applyAppletMode(normalizedId, {
+      loadedAppletIds,
+      updateUrl: true,
+      replaceHistory: false,
+    });
+    hideWelcomeNavigator();
+    return;
+  }
+
+  if (loadedAppletIds.length >= MAX_LOADED_APPLET_COUNT) {
+    welcomeStatusMessage = `Opened ${loadedAppletIds.length}/${MAX_LOADED_APPLET_COUNT}. Close one to add another.`;
+    renderWelcomeNavigator();
+    return;
+  }
+
+  const nextLoadedAppletIds = [...loadedAppletIds, normalizedId];
+  applyAppletMode(normalizedId, {
+    loadedAppletIds: nextLoadedAppletIds,
+    updateUrl: true,
+    replaceHistory: false,
+  });
+  hideWelcomeNavigator();
+}
+
+function renderWelcomeNavigator() {
+  if (!dom.welcomeGridGroups) {
+    return;
+  }
+
+  const groups = getWelcomeGroups(welcomeSortMode);
+  const fragment = document.createDocumentFragment();
+
+  groups.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "welcome-group";
+
+    const title = document.createElement("h2");
+    title.className = "welcome-group-title";
+    title.textContent = group.title;
+    section.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "welcome-card-grid";
+
+    group.cards.forEach((card) => {
+      const isOpen = loadedAppletIdSet.has(card.id);
+      const canClose = isOpen && welcomeLauncherMode === "manage" && loadedAppletIds.length > 1;
+      const cardButton = document.createElement("button");
+      cardButton.type = "button";
+      cardButton.className = "welcome-card";
+      if (isOpen) {
+        cardButton.classList.add("is-opened");
+      }
+      if (card.id === activeApplet) {
+        cardButton.classList.add("is-active-applet");
+      }
+      cardButton.setAttribute("data-welcome-applet", card.id);
+      cardButton.setAttribute("aria-label", `Open ${card.label}`);
+
+      const cardHead = document.createElement("div");
+      cardHead.className = "welcome-card-head";
+
+      const cardTitle = document.createElement("h3");
+      cardTitle.className = "welcome-card-title";
+      cardTitle.textContent = card.label;
+
+      cardHead.appendChild(cardTitle);
+
+      if (isOpen && loadedAppletIds.length > 1) {
+        const openMark = document.createElement(canClose ? "button" : "span");
+        openMark.className = "welcome-card-close";
+        openMark.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+        if (canClose) {
+          openMark.type = "button";
+          openMark.setAttribute("aria-label", `Close ${card.label}`);
+          openMark.setAttribute("title", "Click to close");
+          openMark.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeLoadedApplet(card.id, { keepLauncherOpen: true });
+          });
+        } else {
+          openMark.classList.add("is-static");
+          openMark.setAttribute("title", "Click card to open");
+          openMark.setAttribute("aria-hidden", "true");
+        }
+        cardHead.appendChild(openMark);
+      }
+
+      const summaryText = document.createElement("p");
+      summaryText.className = "welcome-card-copy";
+      summaryText.textContent = card.summary;
+
+      cardButton.appendChild(cardHead);
+      cardButton.appendChild(summaryText);
+      cardButton.setAttribute(
+        "title",
+        canClose ? "Click card to switch. X closes applet." : "Click card to open",
+      );
+      cardButton.addEventListener("click", () => handleWelcomeCardClick(card.id));
+
+      grid.appendChild(cardButton);
+    });
+
+    section.appendChild(grid);
+    fragment.appendChild(section);
+  });
+
+  dom.welcomeGridGroups.replaceChildren(fragment);
+
+  if (dom.welcomeStatusCopy) {
+    const hasStatus = Boolean(welcomeStatusMessage);
+    dom.welcomeStatusCopy.classList.toggle("is-hidden", !hasStatus);
+    dom.welcomeStatusCopy.textContent = hasStatus ? welcomeStatusMessage : "";
+  }
+  if (dom.welcomeSortToggle) {
+    const grouped = welcomeSortMode !== "alphabet";
+    const modeLabel = grouped ? "grouped" : "alphabetical";
+    const nextLabel = grouped ? "alphabetical" : "grouped";
+    dom.welcomeSortToggle.setAttribute("title", `Sort: ${modeLabel}. Click for ${nextLabel}.`);
+    dom.welcomeSortToggle.setAttribute("aria-label", `Sort: ${modeLabel}. Click for ${nextLabel}.`);
+    dom.welcomeSortToggle.innerHTML = grouped
+      ? '<i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>'
+      : '<i class="bi bi-sort-alpha-down" aria-hidden="true"></i>';
+  }
+  if (dom.welcomeClose) {
+    dom.welcomeClose.classList.add("is-hidden");
+  }
+}
+
+function showWelcomeNavigator(options = {}) {
+  if (!dom.welcomeOverlay) {
+    return;
+  }
+
+  const { mode = "start" } = options;
+  welcomeLauncherMode = mode === "manage" ? "manage" : "start";
+  welcomeStatusMessage = "";
+  closeMobileNavigation();
+  closeOpenedAppsMenu();
+  renderWelcomeNavigator();
+
+  dom.welcomeOverlay.classList.remove("is-hidden");
+  dom.welcomeOverlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("welcome-visible");
+}
+
+function hideWelcomeNavigator() {
+  if (!dom.welcomeOverlay) {
+    return;
+  }
+  dom.welcomeOverlay.classList.add("is-hidden");
+  dom.welcomeOverlay.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("welcome-visible");
+  welcomeStatusMessage = "";
+  closeOpenedAppsMenu();
+}
+
+function setupWelcomeNavigator() {
+  if (!dom.welcomeOverlay) {
+    return;
+  }
+  if (dom.welcomeSiteVersion) {
+    dom.welcomeSiteVersion.textContent = String(SITE_VERSION || "--");
+  }
+
+  dom.welcomeSortToggle?.addEventListener("click", () => {
+    welcomeSortMode = welcomeSortMode === "grouped" ? "alphabet" : "grouped";
+    renderWelcomeNavigator();
+  });
+
+  dom.welcomeClose?.addEventListener("click", () => {
+    if (welcomeLauncherMode === "manage") {
+      hideWelcomeNavigator();
+    }
+  });
+
+  dom.welcomeOverlay.addEventListener("click", (event) => {
+    if (event.target === dom.welcomeOverlay && welcomeLauncherMode === "manage") {
+      hideWelcomeNavigator();
+    }
+  });
+
+  renderWelcomeNavigator();
+}
+
+function setupLauncherEntryPoints() {
+  dom.launcherOpen?.addEventListener("click", () => {
+    showWelcomeNavigator({ mode: "manage" });
+  });
+}
+
 function setupAppRouting() {
   setupUrlRouting({
     ...ROUTING_OPTIONS,
-    applyAppletMode,
+    applyRouteState: (routeState, options = {}) => {
+      const hasAppletParam = Boolean(routeState?.hasAppletParam);
+      const routeActiveApplet = normalizeAppletIdParam(
+        routeState?.activeAppletId,
+        ROUTING_OPTIONS,
+      );
+      const routeLoadedAppletIds = normalizeLoadedAppletIds(
+        routeState?.loadedAppletIds,
+        routeActiveApplet,
+      );
+      applyAppletMode(routeActiveApplet, {
+        ...options,
+        loadedAppletIds: routeLoadedAppletIds,
+      });
+
+      if (hasAppletParam) {
+        hideWelcomeNavigator();
+      } else {
+        showWelcomeNavigator({ mode: "start" });
+      }
+    },
   });
 }
 
@@ -1700,7 +2245,7 @@ function updateMobileCurrentAppletLabel(appletId) {
   if (!dom.mobileCurrentApplet) {
     return;
   }
-  const label = APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? appletId;
+  const label = APPLET_META[appletId]?.key ?? appletId;
   dom.mobileCurrentApplet.textContent = label;
 }
 
@@ -1731,8 +2276,23 @@ function applySceneObjectVisibility(appletId) {
 }
 
 function applyAppletMode(appletId, options = {}) {
-  const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
-  const { updateUrl = false, replaceHistory = false } = options;
+  const {
+    updateUrl = false,
+    replaceHistory = false,
+    loadedAppletIds: requestedLoadedAppletIds = null,
+  } = options;
+  const normalizedRequestedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
+  const normalizedLoadedAppletIds = normalizeLoadedAppletIds(
+    requestedLoadedAppletIds ?? loadedAppletIds,
+    normalizedRequestedId,
+  );
+  loadedAppletIds = normalizedLoadedAppletIds;
+  loadedAppletIdSet = new Set(loadedAppletIds);
+  applyLoadedAppletTabVisibility();
+
+  const normalizedId = loadedAppletIds.includes(normalizedRequestedId)
+    ? normalizedRequestedId
+    : loadedAppletIds[0] || DEFAULT_APPLET_ID;
   const previousApplet = activeApplet;
   const wasProjectionInitialized = Boolean(appletProjectionInitialized[normalizedId]);
 
@@ -1755,6 +2315,7 @@ function applyAppletMode(appletId, options = {}) {
     tab.classList.toggle("is-active", isActive);
     tab.setAttribute("aria-selected", String(isActive));
   });
+  renderOpenedAppsMenu();
 
   applyAppletVisibility(normalizedId);
   updateMobileCurrentAppletLabel(normalizedId);
@@ -1797,7 +2358,12 @@ function applyAppletMode(appletId, options = {}) {
   handleViewportResize();
 
   if (updateUrl) {
-    setAppletInUrlParam(normalizedId, { replaceHistory: Boolean(replaceHistory) });
+    setAppletRouteInUrlParam({
+      ...ROUTING_OPTIONS,
+      activeAppletId: normalizedId,
+      loadedAppletIds,
+      replaceHistory: Boolean(replaceHistory),
+    });
   }
 }
 
@@ -1957,6 +2523,13 @@ function setupMobileNavigation() {
     dom.aboutInfoOpen?.click();
     closeMobileNavigation();
   });
+  if (dom.mobileNavLauncher) {
+    dom.mobileNavLauncher.classList.remove("is-hidden");
+    dom.mobileNavLauncher.addEventListener("click", () => {
+      showWelcomeNavigator({ mode: "manage" });
+      closeMobileNavigation();
+    });
+  }
 }
 
 function openMobileNavigation() {
@@ -2463,7 +3036,7 @@ function drawTrendCharts() {
 }
 
 function getTrendChartCanvasId(appletId, key) {
-  return `chart-${key}`;
+  return `chart-${appletId}-${key}`;
 }
 
 function getTrendChartLiveId(appletId, key) {

@@ -11,21 +11,21 @@ export const DUNE_APPLET_CONFIG = validateAppletConfig(duneConfigData);
 const DUNE_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("dune-height", () => "0.00 m", {
+      createChartMetricsEntry("height", () => "0.00 m", {
         stroke: "#f6d17b",
         fill: "rgba(246, 209, 123, 0.16)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("dune-relief", () => "0.00 m", {
+      createChartMetricsEntry("relief", () => "0.00 m", {
         stroke: "#ef9d5d",
         fill: "rgba(239, 157, 93, 0.15)",
         axisLabel: "m",
         tickFormatter: (value) => value.toFixed(1),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("dune-transport", () => "0.00 m/s", {
+      createChartMetricsEntry("transport", () => "0.00 m/s", {
         stroke: "#8fded4",
         fill: "rgba(143, 222, 212, 0.14)",
         axisLabel: "m/s",
@@ -78,12 +78,12 @@ export class DuneSimulation extends BaseSimulation {
 
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.material = new THREE.MeshPhongMaterial({
-      color: 0xd8b36a,
+      color: 0xffffff,
       vertexColors: false,
       fog: false,
-      specular: 0x3a2b18,
-      emissive: 0x22180d,
-      emissiveIntensity: 0.26,
+      specular: 0x2a2a2a,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
       shininess: 16,
       flatShading: false,
       side: THREE.DoubleSide,
@@ -111,7 +111,7 @@ export class DuneSimulation extends BaseSimulation {
   }
 
   onTheme(theme) {
-    this.material.specular.set(theme === "light" ? 0x5a4834 : 0x3a2b18);
+    this.material.specular.set(theme === "light" ? 0x3a3a3a : 0x2a2a2a);
   }
 
   reset() {

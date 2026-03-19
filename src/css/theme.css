@@ -64,6 +64,101 @@ body[data-theme="light"] .mobile-nav-drawer {
   background: linear-gradient(90deg, rgba(234, 241, 253, 0.96), rgba(224, 234, 250, 0.9));
 }
 
+body[data-theme="light"] .welcome-overlay {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(94, 130, 198, 0.24), transparent 40%),
+    radial-gradient(circle at 82% 78%, rgba(80, 169, 180, 0.18), transparent 44%),
+    linear-gradient(160deg, rgba(224, 233, 248, 0.94), rgba(214, 226, 246, 0.96));
+}
+
+body[data-theme="light"] .welcome-surface {
+  background: transparent;
+  border-color: transparent;
+}
+
+body[data-theme="light"] .welcome-card {
+  background: rgba(231, 240, 253, 0.72);
+}
+
+body[data-theme="light"] .welcome-card.is-opened {
+  background: rgba(216, 236, 245, 0.88);
+}
+
+body[data-theme="light"] .welcome-card-close {
+  color: #8a2f42;
+  background: rgba(255, 231, 235, 0.95);
+  border-color: rgba(202, 95, 119, 0.52);
+}
+
+body[data-theme="light"] .welcome-card-close:hover,
+body[data-theme="light"] .welcome-card-close:focus-visible {
+  color: #6c1f32;
+  background: rgba(255, 218, 225, 0.98);
+  border-color: rgba(180, 70, 96, 0.72);
+}
+
+body[data-theme="light"] .applet-nav-current {
+  border-color: transparent;
+  background: transparent;
+}
+
+body[data-theme="light"] .applet-nav-current:hover,
+body[data-theme="light"] .applet-nav-current:focus-visible {
+  border-color: #4a7fd5;
+  background: transparent;
+}
+
+body[data-theme="light"] .applet-nav-add {
+  color: #3f77c7;
+}
+
+body[data-theme="light"] .applet-nav-add:hover,
+body[data-theme="light"] .applet-nav-add:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  color: #2d5ea4;
+}
+
+body[data-theme="light"] .opened-apps-menu {
+  border-color: rgba(104, 132, 178, 0.32);
+  background: linear-gradient(170deg, rgba(238, 246, 255, 0.95), rgba(229, 239, 253, 0.93));
+}
+
+body[data-theme="light"] .opened-apps-menu-open,
+body[data-theme="light"] .opened-apps-menu-close {
+  background: rgba(220, 232, 250, 0.88);
+  color: #2f486f;
+}
+
+body[data-theme="light"] .opened-apps-menu-open:hover,
+body[data-theme="light"] .opened-apps-menu-open:focus-visible,
+body[data-theme="light"] .opened-apps-menu-close:hover,
+body[data-theme="light"] .opened-apps-menu-close:focus-visible {
+  background: rgba(209, 224, 246, 0.96);
+}
+
+body[data-theme="light"] .export-preview-wrap {
+  background: rgba(224, 235, 252, 0.86);
+  border-color: rgba(104, 132, 178, 0.32);
+}
+
+body[data-theme="light"] .export-preview-head,
+body[data-theme="light"] .export-preview-lines {
+  border-color: rgba(104, 132, 178, 0.32);
+  background: rgba(216, 228, 248, 0.84);
+}
+
+body[data-theme="light"] .export-preview-code {
+  background: rgba(231, 239, 252, 0.88);
+  color: #2a3f62;
+}
+
+body[data-theme="light"] .site-credit {
+  border-color: rgba(104, 132, 178, 0.34);
+  background: rgba(230, 238, 251, 0.92);
+  color: #51668a;
+}
+
 body[data-theme="light"] .mobile-applet-tab {
   background: transparent;
   color: #5a6b8b;
@@ -73,6 +168,19 @@ body[data-theme="light"] .mobile-applet-tab.is-active {
   background: transparent;
   color: #30466e;
   border-bottom-color: #4a7fd5;
+}
+
+body[data-theme="light"] .mobile-applet-close {
+  color: #8a2f42;
+  background: rgba(255, 231, 235, 0.95);
+  border-color: rgba(202, 95, 119, 0.52);
+}
+
+body[data-theme="light"] .mobile-applet-close:hover,
+body[data-theme="light"] .mobile-applet-close:focus-visible {
+  color: #6c1f32;
+  background: rgba(255, 218, 225, 0.98);
+  border-color: rgba(180, 70, 96, 0.72);
 }
 
 body[data-theme="light"] .mobile-panel-btn {

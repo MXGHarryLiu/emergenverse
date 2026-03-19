@@ -1,6 +1,8 @@
 {
   "label": "Ant Trails",
+  "key": "ant",
   "intro": {
+    "summary": "Trail foraging with pheromone memory",
     "paragraphs": [
       "This applet models trail formation from simple foraging behavior. Ants sample local cues, choose a turning direction, and reinforce routes by leaving behind a shared trail field.",
       "Open the model equations view for the motion rule, the heading update, and the trail-field dynamics."
@@ -69,34 +71,32 @@
     "params": [
       {
         "type": "stat",
-        "key": "ant-fps",
+        "key": "fps",
         "label": "FPS",
-        "valueId": "ants-fps-live",
         "initial": "--"
       },
       {
         "type": "stat",
-        "key": "ant-carrying",
+        "key": "carrying",
         "label": "Carrying",
-        "valueId": "ants-carrying-live",
         "initial": "0",
         "labelClass": "ant-carrying-label"
       },
       {
         "type": "chart",
-        "key": "ant-count",
+        "key": "count",
         "label": "Counts",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "ant-trips",
+        "key": "trips",
         "label": "Trips",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "ant-pheromone",
+        "key": "pheromone",
         "label": "Pheromone",
         "liveInitial": "0.00"
       }

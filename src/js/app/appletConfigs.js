@@ -175,12 +175,13 @@ function getStatsEntries(statsConfig = {}) {
   return { statEntries, chartEntries };
 }
 
-function deriveStatValueId(statEntry) {
-  if (typeof statEntry?.valueId === "string" && statEntry.valueId.trim().length > 0) {
-    return statEntry.valueId.trim();
-  }
+function deriveStatValueId(statEntry, appletId) {
   const key = String(statEntry?.key || "").trim();
-  return key ? `${key}-live` : null;
+  const appKey = String(appletId || "").trim();
+  if (!appKey || !key) {
+    return null;
+  }
+  return `${appKey}-${key}-live`;
 }
 
 function validateSimulationContract(id, SimulationClass) {
@@ -222,6 +223,10 @@ export const APPLET_META = Object.fromEntries(
     const config = APPLET_DEFINITIONS[id].config;
     const simulation = config?.simulation ?? {};
     const stats = config?.stats ?? {};
+    const introSummary = String(config?.intro?.summary || "").trim()
+      || (Array.isArray(config?.intro?.paragraphs)
+        ? String(config.intro.paragraphs[0] ?? "").trim()
+        : "");
     const { statEntries } = getStatsEntries(stats);
     const fpsStat = statEntries.find((entry) => {
       const label = String(entry?.label || "").toLowerCase();
@@ -234,7 +239,9 @@ export const APPLET_META = Object.fromEntries(
         id,
         label: config?.label ?? id,
         shortLabel: config?.shortLabel ?? config?.label?.split(/\s+/)[0] ?? id,
-        fpsValueId: deriveStatValueId(fpsStat),
+        key: String(config?.key ?? id).trim() || id,
+        introSummary,
+        fpsValueId: deriveStatValueId(fpsStat, id),
         ...deriveSimulationActionButtonIds(id, simulation),
       },
     ];

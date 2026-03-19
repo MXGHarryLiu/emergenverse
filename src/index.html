@@ -59,6 +59,46 @@
         document.documentElement.style.colorScheme = effectiveTheme === "dark" ? "dark" : "light";
       })();
     </script>
+    <section class="welcome-overlay is-hidden" id="welcome-overlay" aria-hidden="true">
+      <div class="welcome-surface">
+        <header class="welcome-head">
+          <div class="welcome-brand">
+            <span class="brand-mark">E</span>
+            <div>
+              <div class="brand-title">Emergenverse</div>
+              <div class="brand-subtitle">Discover patterns from simple rules</div>
+            </div>
+          </div>
+        </header>
+        <div class="welcome-toolbar" role="toolbar" aria-label="Welcome navigator options">
+          <p class="welcome-toolbar-copy is-hidden" id="welcome-status-copy"></p>
+          <div class="welcome-toolbar-actions">
+            <button
+              class="chip chip-button nav-icon-btn"
+              id="welcome-sort-toggle"
+              type="button"
+              title="Sort cards by grouped mode"
+              aria-label="Sort cards by grouped mode"
+            >
+              <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-theme is-hidden" id="welcome-close" type="button">
+              Done
+            </button>
+          </div>
+        </div>
+        <div class="welcome-grid-groups" id="welcome-grid-groups" aria-live="polite"></div>
+        <footer class="welcome-foot">
+          <div class="welcome-credit-row">
+            <span>Author: MXGHarryLiu</span>
+            <a href="https://github.com/MXGHarryLiu/emergenverse" target="_blank" rel="noopener noreferrer">
+              GitHub
+            </a>
+            <span>Version <span id="welcome-site-version">--</span></span>
+          </div>
+        </footer>
+      </div>
+    </section>
     <nav class="navbar top-nav px-3 px-lg-4">
       <div class="container-fluid g-0">
         <div class="d-flex align-items-center gap-3 nav-brand-group">
@@ -78,7 +118,7 @@
             <div class="brand-title">Emergenverse</div>
             <div class="brand-subtitle">Discover patterns from simple rules</div>
           </div>
-          <div class="applet-nav" id="applet-nav" role="tablist" aria-label="Applet mode"></div>
+          <div class="applet-nav" id="applet-nav" aria-label="Applet navigation"></div>
           <div class="mobile-current-applet is-hidden" id="mobile-current-applet" aria-live="polite"></div>
         </div>
         <div class="d-flex align-items-center gap-2 nav-actions">
@@ -130,6 +170,18 @@
           </button>
         </header>
         <div class="mobile-applet-nav" id="mobile-applet-nav" role="tablist" aria-label="Mobile applet mode"></div>
+        <div class="mobile-nav-launcher-slot">
+          <button
+            class="mobile-nav-action-btn is-hidden"
+            id="mobile-nav-launcher"
+            type="button"
+            aria-label="Open launcher"
+            title="Open launcher"
+          >
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            <span>Launcher</span>
+          </button>
+        </div>
         <div class="mobile-nav-actions is-hidden" id="mobile-nav-actions" aria-label="Additional actions">
           <button
             class="mobile-nav-action-btn is-hidden"
@@ -651,7 +703,19 @@
         </header>
         <div class="controls-modal-body">
           <p class="controls-modal-subtitle mb-2">Export current application state.</p>
-          <div class="modal-actions">
+          <div class="export-preview-wrap mt-1" aria-label="Export JSON preview">
+            <div class="export-preview-head">
+              <span>Formatted JSON Preview</span>
+              <button class="btn btn-sm btn-outline-theme" id="export-preview-copy" type="button">
+                Copy JSON
+              </button>
+            </div>
+            <div class="export-preview-frame">
+              <pre class="export-preview-lines" id="export-preview-lines" aria-hidden="true">1</pre>
+              <pre class="export-preview-code" id="export-preview-code" tabindex="0"></pre>
+            </div>
+          </div>
+          <div class="modal-actions mt-3">
             <button class="btn btn-theme w-100" id="export-params-json" type="button">
               Export Parameters (JSON)
             </button>
@@ -876,6 +940,8 @@
       </div>
     </template>
 
+    <footer class="site-credit" aria-label="Project credit">Created by MXGHarryLiu</footer>
+
     <script
       defer
       src="https://cdn.jsdelivr.net/npm/katex@0.16.38/dist/katex.min.js"
@@ -887,5 +953,5 @@
       crossorigin="anonymous"
     ></script>
     <script type="module" src="./js/app.js"></script>
-  </body>
+</body>
 </html>

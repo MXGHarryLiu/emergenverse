@@ -11,21 +11,21 @@ export const ANT_APPLET_CONFIG = validateAppletConfig(antConfigData);
 const ANT_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("ant-count", () => "0", {
+      createChartMetricsEntry("count", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("ant-trips", () => "0", {
+      createChartMetricsEntry("trips", () => "0", {
         stroke: "#f1b55b",
         fill: "rgba(241, 181, 91, 0.18)",
         axisLabel: "trips",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("ant-pheromone", () => "0.00", {
+      createChartMetricsEntry("pheromone", () => "0.00", {
         stroke: "#79d2ff",
         fill: "rgba(121, 210, 255, 0.18)",
         axisLabel: "a.u.",

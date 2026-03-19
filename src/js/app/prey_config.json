@@ -1,6 +1,8 @@
 {
   "label": "Prey Chain",
+  "key": "prey",
   "intro": {
+    "summary": "Predator-prey cycles and chase dynamics",
     "paragraphs": [
       "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
       "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping."
@@ -67,26 +69,25 @@
     "params": [
       {
         "type": "stat",
-        "key": "prey-fps",
+        "key": "fps",
         "label": "FPS",
-        "valueId": "prey-fps-live",
         "initial": "--"
       },
       {
         "type": "chart",
-        "key": "prey-count",
+        "key": "count",
         "label": "Prey Count",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "predator-count",
+        "key": "predator",
         "label": "Predator Count",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "prey-eaten",
+        "key": "eaten",
         "label": "Predation (cum.)",
         "liveInitial": "0"
       }

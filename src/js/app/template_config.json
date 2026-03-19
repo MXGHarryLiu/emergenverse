@@ -1,6 +1,8 @@
 {
   "label": "Template Applet",
+  "key": "template",
   "intro": {
+    "summary": "Starter scaffold for new simulation applets",
     "paragraphs": [
       "Describe the applet in plain language.",
       "Put equations and parameter mapping in the model popup."

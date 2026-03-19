@@ -1,6 +1,8 @@
 {
   "label": "Firefly Sync",
+  "key": "firefly",
   "intro": {
+    "summary": "Oscillator coupling and flash synchronization",
     "paragraphs": [
       "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
       "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure."
@@ -60,26 +62,25 @@
     "params": [
       {
         "type": "stat",
-        "key": "firefly-fps",
+        "key": "fps",
         "label": "FPS",
-        "valueId": "firefly-fps-live",
         "initial": "--"
       },
       {
         "type": "chart",
-        "key": "firefly-count",
+        "key": "count",
         "label": "Count",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "firefly-order",
+        "key": "order",
         "label": "Order (R)",
         "liveInitial": "0.000"
       },
       {
         "type": "chart",
-        "key": "firefly-blink",
+        "key": "blink",
         "label": "Blink Rate",
         "liveInitial": "0.0 /s"
       }

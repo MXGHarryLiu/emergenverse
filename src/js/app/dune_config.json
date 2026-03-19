@@ -1,6 +1,8 @@
 {
   "label": "Dune Dynamics",
+  "key": "dune",
   "intro": {
+    "summary": "Wind transport and avalanche dune formation",
     "paragraphs": [
       "This applet models a sand bed as square columns that exchange sediment under steady wind. Wind moves grains downwind, while steep faces relax through avalanching.",
       "Open the model equations view for the transport rule, the avalanche threshold, and the control mapping."
@@ -77,29 +79,29 @@
     "params": [
       {
         "type": "stat",
-        "key": "dune-fps",
+        "key": "fps",
         "label": "FPS"
       },
       {
         "type": "stat",
-        "key": "dune-avalanche",
+        "key": "avalanche",
         "label": "Avalanches"
       },
       {
         "type": "chart",
-        "key": "dune-height",
+        "key": "height",
         "label": "Mean Height",
         "unit": "m"
       },
       {
         "type": "chart",
-        "key": "dune-relief",
+        "key": "relief",
         "label": "Relief",
         "unit": "m"
       },
       {
         "type": "chart",
-        "key": "dune-transport",
+        "key": "transport",
         "label": "Transport",
         "unit": "m/s"
       }
@@ -110,10 +112,10 @@
       {
         "key": "simSpeed",
         "label": "Simulation Speed",
-        "default": 1.0,
+        "default": 10.0,
         "group": "dynamic",
         "uiMin": 0.1,
-        "uiMax": 10,
+        "uiMax": 100,
         "control": {
           "type": "slider",
           "icon": "bi-stopwatch",
@@ -123,7 +125,7 @@
       {
         "key": "objectSizeM",
         "label": "Object Visual Size (\\(s_{obj}\\))",
-        "default": 5.0,
+        "default": 2.5,
         "unit": "m",
         "group": "initial",
         "uiMin": 0.5,
@@ -239,7 +241,7 @@
         "unit": "m",
         "group": "initial",
         "uiMin": 0.0,
-        "uiMax": 3.0,
+        "uiMax": 6.0,
         "control": {
           "type": "slider",
           "icon": "bi-stars",

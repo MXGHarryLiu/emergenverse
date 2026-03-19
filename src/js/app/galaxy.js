@@ -27,14 +27,14 @@ export const GALAXY_APPLET_CONFIG = validateAppletConfig(galaxyConfigData);
 const GALAXY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("galaxy-count", () => "0", {
+      createChartMetricsEntry("count", () => "0", {
         stroke: "#8eb7ff",
         fill: "rgba(142, 183, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("galaxy-radius", () => `0 ${GALAXY_UNITS.length.label}`, {
+      createChartMetricsEntry("radius", () => `0 ${GALAXY_UNITS.length.label}`, {
         stroke: "#9de2ff",
         fill: "rgba(157, 226, 255, 0.16)",
         supportsDistribution: true,
@@ -47,7 +47,7 @@ const GALAXY_APPLET_RUNTIME = {
         tickFormatter: (value) => Math.round(value).toString(),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("galaxy-speed", () => `0 ${GALAXY_SPEED_UNIT}`, {
+      createChartMetricsEntry("speed", () => `0 ${GALAXY_SPEED_UNIT}`, {
         stroke: "#ffbe8d",
         fill: "rgba(255, 190, 141, 0.16)",
         axisLabel: GALAXY_SPEED_UNIT,
@@ -72,7 +72,7 @@ const GALAXY_APPLET_RUNTIME = {
       `${Math.round(meanSpeed).toLocaleString()} ${GALAXY_SPEED_UNIT}`,
     ], {
       distributionSamples: {
-        "galaxy-radius": radiusSamples,
+        radius: radiusSamples,
       },
     });
   },

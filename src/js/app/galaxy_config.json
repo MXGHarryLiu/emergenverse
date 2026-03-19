@@ -1,6 +1,8 @@
 {
   "label": "Galaxy Gravity",
+  "key": "galaxy",
   "intro": {
+    "summary": "N-body gravity shaping orbital structure",
     "paragraphs": [
       "This applet shows a self-gravitating 3D particle cloud. Matter pulls inward while initial orbital motion shapes large-scale structure over time.",
       "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units."
@@ -63,27 +65,26 @@
     "params": [
       {
         "type": "stat",
-        "key": "galaxy-fps",
+        "key": "fps",
         "label": "FPS",
-        "valueId": "galaxy-fps-live",
         "initial": "--"
       },
       {
         "type": "chart",
-        "key": "galaxy-count",
+        "key": "count",
         "label": "Count",
         "liveInitial": "0"
       },
       {
         "type": "chart",
-        "key": "galaxy-radius",
+        "key": "radius",
         "label": "Radius",
         "liveInitial": "0 kly",
         "supportsDistribution": true
       },
       {
         "type": "chart",
-        "key": "galaxy-speed",
+        "key": "speed",
         "label": "Mean Speed",
         "liveInitial": "0 kly/Myr"
       }

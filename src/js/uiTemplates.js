@@ -74,7 +74,6 @@ export function renderAppletSectionsFromConfig() {
 
   renderSharedRightSections(rightPanel, templates);
 }
-
 // Template and panel helpers
 function getTemplateRefs() {
   return {
@@ -171,7 +170,7 @@ function buildStatsSection(statsConfig, appletId, templates) {
       label.classList.add(stat.labelClass);
     }
     const value = card.querySelector(".stat-inline-value");
-    value.id = resolveStatValueId(stat);
+    value.id = resolveStatValueId(appletId, stat);
     value.textContent = stat.initial ?? "0";
     statGrid.appendChild(card);
   });
@@ -209,10 +208,10 @@ function buildStatsSection(statsConfig, appletId, templates) {
     }
     card.querySelector(".chart-title").textContent = chartLabel;
     const live = card.querySelector(".chart-live");
-    live.id = deriveChartLiveId(chartKey);
+    live.id = deriveChartLiveId(appletId, chartKey);
     live.textContent = resolveChartLiveInitial(chart);
     const canvas = card.querySelector("canvas");
-    canvas.id = deriveChartCanvasId(chartKey);
+    canvas.id = deriveChartCanvasId(appletId, chartKey);
     canvas.setAttribute("aria-label", `${appletId} ${chartLabel} trend chart`);
     chartStack.appendChild(card);
   });
@@ -247,7 +246,7 @@ function getStatsEntries(statsConfig = {}) {
   return { statEntries, chartEntries };
 }
 
-function resolveStatValueId(stat) {
+function resolveStatValueId(appletId, stat) {
   if (typeof stat?.valueId === "string" && stat.valueId.trim().length > 0) {
     return stat.valueId.trim();
   }
@@ -255,15 +254,21 @@ function resolveStatValueId(stat) {
   if (!key) {
     throw new Error("[uiTemplates] Stats stat entry requires non-empty \"key\" when valueId is omitted.");
   }
-  return `${key}-live`;
+  const appKey = String(appletId || "").trim();
+  if (!appKey) {
+    throw new Error("[uiTemplates] Stats stat entry requires non-empty applet id.");
+  }
+  return `${appKey}-${key}-live`;
 }
 
-function deriveChartCanvasId(chartKey) {
-  return `chart-${chartKey}`;
+function deriveChartCanvasId(appletId, chartKey) {
+  const appKey = String(appletId || "").trim();
+  const key = String(chartKey || "").trim();
+  return `chart-${appKey}-${key}`;
 }
 
-function deriveChartLiveId(chartKey) {
-  return `${deriveChartCanvasId(chartKey)}-live`;
+function deriveChartLiveId(appletId, chartKey) {
+  return `${deriveChartCanvasId(appletId, chartKey)}-live`;
 }
 
 function resolveChartLiveInitial(chart) {

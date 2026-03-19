@@ -419,6 +419,14 @@ export function validateAppletConfig(config) {
   };
   const label = config.label ?? "Applet";
   const shortLabel = config.shortLabel ?? label.split(/\s+/)[0] ?? label;
+  const category = typeof config.category === "string" && config.category.trim().length > 0
+    ? config.category.trim()
+    : "General";
+  const appletKey = typeof config.key === "string" && config.key.trim().length > 0
+    ? config.key.trim()
+    : (typeof config.navKey === "string" && config.navKey.trim().length > 0
+      ? config.navKey.trim()
+      : "");
   const configuredWorldBoundaryMode = Array.isArray(config.world?.params)
     ? config.world.params.find((entry) => entry?.key === "boundaryMode")?.default
     : undefined;
@@ -449,6 +457,8 @@ export function validateAppletConfig(config) {
   return {
     label,
     shortLabel,
+    key: appletKey || undefined,
+    category,
     params: config.params ?? null,
     defaultProjection: resolvedDefaultProjection,
     defaultBoundaryMode: resolvedDefaultBoundaryMode,

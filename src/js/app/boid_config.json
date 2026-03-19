@@ -1,6 +1,8 @@
 {
   "label": "Boids",
+  "key": "boid",
   "intro": {
+    "summary": "Flocking from local alignment, cohesion, separation",
     "paragraphs": [
       "This applet shows flocking as a local coordination process. Each boid responds to nearby neighbors, and large-scale group motion emerges from those simple local interactions.",
       "Open the model equations view for the update rules and the parameter-to-equation mapping."
@@ -54,9 +56,8 @@
     "params": [
       {
         "type": "stat",
-        "key": "boid-fps",
+        "key": "fps",
         "label": "FPS",
-        "valueId": "fps-live",
         "initial": "--"
       },
       {

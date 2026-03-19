@@ -11,14 +11,14 @@ export const FIREFLY_APPLET_CONFIG = validateAppletConfig(fireflyConfigData);
 const FIREFLY_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
     return [
-      createChartMetricsEntry("firefly-count", () => "0", {
+      createChartMetricsEntry("count", () => "0", {
         stroke: "#7ec4ff",
         fill: "rgba(126, 196, 255, 0.14)",
         axisLabel: "count",
         tickFormatter: (value) => String(Math.max(0, Math.round(value))),
         forceZeroMin: true,
       }),
-      createChartMetricsEntry("firefly-order", () => "0.000", {
+      createChartMetricsEntry("order", () => "0.000", {
         stroke: "#ffe38d",
         fill: "rgba(255, 227, 141, 0.18)",
         axisLabel: "R",
@@ -26,7 +26,7 @@ const FIREFLY_APPLET_RUNTIME = {
         minValue: 0,
         maxValue: 1,
       }),
-      createChartMetricsEntry("firefly-blink", () => "0.0 /s", {
+      createChartMetricsEntry("blink", () => "0.0 /s", {
         stroke: "#ffd26e",
         fill: "rgba(255, 210, 110, 0.16)",
         axisLabel: "/s",
