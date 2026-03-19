@@ -75,6 +75,31 @@ function applySiteVersionTag() {
   document.body?.setAttribute("data-site-version", version);
 }
 
+function cloneJsonSafe(value, fallback = {}) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+function pickAppletParamsBySection(appletId, sectionKey) {
+  const section = APPLET_CONFIGS[appletId]?.[sectionKey];
+  const entries = Array.isArray(section?.params) ? section.params : [];
+  const source = params[appletId] || {};
+  const picked = {};
+
+  entries.forEach((entry) => {
+    const key = String(entry?.key || "").trim();
+    if (!key || !Object.prototype.hasOwnProperty.call(source, key)) {
+      return;
+    }
+    picked[key] = source[key];
+  });
+
+  return picked;
+}
+
 const cameraControlDefaults = Object.freeze({
   fov: Object.freeze({ min: 20, max: 90, step: 1 }),
   moveSpeed: Object.freeze({ min: 1, max: 100000, step: 1, defaultValue: 30000 }),
@@ -771,11 +796,41 @@ setupUiOverlays({
     params.paused = Boolean(value);
   },
   onPauseStateChange: () => updateSimulationStateUI(),
-  getExportData: () => ({
-    exportedAt: new Date().toISOString(),
-    params: JSON.parse(JSON.stringify(params[activeApplet] || {})),
-    stats: JSON.parse(JSON.stringify(lastAppletStats[activeApplet] || {})),
-  }),
+  getExportData: () => {
+    const meta = APPLET_META[activeApplet] || {};
+    const cameraSnapshot = cameraController.getCameraSnapshot?.() || null;
+    const simulationParams = pickAppletParamsBySection(activeApplet, "simulation");
+    const visualParams = pickAppletParamsBySection(activeApplet, "visual");
+
+    return {
+      app: {
+        name: String(meta.label || activeApplet),
+        key: String(meta.key || activeApplet),
+      },
+      exportedAt: new Date().toISOString(),
+      simulation: {
+        ...cloneJsonSafe(simulationParams, {}),
+        world: {
+          sizeX: Number(params.worldSizeX),
+          sizeY: Number(params.worldSizeY),
+          sizeZ: Number(params.worldSizeZ),
+          gridSize: Number(params.worldGridSize),
+          boundaryMode: normalizeBoundaryMode(params.boundaryMode),
+        },
+      },
+      visual: cloneJsonSafe(visualParams, {}),
+      camera: {
+        mode: params.projectionMode === "orthographic" ? "orthographic" : "perspective",
+        fov: Number(params.cameraFov),
+        locked: Boolean(params.cameraLocked),
+        moveSpeed: Number(params.keyboardMoveSpeed),
+        rotationSpeed: Number(params.keyboardRotationSpeed),
+        spaceshipMode: Boolean(params.spaceshipMode),
+        spaceshipSas: Boolean(params.spaceshipSas),
+        snapshot: cloneJsonSafe(cameraSnapshot, null),
+      },
+    };
+  },
 });
 setupTrendCharts();
 setupChartModeToggles();
@@ -1678,7 +1733,7 @@ function applyLoadedAppletTabVisibility() {
     tab.setAttribute("aria-hidden", String(!isVisible));
     const closeButton = row?.querySelector(".mobile-applet-close");
     if (closeButton) {
-      const canClose = isVisible && loadedAppletIds.length > 1;
+      const canClose = isVisible && loadedAppletIds.length > 0;
       closeButton.classList.toggle("is-hidden", !canClose);
       closeButton.disabled = !canClose;
     }
@@ -1760,11 +1815,27 @@ function openOpenedAppsMenu() {
 function closeLoadedApplet(appletId, options = {}) {
   const { keepLauncherOpen = false } = options;
   const normalizedId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
-  if (!loadedAppletIdSet.has(normalizedId) || loadedAppletIds.length <= 1) {
+  if (!loadedAppletIdSet.has(normalizedId)) {
     return false;
   }
 
   const nextLoadedAppletIds = loadedAppletIds.filter((id) => id !== normalizedId);
+  if (nextLoadedAppletIds.length === 0) {
+    loadedAppletIds = [];
+    loadedAppletIdSet = new Set();
+    applyLoadedAppletTabVisibility();
+    renderOpenedAppsMenu();
+    closeOpenedAppsMenu();
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("app");
+    url.searchParams.delete("apps");
+    window.history.pushState({ app: null, apps: "" }, "", url);
+
+    showWelcomeNavigator({ mode: "start" });
+    return true;
+  }
+
   const nextActiveApplet = activeApplet === normalizedId || !nextLoadedAppletIds.includes(activeApplet)
     ? nextLoadedAppletIds[0]
     : activeApplet;
@@ -1790,14 +1861,16 @@ function renderOpenedAppsMenu() {
   }
 
   if (dom.openedAppsTitle) {
-    dom.openedAppsTitle.textContent = String(APPLET_META[activeApplet]?.key ?? activeApplet);
+    dom.openedAppsTitle.textContent = loadedAppletIds.length > 0
+      ? String(APPLET_META[activeApplet]?.key ?? activeApplet)
+      : "launcher";
   }
 
   dom.openedAppsToggle.disabled = loadedAppletIds.length === 0;
   dom.openedAppsToggle.setAttribute("title", `Manage opened applets (${loadedAppletIds.length})`);
   dom.openedAppsToggle.setAttribute("aria-label", `Manage opened applets (${loadedAppletIds.length})`);
 
-  const canClose = loadedAppletIds.length > 1;
+  const canClose = loadedAppletIds.length > 0;
   const fragment = document.createDocumentFragment();
 
   loadedAppletIds.forEach((appletId) => {
@@ -1939,15 +2012,16 @@ function renderWelcomeNavigator() {
     grid.className = "welcome-card-grid";
 
     group.cards.forEach((card) => {
+      const showOpenState = welcomeLauncherMode === "manage";
       const isOpen = loadedAppletIdSet.has(card.id);
-      const canClose = isOpen && welcomeLauncherMode === "manage" && loadedAppletIds.length > 1;
+      const canClose = showOpenState && isOpen && loadedAppletIds.length > 0;
       const cardButton = document.createElement("button");
       cardButton.type = "button";
       cardButton.className = "welcome-card";
-      if (isOpen) {
+      if (showOpenState && isOpen) {
         cardButton.classList.add("is-opened");
       }
-      if (card.id === activeApplet) {
+      if (showOpenState && card.id === activeApplet) {
         cardButton.classList.add("is-active-applet");
       }
       cardButton.setAttribute("data-welcome-applet", card.id);
@@ -1962,7 +2036,7 @@ function renderWelcomeNavigator() {
 
       cardHead.appendChild(cardTitle);
 
-      if (isOpen && loadedAppletIds.length > 1) {
+      if (showOpenState && isOpen && loadedAppletIds.length > 0) {
         const openMark = document.createElement(canClose ? "button" : "span");
         openMark.className = "welcome-card-close";
         openMark.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
@@ -2029,6 +2103,7 @@ function showWelcomeNavigator(options = {}) {
     return;
   }
 
+  document.documentElement.classList.remove("boot-show-launcher");
   const { mode = "start" } = options;
   welcomeLauncherMode = mode === "manage" ? "manage" : "start";
   welcomeStatusMessage = "";
@@ -2045,6 +2120,7 @@ function hideWelcomeNavigator() {
   if (!dom.welcomeOverlay) {
     return;
   }
+  document.documentElement.classList.remove("boot-show-launcher");
   dom.welcomeOverlay.classList.add("is-hidden");
   dom.welcomeOverlay.setAttribute("aria-hidden", "true");
   document.body.classList.remove("welcome-visible");

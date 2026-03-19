@@ -4,8 +4,8 @@
   "intro": {
     "summary": "N-body gravity shaping orbital structure",
     "paragraphs": [
-      "This applet shows a self-gravitating 3D particle cloud. Matter pulls inward while initial orbital motion shapes large-scale structure over time.",
-      "Open the model equations view for the force law, the central mass term, and the parameter mapping in astrophysical units."
+      "A rotating cloud of matter can self-organize into striking structures under gravity alone.",
+      "Softened gravity, central mass, object total mass, and orbital spin sculpt acceleration and binding into arcs and clusters that slowly reveal a cosmic architecture."
     ]
   },
   "model": {

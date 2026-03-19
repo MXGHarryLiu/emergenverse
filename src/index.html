@@ -27,6 +27,19 @@
     />
     <link rel="stylesheet" href="./css/styles.css" />
     <link rel="stylesheet" href="./css/theme.css" />
+    <script>
+      (() => {
+        try {
+          const url = new URL(window.location.href);
+          const hasAppletQuery = url.searchParams.has("app");
+          if (!hasAppletQuery) {
+            document.documentElement.classList.add("boot-show-launcher");
+          }
+        } catch (_error) {
+          document.documentElement.classList.add("boot-show-launcher");
+        }
+      })();
+    </script>
     <script type="importmap">
       {
         "imports": {
@@ -90,7 +103,6 @@
         <div class="welcome-grid-groups" id="welcome-grid-groups" aria-live="polite"></div>
         <footer class="welcome-foot">
           <div class="welcome-credit-row">
-            <span>Author: MXGHarryLiu</span>
             <a href="https://github.com/MXGHarryLiu/emergenverse" target="_blank" rel="noopener noreferrer">
               GitHub
             </a>
@@ -939,8 +951,6 @@
         </div>
       </div>
     </template>
-
-    <footer class="site-credit" aria-label="Project credit">Created by MXGHarryLiu</footer>
 
     <script
       defer

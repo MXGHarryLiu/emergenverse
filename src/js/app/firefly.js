@@ -140,8 +140,8 @@ export class FireflySimulation extends BaseSimulation {
 
   getFrequencyRange() {
     if (!this.fireflies.length) {
-      const center = Math.max(0.05, this.params.frequencyHz ?? 1.8);
-      const jitter = Math.max(0, this.params.freqJitterHz ?? 0.2);
+      const center = Math.max(0.05, this.params.frequency ?? 1.8);
+      const jitter = Math.max(0, this.params.freqJitter ?? 0.2);
       return {
         min: Math.max(0, center - jitter),
         max: center + jitter,
@@ -180,8 +180,8 @@ export class FireflySimulation extends BaseSimulation {
     const coupling = Math.max(0, this.params.coupling ?? 2.2);
     const radius = Math.max(0.2, this.params.radius ?? 18);
     const radiusSq = radius * radius;
-    const baseHz = Math.max(0.05, this.params.frequencyHz ?? 1.8);
-    const jitterHz = Math.max(0, this.params.freqJitterHz ?? 0.2);
+    const baseHz = Math.max(0.05, this.params.frequency ?? 1.8);
+    const jitterHz = Math.max(0, this.params.freqJitter ?? 0.2);
     const phaseNoise = Math.max(0, this.params.phaseNoise ?? 0.4);
 
     this.phaseStepBuffer.length = count;
@@ -364,8 +364,8 @@ export class FireflySimulation extends BaseSimulation {
       phase: Math.random() * TWO_PI,
       omegaHz: Math.max(
         0.05,
-        (this.params.frequencyHz ?? 1.8) +
-          THREE.MathUtils.randFloatSpread((this.params.freqJitterHz ?? 0.2) * 2),
+        (this.params.frequency ?? 1.8) +
+          THREE.MathUtils.randFloatSpread((this.params.freqJitter ?? 0.2) * 2),
       ),
       lost: false,
     };
@@ -436,8 +436,8 @@ function buildFireflyColormapConfig({
   }
 
   const range = simulation?.getFrequencyRange?.() ?? {
-    min: Math.max(0, (params?.frequencyHz ?? 1.8) - (params?.freqJitterHz ?? 0.2)),
-    max: (params?.frequencyHz ?? 1.8) + (params?.freqJitterHz ?? 0.2),
+    min: Math.max(0, (params?.frequency ?? 1.8) - (params?.freqJitter ?? 0.2)),
+    max: (params?.frequency ?? 1.8) + (params?.freqJitter ?? 0.2),
   };
   return {
     visible: true,

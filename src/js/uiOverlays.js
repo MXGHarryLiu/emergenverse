@@ -28,12 +28,18 @@ export function setupUiOverlays({
   onPauseStateChange,
   getExportData,
 }) {
-  setupSupportPopup(dom);
-  setupControlsInfoPopup(dom);
-  setupModelInfoPopup(dom, getActiveApplet);
-  setupAboutPopup(dom);
-  setupSharePopup(dom);
-  setupExportPopup(dom, getActiveApplet, getExportData);
+  const popupPauseController = createPopupPauseController({
+    getPaused,
+    setPaused,
+    onPauseStateChange,
+  });
+
+  setupSupportPopup(dom, popupPauseController);
+  setupControlsInfoPopup(dom, popupPauseController);
+  setupModelInfoPopup(dom, getActiveApplet, popupPauseController);
+  setupAboutPopup(dom, popupPauseController);
+  setupSharePopup(dom, getActiveApplet, popupPauseController);
+  setupExportPopup(dom, getActiveApplet, getExportData, popupPauseController);
   setupScreenshotPopup({
     dom,
     renderer,
@@ -43,7 +49,53 @@ export function setupUiOverlays({
     getPaused,
     setPaused,
     onPauseStateChange,
+    popupPauseController,
   });
+}
+
+function createPopupPauseController({ getPaused, setPaused, onPauseStateChange }) {
+  const openBackdrops = new Set();
+  let openCount = 0;
+  let resumeWhenAllClosed = false;
+
+  const applyPauseState = (nextPaused) => {
+    if (typeof setPaused === "function") {
+      setPaused(Boolean(nextPaused));
+    }
+    if (typeof onPauseStateChange === "function") {
+      onPauseStateChange();
+    }
+  };
+
+  return {
+    onPopupOpen(backdrop) {
+      if (!backdrop || openBackdrops.has(backdrop)) {
+        return;
+      }
+      if (openCount === 0) {
+        const wasPaused = typeof getPaused === "function" ? Boolean(getPaused()) : true;
+        resumeWhenAllClosed = !wasPaused;
+        if (!wasPaused) {
+          applyPauseState(true);
+        }
+      }
+      openBackdrops.add(backdrop);
+      openCount += 1;
+    },
+    onPopupClose(backdrop) {
+      if (!backdrop || !openBackdrops.has(backdrop)) {
+        return;
+      }
+      openBackdrops.delete(backdrop);
+      openCount = Math.max(0, openCount - 1);
+      if (openCount === 0 && resumeWhenAllClosed) {
+        applyPauseState(false);
+      }
+      if (openCount === 0) {
+        resumeWhenAllClosed = false;
+      }
+    },
+  };
 }
 // Generic overlay helpers
 function bindDismissibleOverlay({ openButton, closeButton, backdrop, onOpen, onClose }) {
@@ -122,23 +174,27 @@ function closeOverlay(backdrop) {
 }
 
 // Basic popups
-function setupSupportPopup(dom) {
+function setupSupportPopup(dom, popupPauseController) {
   bindDismissibleOverlay({
     openButton: dom.supportInfoOpen,
     closeButton: dom.supportInfoClose,
     backdrop: dom.supportInfoBackdrop,
+    onOpen: () => popupPauseController?.onPopupOpen(dom.supportInfoBackdrop),
+    onClose: () => popupPauseController?.onPopupClose(dom.supportInfoBackdrop),
   });
 }
 
-function setupControlsInfoPopup(dom) {
+function setupControlsInfoPopup(dom, popupPauseController) {
   bindDismissibleOverlay({
     openButton: dom.controlsInfoOpen,
     closeButton: dom.controlsInfoClose,
     backdrop: dom.controlsInfoBackdrop,
+    onOpen: () => popupPauseController?.onPopupOpen(dom.controlsInfoBackdrop),
+    onClose: () => popupPauseController?.onPopupClose(dom.controlsInfoBackdrop),
   });
 }
 
-function setupAboutPopup(dom) {
+function setupAboutPopup(dom, popupPauseController) {
   const aboutVersionValue = document.getElementById("about-version-value");
   if (aboutVersionValue) {
     aboutVersionValue.textContent = String(SITE_VERSION || "--");
@@ -148,11 +204,13 @@ function setupAboutPopup(dom) {
     openButton: dom.aboutInfoOpen,
     closeButton: dom.aboutInfoClose,
     backdrop: dom.aboutInfoBackdrop,
+    onOpen: () => popupPauseController?.onPopupOpen(dom.aboutInfoBackdrop),
+    onClose: () => popupPauseController?.onPopupClose(dom.aboutInfoBackdrop),
   });
 }
 
 // Model equations popup
-function setupModelInfoPopup(dom, getActiveApplet) {
+function setupModelInfoPopup(dom, getActiveApplet, popupPauseController) {
   if (!dom.modelInfoBackdrop || !dom.modelInfoClose || !dom.modelInfoTitle || !dom.modelInfoBody) {
     return;
   }
@@ -286,6 +344,7 @@ function setupModelInfoPopup(dom, getActiveApplet) {
     button.addEventListener("click", () => {
       const appletId = button.getAttribute("data-model-info-open") || getActiveApplet();
       renderModelContent(appletId);
+      popupPauseController?.onPopupOpen(dom.modelInfoBackdrop);
       openOverlay(dom.modelInfoBackdrop);
     });
   });
@@ -293,11 +352,12 @@ function setupModelInfoPopup(dom, getActiveApplet) {
   bindDismissibleOverlay({
     closeButton: dom.modelInfoClose,
     backdrop: dom.modelInfoBackdrop,
+    onClose: () => popupPauseController?.onPopupClose(dom.modelInfoBackdrop),
   });
 }
 
 // Share popup
-function setupSharePopup(dom) {
+function setupSharePopup(dom, getActiveApplet, popupPauseController) {
   if (
     !dom.shareInfoOpen ||
     !dom.shareInfoClose ||
@@ -308,7 +368,15 @@ function setupSharePopup(dom) {
     return;
   }
 
-  const getShareUrl = () => window.location.href;
+  const getShareUrl = () => {
+    const url = new URL(window.location.href);
+    const activeApplet = typeof getActiveApplet === "function" ? String(getActiveApplet() || "").trim() : "";
+    url.search = "";
+    if (activeApplet) {
+      url.searchParams.set("app", activeApplet);
+    }
+    return url.toString();
+  };
 
   const setStatus = (message) => {
     if (dom.shareCopyStatus) {
@@ -319,10 +387,14 @@ function setupSharePopup(dom) {
   const openPopup = () => {
     dom.shareLinkInput.value = getShareUrl();
     setStatus(SHARE_STATUS_DEFAULT);
+    popupPauseController?.onPopupOpen(dom.shareInfoBackdrop);
     openOverlay(dom.shareInfoBackdrop);
   };
 
-  const closePopup = () => closeOverlay(dom.shareInfoBackdrop);
+  const closePopup = () => {
+    closeOverlay(dom.shareInfoBackdrop);
+    popupPauseController?.onPopupClose(dom.shareInfoBackdrop);
+  };
 
   dom.shareInfoOpen.addEventListener("click", openPopup);
   dom.shareInfoClose.addEventListener("click", closePopup);
@@ -357,7 +429,7 @@ function setupSharePopup(dom) {
 }
 
 // Export popup
-function setupExportPopup(dom, getActiveApplet, getExportData) {
+function setupExportPopup(dom, getActiveApplet, getExportData, popupPauseController) {
   if (
     !dom.exportInfoOpen ||
     !dom.exportInfoClose ||
@@ -377,9 +449,10 @@ function setupExportPopup(dom, getActiveApplet, getExportData) {
     typeof getExportData === "function"
       ? getExportData()
       : {
-          app: "emergenverse",
+          app: {
+            key: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
+          },
           exportedAt: new Date().toISOString(),
-          activeApplet: typeof getActiveApplet === "function" ? getActiveApplet() : "unknown",
           params: {},
         };
 
@@ -445,10 +518,14 @@ function setupExportPopup(dom, getActiveApplet, getExportData) {
   const openPopup = () => {
     refreshExportPreview();
     setStatus(EXPORT_STATUS_DEFAULT);
+    popupPauseController?.onPopupOpen(dom.exportInfoBackdrop);
     openOverlay(dom.exportInfoBackdrop);
   };
 
-  const closePopup = () => closeOverlay(dom.exportInfoBackdrop);
+  const closePopup = () => {
+    closeOverlay(dom.exportInfoBackdrop);
+    popupPauseController?.onPopupClose(dom.exportInfoBackdrop);
+  };
 
   dom.exportInfoOpen.addEventListener("click", openPopup);
   dom.exportInfoClose.addEventListener("click", closePopup);
@@ -531,6 +608,7 @@ function setupScreenshotPopup({
   getPaused,
   setPaused,
   onPauseStateChange,
+  popupPauseController,
 }) {
   if (
     !dom.viewportScreenshotBtn ||
@@ -546,7 +624,6 @@ function setupScreenshotPopup({
 
   // Screenshot state
   let screenshotInProgress = false;
-  let popupPausedByScreenshotDialog = false;
   let previewScale = 1;
   let previewOffsetX = 0;
   let previewOffsetY = 0;
@@ -837,12 +914,7 @@ function setupScreenshotPopup({
 
   // Screenshot popup open and close
   const openPopup = () => {
-    popupPausedByScreenshotDialog = false;
-    if (!getPaused()) {
-      setPaused(true);
-      onPauseStateChange();
-      popupPausedByScreenshotDialog = true;
-    }
+    popupPauseController?.onPopupOpen(dom.screenshotInfoBackdrop);
     dom.screenshotTransparentBg.checked = false;
     dom.screenshotIncludeOverlay.checked = false;
     setStatus(SCREENSHOT_STATUS_TRANSPARENT);
@@ -853,11 +925,7 @@ function setupScreenshotPopup({
 
   const closePopup = () => {
     closeOverlay(dom.screenshotInfoBackdrop);
-    if (popupPausedByScreenshotDialog) {
-      setPaused(false);
-      onPauseStateChange();
-    }
-    popupPausedByScreenshotDialog = false;
+    popupPauseController?.onPopupClose(dom.screenshotInfoBackdrop);
     resetPreviewTransform();
   };
 

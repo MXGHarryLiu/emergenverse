@@ -4,8 +4,8 @@
   "intro": {
     "summary": "Predator-prey cycles and chase dynamics",
     "paragraphs": [
-      "This applet shows predator-prey cycling through pursuit, evasion, reproduction, and energy loss. Population waves emerge from repeated encounters between the two groups.",
-      "Open the model equations view for the population law, the motion update, and the energy-based parameter mapping."
+      "Population booms and crashes can arise from repeated chase, escape, and reproduction cycles.",
+      "Lotka-Volterra terms, predation radius, birth rate, and predator energy gain/loss trace a shifting rhythm where survival and pursuit take turns at center stage."
     ]
   },
   "model": {

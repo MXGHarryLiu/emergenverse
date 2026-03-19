@@ -85,16 +85,16 @@ body[data-theme="light"] .welcome-card.is-opened {
 }
 
 body[data-theme="light"] .welcome-card-close {
-  color: #8a2f42;
-  background: rgba(255, 231, 235, 0.95);
-  border-color: rgba(202, 95, 119, 0.52);
+  color: #62759a;
+  background: rgba(226, 236, 250, 0.92);
+  border-color: rgba(104, 132, 178, 0.32);
 }
 
 body[data-theme="light"] .welcome-card-close:hover,
 body[data-theme="light"] .welcome-card-close:focus-visible {
-  color: #6c1f32;
-  background: rgba(255, 218, 225, 0.98);
-  border-color: rgba(180, 70, 96, 0.72);
+  color: #2f8b8c;
+  background: rgba(209, 224, 246, 0.96);
+  border-color: rgba(98, 126, 173, 0.7);
 }
 
 body[data-theme="light"] .applet-nav-current {
@@ -171,16 +171,16 @@ body[data-theme="light"] .mobile-applet-tab.is-active {
 }
 
 body[data-theme="light"] .mobile-applet-close {
-  color: #8a2f42;
-  background: rgba(255, 231, 235, 0.95);
-  border-color: rgba(202, 95, 119, 0.52);
+  color: #62759a;
+  background: rgba(226, 236, 250, 0.92);
+  border-color: rgba(104, 132, 178, 0.32);
 }
 
 body[data-theme="light"] .mobile-applet-close:hover,
 body[data-theme="light"] .mobile-applet-close:focus-visible {
-  color: #6c1f32;
-  background: rgba(255, 218, 225, 0.98);
-  border-color: rgba(180, 70, 96, 0.72);
+  color: #2f8b8c;
+  background: rgba(209, 224, 246, 0.96);
+  border-color: rgba(98, 126, 173, 0.7);
 }
 
 body[data-theme="light"] .mobile-panel-btn {

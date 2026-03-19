@@ -1,6 +1,6 @@
+// Theme state manager and scene-theme helpers for auto/light/dark mode.
 import * as THREE from "three";
 
-// Theme state manager and scene-theme helpers for auto/light/dark mode.
 const DEFAULT_THEME_MODES = ["auto", "dark", "light"];
 const DEFAULT_STORAGE_KEY = "emergenverse-theme-mode";
 const WORLD_THEME_PRESETS = {

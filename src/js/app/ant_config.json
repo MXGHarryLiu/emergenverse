@@ -4,8 +4,8 @@
   "intro": {
     "summary": "Trail foraging with pheromone memory",
     "paragraphs": [
-      "This applet models trail formation from simple foraging behavior. Ants sample local cues, choose a turning direction, and reinforce routes by leaving behind a shared trail field.",
-      "Open the model equations view for the motion rule, the heading update, and the trail-field dynamics."
+      "Ant colonies discover efficient routes by leaving and sensing faint chemical traces.",
+      "Turn gain, goal bias, diffusion, evaporation, and deposit rate weave sensing and steering into a fading map that remembers where the colony has been."
     ]
   },
   "model": {

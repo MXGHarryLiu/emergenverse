@@ -4,8 +4,8 @@
   "intro": {
     "summary": "Oscillator coupling and flash synchronization",
     "paragraphs": [
-      "This applet models collective flashing as local rhythm alignment. Each firefly keeps its own blink cycle while also responding to nearby neighbors, which can pull the group into synchrony.",
-      "Open the model equations view for the phase oscillator rule, the blink condition, and the synchronization measure."
+      "Independent rhythms can suddenly lock together when nearby oscillators influence each other.",
+      "Coupling strength, interaction radius, frequency jitter, and phase noise guide phase locking, until many small clocks begin to breathe in the same light."
     ]
   },
   "model": {
@@ -171,7 +171,7 @@
         }
       },
       {
-        "key": "frequencyHz",
+        "key": "frequency",
         "label": "Base Frequency",
         "default": 1.8,
         "unit": "Hz",
@@ -185,7 +185,7 @@
         }
       },
       {
-        "key": "freqJitterHz",
+        "key": "freqJitter",
         "label": "Frequency Jitter",
         "default": 0.2,
         "unit": "Hz",

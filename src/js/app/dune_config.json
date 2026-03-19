@@ -4,8 +4,8 @@
   "intro": {
     "summary": "Wind transport and avalanche dune formation",
     "paragraphs": [
-      "This applet models a sand bed as square columns that exchange sediment under steady wind. Wind moves grains downwind, while steep faces relax through avalanching.",
-      "Open the model equations view for the transport rule, the avalanche threshold, and the control mapping."
+      "Steady wind can sculpt flat sand into repeating ridges through transport and collapse.",
+      "Wind strength, transport rate, repose slope, and avalanche rate choreograph crest migration and collapse, so the landscape redraws itself grain by grain."
     ]
   },
   "model": {
