@@ -353,16 +353,19 @@ export class AntSimulation extends BaseSimulation {
 
   step(dt) {
     const sensorAngleRad = THREE.MathUtils.degToRad(this.params.sensorAngle);
-    const sensorDistance = Math.max(0.2, this.params.sensorDistance);
-    const foodSenseRadius = Math.max(sensorDistance, this.params.foodSenseDistance ?? sensorDistance);
-    const foodPickupRadius = Math.max(0.005, this.params.pickupRadius ?? 0.04);
+    const sensorDistance = Math.max(0.2, this.toWorldLength(this.params.sensorDistance, 0.08));
+    const foodSenseRadius = Math.max(
+      sensorDistance,
+      this.toWorldLength(this.params.foodSenseDistance ?? this.params.sensorDistance, 0.18),
+    );
+    const foodPickupRadius = Math.max(0.005, this.toWorldLength(this.params.pickupRadius, 0.04));
     const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
     const nestRadius = Math.max(0.02, worldMinAxis * 0.025);
     const turnGain = Math.max(0, this.params.turnGain);
     const goalBias = Math.max(0, this.params.goalBias);
     const departureRate = Math.max(0, this.params.departureRate ?? 12);
     const depositRate = Math.max(0, this.params.depositRate);
-    const speed = Math.max(0, this.params.speed);
+    const speed = Math.max(0, this.toWorldLength(this.params.speed, 0.012));
     this.departureCredits = Math.min(
       this.ants.length,
       this.departureCredits + departureRate * dt,
@@ -550,8 +553,8 @@ export class AntSimulation extends BaseSimulation {
 
   getAntBodyScale() {
     const baseScale = Math.max(0.0005, Number(this.params.scale) || 0.003);
-    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
-    return baseScale * worldMinAxis * 0.5;
+    const visualScaleCompensation = 0.1;
+    return Math.max(0.0005, this.toWorldLength(baseScale, 0.003) * visualScaleCompensation);
   }
 
   applyAntColor(ant, outColor) {
@@ -819,12 +822,25 @@ export class AntSimulation extends BaseSimulation {
 
   getFoodRadiusFromMass(massUg) {
     const safeMass = Math.max(0, massUg);
-    const worldMinAxis = Math.max(0.1, Math.min(this.params.worldSizeX, this.params.worldSizeY));
-    const worldScaleFactor = worldMinAxis * 0.5;
-    const rawRadius = (0.01 + Math.cbrt(safeMass) * 0.0015) * worldScaleFactor;
-    const minRadius = 0.008 * worldScaleFactor;
-    const maxRadius = 0.08 * worldScaleFactor;
+    const visualScaleCompensation = 0.1;
+    const rawRadius = this.toWorldLength(0.01 + Math.cbrt(safeMass) * 0.0015, 0.01) * visualScaleCompensation;
+    const minRadius = this.toWorldLength(0.008, 0.008) * visualScaleCompensation;
+    const maxRadius = this.toWorldLength(0.08, 0.08) * visualScaleCompensation;
     return THREE.MathUtils.clamp(rawRadius, minRadius, maxRadius);
+  }
+
+  getWorldUnitsPerMeter() {
+    const lengthUnitToSI = Number(ANT_APPLET_CONFIG?.unit?.length?.toSI);
+    if (!Number.isFinite(lengthUnitToSI) || lengthUnitToSI <= 0) {
+      return 1;
+    }
+    return 1 / lengthUnitToSI;
+  }
+
+  toWorldLength(value, fallback = 0) {
+    const numeric = Number(value);
+    const baseMeters = Number.isFinite(numeric) ? numeric : Number(fallback) || 0;
+    return baseMeters * this.getWorldUnitsPerMeter();
   }
 
   applyBoundaryConditions(ant) {

@@ -203,29 +203,29 @@
       {
         "key": "centralMass",
         "label": "Central Mass (\\(M_c\\))",
-        "default": 2200000000000.0,
+        "default": 220000000000.0,
         "unit": "M_sun",
         "group": "dynamic",
-        "uiMin": 50000000000.0,
-        "uiMax": 10000000000000.0,
+        "uiMin": 1000000000.0,
+        "uiMax": 2000000000000.0,
         "control": {
           "type": "slider",
           "icon": "bi-bullseye",
-          "step": 50000000000.0
+          "step": 1000000000.0
         }
       },
       {
         "key": "objectTotalMass",
         "label": "Object Total Mass (\\(M_{\\mathrm{obj}}\\))",
-        "default": 440000000000.0,
+        "default": 44000000000.0,
         "unit": "M_sun",
         "group": "dynamic",
-        "uiMin": 10000000000.0,
-        "uiMax": 5000000000000.0,
+        "uiMin": 100000000.0,
+        "uiMax": 1000000000000.0,
         "control": {
           "type": "slider",
           "icon": "bi-boxes",
-          "step": 10000000000.0
+          "step": 1000000000.0
         }
       },
       {

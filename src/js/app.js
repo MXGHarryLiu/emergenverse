@@ -24,6 +24,14 @@ import {
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import { SITE_VERSION } from "./version.js";
 import {
+  getAngularUnitDisplayTransform,
+  getFrequencyUnitDisplayTransform,
+  getKinematicUnitDisplayTransform,
+  getLengthUnitDisplayTransform,
+  getSimpleUnitDisplayTransform,
+  getUnitDimensionTuple,
+} from "./units.js";
+import {
   drawTrendChart as renderTrendChart,
   pushTrendValue as appendTrendValue,
   resizeCanvasBackingStore as resizeChartCanvas,
@@ -1184,9 +1192,32 @@ function bindAppletSimulationControls() {
       sliders.forEach((slider) => {
         const inputId = getSimulationSliderInputId(appletId, slider);
         const valueId = getSimulationSliderValueId(appletId, slider);
+        const input = document.getElementById(inputId);
+        if (input) {
+          const paramKey = inferSliderParamKey(appletId, slider);
+          const appletParams = params[appletId] || {};
+          const sourceValue = paramKey && Object.prototype.hasOwnProperty.call(appletParams, paramKey)
+            ? appletParams[paramKey]
+            : slider.value;
+          input.value = String(getSliderDisplayValue(appletId, slider, sourceValue));
+          const sliderMin = Number(slider?.uiMin);
+          const sliderMax = Number(slider?.uiMax);
+          const displayMin = getSliderDisplayValue(appletId, slider, sliderMin);
+          const displayMax = getSliderDisplayValue(appletId, slider, sliderMax);
+          const displayStep = Number(getSliderDisplayStep(appletId, slider));
+          if (Number.isFinite(displayMin)) {
+            input.min = String(displayMin);
+          }
+          if (Number.isFinite(displayMax)) {
+            input.max = String(displayMax);
+          }
+          if (Number.isFinite(displayStep) && displayStep > 0) {
+            input.step = String(displayStep);
+          }
+        }
         bindRange(inputId, valueId, (value) => {
           const displayValue = handleAppletSliderInput(appletId, slider, value);
-          return formatSliderDisplayValue(slider, displayValue);
+          return formatAppletSliderDisplayValue(appletId, slider, displayValue);
         });
       });
     }
@@ -1470,7 +1501,7 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
     return rawValue;
   }
 
-  const value = normalizeSliderInputValue(slider, rawValue);
+  const value = normalizeSliderInputValue(appletId, slider, rawValue);
 
   appletParams[paramKey] = value;
   applySliderChangeToSimulation({ slider, paramKey, value, simulation });
@@ -1559,8 +1590,112 @@ function inferSliderParamKey(appletId, sliderConfigOrId) {
   return stripped.replace(/-([a-z0-9])/g, (_, char) => char.toUpperCase());
 }
 
-function normalizeSliderInputValue(slider, rawValue) {
-  let value = Number(rawValue);
+function getSliderUnitTransformCache() {
+  if (!getSliderUnitTransformCache.cache) {
+    getSliderUnitTransformCache.cache = new Map();
+  }
+  return getSliderUnitTransformCache.cache;
+}
+
+function getSliderUnitTransform(appletId, slider) {
+  const unitText = typeof slider?.unit === "string" ? slider.unit.trim() : "";
+  const sourceDimension = getUnitDimensionTuple(unitText);
+  const appletUnit = resolveAppletDominantUnitForDimension(appletId, sourceDimension);
+  const appletLengthUnit = String(getAppletLengthUnit(appletId)?.name || "").trim();
+  const appletTimeUnit = String(APPLET_CONFIGS[appletId]?.unit?.time?.label || "").trim();
+  const cacheKey = `${appletId}::${unitText}::${appletUnit || ""}::${appletLengthUnit}::${appletTimeUnit}::${Array.isArray(sourceDimension) ? sourceDimension.join(",") : ""}`;
+  const cache = getSliderUnitTransformCache();
+
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
+  let transform = getAngularUnitDisplayTransform(unitText, "\u00B0");
+  if (!transform) {
+    transform = getFrequencyUnitDisplayTransform(unitText, "Hz");
+  }
+  if (!transform) {
+    transform = getSimpleUnitDisplayTransform(unitText, appletUnit);
+  }
+  if (!transform) {
+    transform = getKinematicUnitDisplayTransform(unitText, appletLengthUnit, appletTimeUnit);
+  }
+  if (!transform) {
+    transform = getLengthUnitDisplayTransform(unitText, appletLengthUnit);
+  }
+  cache.set(cacheKey, transform);
+  return transform;
+}
+
+function resolveAppletDominantUnitForDimension(appletId, dimensionTuple) {
+  if (!Array.isArray(dimensionTuple) || dimensionTuple.length !== 3) {
+    return "";
+  }
+
+  if (dimensionTuple[0] !== 0) {
+    return String(getAppletLengthUnit(appletId)?.name || "").trim();
+  }
+  if (dimensionTuple[1] !== 0) {
+    return String(APPLET_CONFIGS[appletId]?.unit?.time?.label || "").trim();
+  }
+  if (dimensionTuple[2] !== 0) {
+    return String(APPLET_CONFIGS[appletId]?.unit?.mass?.label || "").trim();
+  }
+  return "";
+}
+
+function getSliderDisplayValue(appletId, slider, sourceValue) {
+  const transform = getSliderUnitTransform(appletId, slider);
+  if (!transform) {
+    return sourceValue;
+  }
+  return transform.toDisplay(sourceValue);
+}
+
+function getSliderSourceValue(appletId, slider, displayValue) {
+  const transform = getSliderUnitTransform(appletId, slider);
+  if (!transform) {
+    return displayValue;
+  }
+  return transform.toSource(displayValue);
+}
+
+function getSliderDisplayStep(appletId, slider) {
+  const stepValue = Number(slider?.step);
+  if (!Number.isFinite(stepValue)) {
+    return slider?.step;
+  }
+  const converted = getSliderDisplayValue(appletId, slider, stepValue);
+  return Number.isFinite(converted) ? converted : stepValue;
+}
+
+function getSliderDisplayUnit(appletId, slider) {
+  const transform = getSliderUnitTransform(appletId, slider);
+  if (!transform) {
+    return typeof slider?.unit === "string" ? slider.unit.trim() : "";
+  }
+  return transform.targetUnitText;
+}
+
+function normalizeSliderInputValue(appletId, slider, rawValue) {
+  let displayValue = Number(rawValue);
+  if (!Number.isFinite(displayValue)) {
+    displayValue = Number(slider?.value ?? 0);
+  }
+  if (!Number.isFinite(displayValue)) {
+    displayValue = 0;
+  }
+
+  const displayMin = getSliderDisplayValue(appletId, slider, Number(slider?.uiMin));
+  const displayMax = getSliderDisplayValue(appletId, slider, Number(slider?.uiMax));
+  if (Number.isFinite(displayMin)) {
+    displayValue = Math.max(displayMin, displayValue);
+  }
+  if (Number.isFinite(displayMax)) {
+    displayValue = Math.min(displayMax, displayValue);
+  }
+
+  let value = Number(getSliderSourceValue(appletId, slider, displayValue));
   if (!Number.isFinite(value)) {
     value = Number(slider?.value ?? 0);
   }
@@ -1639,7 +1774,13 @@ function formatSliderDisplayValue(slider, value) {
       ? numeric.toExponential(2)
       : String(Math.round(numeric));
     const unit = typeof slider?.unit === "string" ? slider.unit.trim() : "";
-    return unit ? `${numericText} ${unit}` : numericText;
+    if (!unit) {
+      return numericText;
+    }
+    if (unit === "\u00B0") {
+      return `${numericText}${unit}`;
+    }
+    return `${numericText} ${unit}`;
   }
 
   const trimmed = template.trimStart();
@@ -1653,6 +1794,23 @@ function formatSliderDisplayValue(slider, value) {
   const suffix = rawSuffix.trim().toLowerCase() === "x" ? "" : rawSuffix;
   const numeric = formatNumberLikeTemplate(value, numericTemplate, slider?.step);
   return `${numeric}${suffix}`;
+}
+
+function formatAppletSliderDisplayValue(appletId, slider, value) {
+  const displayValue = Number(getSliderDisplayValue(appletId, slider, value));
+  const displayStep = getSliderDisplayStep(appletId, slider);
+  const displayUnit = getSliderDisplayUnit(appletId, slider);
+  const hasConvertedUnit = typeof displayUnit === "string" && displayUnit !== (slider?.unit || "");
+
+  return formatSliderDisplayValue(
+    {
+      ...slider,
+      step: displayStep,
+      unit: displayUnit,
+      valueText: hasConvertedUnit ? "" : slider?.valueText,
+    },
+    Number.isFinite(displayValue) ? displayValue : value,
+  );
 }
 
 function formatNumberLikeTemplate(value, numericTemplate, stepValue) {
@@ -1716,7 +1874,12 @@ function applySimulationDefaultsForApplet(appletId) {
       if (!input) {
         return;
       }
-      input.value = String(slider.value);
+      const paramKey = inferSliderParamKey(appletId, slider);
+      const appletParams = params[appletId] || {};
+      const sourceValue = paramKey && Object.prototype.hasOwnProperty.call(appletParams, paramKey)
+        ? appletParams[paramKey]
+        : slider.value;
+      input.value = String(getSliderDisplayValue(appletId, slider, sourceValue));
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
   }
@@ -2245,7 +2408,8 @@ function applyWorldSliderConstraints(appletId) {
   applyRangeToInput(zInput, zParam);
 }
 
-function applyAppletWorldState(appletId) {
+function applyAppletWorldState(appletId, options = {}) {
+  const { forceBoundaryDefault = false } = options;
   const { gridSize: gridParam } = getWorldDimensionParams(appletId);
   const state = appletSession.ensureWorldState(appletId, createDefaultWorldState);
 
@@ -2257,8 +2421,13 @@ function applyAppletWorldState(appletId) {
   params.worldGridSize = Number.isFinite(state.gridSize)
     ? state.gridSize
     : convertLengthFromDisplay(Number(gridParam.default ?? 5), appletId);
+  const defaultBoundaryMode = getWorldBoundaryModeDefault(appletId);
+  if (forceBoundaryDefault) {
+    state.boundaryMode = defaultBoundaryMode;
+    appletSession.setWorldState(appletId, state);
+  }
   params.boundaryMode = normalizeBoundaryMode(
-    state.boundaryMode ?? getWorldBoundaryModeDefault(appletId),
+    state.boundaryMode ?? defaultBoundaryMode,
   );
 
   setControlValue(
@@ -2370,12 +2539,44 @@ function applySceneObjectVisibility(appletId) {
   simulationManager.setActive(appletId);
 }
 
+function haveSameAppletIdOrder(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function applyAppletMode(appletId, options = {}) {
   const {
     updateUrl = false,
     replaceHistory = false,
     loadedAppletIds: requestedLoadedAppletIds = null,
   } = options;
+  const normalizedRequestedAppletId = normalizeAppletIdParam(appletId, ROUTING_OPTIONS);
+  const normalizedRequestedLoadedAppletIds = appletSession.normalizeLoadedAppletIds(
+    requestedLoadedAppletIds ?? loadedAppletIds,
+    normalizedRequestedAppletId,
+  );
+  if (
+    normalizedRequestedAppletId === activeApplet &&
+    haveSameAppletIdOrder(normalizedRequestedLoadedAppletIds, loadedAppletIds)
+  ) {
+    if (updateUrl) {
+      setAppletRouteInUrlParam({
+        ...ROUTING_OPTIONS,
+        activeAppletId: activeApplet,
+        loadedAppletIds,
+        replaceHistory: Boolean(replaceHistory),
+      });
+    }
+    return;
+  }
+
   const sessionState = appletSession.applyMode(appletId, requestedLoadedAppletIds);
   syncAppletSessionMirrors();
   applyLoadedAppletTabVisibility();
@@ -2390,8 +2591,11 @@ function applyAppletMode(appletId, options = {}) {
   }
 
   applySceneObjectVisibility(normalizedId);
-  applyAppletWorldState(normalizedId);
-  if (!appletSimulationPrimed[normalizedId]) {
+  const isFirstAppletActivation = !appletSimulationPrimed[normalizedId];
+  applyAppletWorldState(normalizedId, {
+    forceBoundaryDefault: isFirstAppletActivation,
+  });
+  if (isFirstAppletActivation) {
     simulations[normalizedId]?.reset?.();
     appletSimulationPrimed[normalizedId] = true;
   }
@@ -3233,6 +3437,48 @@ function getNowMs() {
 }
 
 // Generic Control Utils + Compact Slider Hub
+function escapeHtml(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeScientificNotationText(display) {
+  return String(display ?? "").replace(
+    /([+-]?\d+(?:\.\d+)?)e([+-]?\d+)/gi,
+    (_match, mantissa, exponent) => `${mantissa}\u00D710^${Number(exponent)}`,
+  );
+}
+
+function normalizeDisplayTextForDataAttribute(display) {
+  return normalizeScientificNotationText(display).replace(/M_sun/g, "M\u2609");
+}
+
+function formatDisplayHtml(display) {
+  const escaped = escapeHtml(display);
+  const withScientificNotation = escaped.replace(
+    /([+-]?\d+(?:\.\d+)?)e([+-]?\d+)/gi,
+    (_match, mantissa, exponent) => `${mantissa}&times;10<sup>${Number(exponent)}</sup>`,
+  );
+  const withUnitSuperscripts = withScientificNotation.replace(/\^([+-]?\d+)/g, (_match, exponent) => `<sup>${Number(exponent)}</sup>`);
+  return withUnitSuperscripts.replace(/M_sun/g, "M<sub>\u2609</sub>");
+}
+
+function getOutputFormattedHtml(outputEl) {
+  if (!(outputEl instanceof HTMLElement)) {
+    return "";
+  }
+  const cachedHtml = String(outputEl.dataset.formattedHtml || "").trim();
+  if (cachedHtml) {
+    return cachedHtml;
+  }
+  const fallback = outputEl.dataset.formattedValue || outputEl.textContent || "";
+  return formatDisplayHtml(fallback);
+}
+
 function bindRange(inputId, valueId, applyValue) {
   const input = document.getElementById(inputId);
   const output = document.getElementById(valueId);
@@ -3245,8 +3491,10 @@ function bindRange(inputId, valueId, applyValue) {
   const handle = () => {
     const value = Number(input.value);
     const display = applyValue(value);
-    output.textContent = display;
-    output.dataset.formattedValue = display;
+    const html = formatDisplayHtml(display);
+    output.innerHTML = html;
+    output.dataset.formattedHtml = html;
+    output.dataset.formattedValue = normalizeDisplayTextForDataAttribute(display);
     syncCompactSectionSlider(inputId);
     visualControls?.refreshLegend?.(activeApplet);
   };
@@ -3263,8 +3511,10 @@ function setControlValue(inputId, value, valueId, formatter) {
   }
   input.value = String(value);
   const display = formatter(value);
-  output.textContent = display;
-  output.dataset.formattedValue = display;
+  const html = formatDisplayHtml(display);
+  output.innerHTML = html;
+  output.dataset.formattedHtml = html;
+  output.dataset.formattedValue = normalizeDisplayTextForDataAttribute(display);
   syncCompactSectionSlider(inputId);
 }
 
@@ -3634,7 +3884,7 @@ function activateCompactRangeControl(inputId) {
   sectionState.slider.max = binding.input.max;
   sectionState.slider.step = binding.input.step || "1";
   sectionState.slider.value = binding.input.value;
-  sectionState.value.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
+  sectionState.value.innerHTML = getOutputFormattedHtml(binding.output);
   if (sectionState.hub && binding.labelEl && binding.labelEl.parentElement) {
     binding.labelEl.insertAdjacentElement("afterend", sectionState.hub);
   }
@@ -3723,7 +3973,7 @@ function syncCompactSectionSlider(inputId) {
   sectionState.slider.max = binding.input.max;
   sectionState.slider.step = binding.input.step || "1";
   sectionState.slider.value = binding.input.value;
-  sectionState.value.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
+  sectionState.value.innerHTML = getOutputFormattedHtml(binding.output);
   restoreCompactValueDisplay(binding);
 }
 
@@ -3765,7 +4015,7 @@ function restoreCompactValueDisplay(binding) {
     return;
   }
 
-  binding.output.textContent = binding.output.dataset.formattedValue || binding.output.textContent;
+  binding.output.innerHTML = getOutputFormattedHtml(binding.output);
 }
 
 function commitCompactValueEdit(binding) {

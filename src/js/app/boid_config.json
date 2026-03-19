@@ -179,7 +179,7 @@
         "key": "maxAccel",
         "label": "Max Acceleration",
         "default": 6,
-        "unit": "m/s²",
+        "unit": "m/s^2",
         "group": "dynamic",
         "uiMin": 0.5,
         "uiMax": 30,

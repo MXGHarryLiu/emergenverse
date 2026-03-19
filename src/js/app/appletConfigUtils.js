@@ -70,6 +70,47 @@ function formatSliderNumber(value, step) {
   return String(Math.round(numericValue));
 }
 
+function validateAngleUnitLabel(unitLabel, context = "param") {
+  const trimmed = String(unitLabel || "").trim();
+  if (!trimmed) {
+    return;
+  }
+  const lowered = trimmed.toLowerCase();
+  if (lowered.includes("deg") || trimmed.includes("\u00B0")) {
+    if (trimmed !== "deg" && trimmed !== "\u00B0") {
+      throw new Error(
+        `[appletConfigUtils] ${context} unit "${trimmed}" is invalid. Use "deg" or "°" for angles.`,
+      );
+    }
+  }
+}
+
+function validateFrequencyUnitLabel(unitLabel, context = "param") {
+  const trimmed = String(unitLabel || "").trim();
+  if (!trimmed) {
+    return;
+  }
+  const lowered = trimmed.toLowerCase();
+  const looksLikeFrequency = lowered === "hz" || lowered === "1/s";
+  if (looksLikeFrequency && trimmed !== "Hz" && trimmed !== "1/s") {
+    throw new Error(
+      `[appletConfigUtils] ${context} unit "${trimmed}" is invalid. Use "Hz" or "1/s" for frequency.`,
+    );
+  }
+}
+
+function validateUnitExponentNotation(unitLabel, context = "param") {
+  const trimmed = String(unitLabel || "").trim();
+  if (!trimmed) {
+    return;
+  }
+  if (trimmed.includes("\u00B2") || trimmed.includes("\u00B3")) {
+    throw new Error(
+      `[appletConfigUtils] ${context} unit "${trimmed}" is invalid. Use "^2" or "^3" instead of superscript characters.`,
+    );
+  }
+}
+
 function normalizeParamControlConfig(paramConfig, index) {
   if (!paramConfig || typeof paramConfig !== "object") {
     return null;
@@ -137,7 +178,11 @@ function normalizeParamControlConfig(paramConfig, index) {
       normalized.value = String(paramConfig.default);
     }
     if (typeof paramConfig.unit === "string" && paramConfig.unit.trim().length > 0 && !normalized.unit) {
-      normalized.unit = paramConfig.unit.trim();
+      const unit = paramConfig.unit.trim();
+      validateUnitExponentNotation(unit, `param "${paramKey || id}"`);
+      validateAngleUnitLabel(unit, `param "${paramKey || id}"`);
+      validateFrequencyUnitLabel(unit, `param "${paramKey || id}"`);
+      normalized.unit = unit;
     }
     if (normalized.valueText === undefined) {
       const defaultValue = paramConfig.default ?? normalized.value;
