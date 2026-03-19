@@ -187,7 +187,7 @@ export class BoidSimulation extends BaseSimulation {
 
       this.tempObject.position.copy(boid.position);
       this.tempObject.quaternion.setFromUnitVectors(this.forwardVector, this.velocityDir);
-      this.tempObject.scale.setScalar(this.params.scale);
+      this.tempObject.scale.setScalar(getBoidVisualSize(this.params));
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
@@ -571,6 +571,26 @@ function getBoidSolidColorDefault() {
 function getBoidSolidColor(params) {
   const fallback = getBoidSolidColorDefault();
   return normalizeHexColor(params?.solidColorBoid ?? params?.solidColor ?? fallback, fallback);
+}
+
+function getBoidVisualSizeDefault() {
+  const sizeEntries = Array.isArray(BOID_APPLET_CONFIG.visual?.size)
+    ? BOID_APPLET_CONFIG.visual.size
+    : [];
+  const boidEntry = sizeEntries.find((entry) => String(entry?.key || "").trim() === "boid");
+  const fallbackEntry = sizeEntries[0] || null;
+  const fallback = 0.5;
+  const value = Number(boidEntry?.default ?? fallbackEntry?.default ?? fallback);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getBoidVisualSize(params) {
+  const defaultDiameter = getBoidVisualSizeDefault();
+  const configuredDiameter = Number(params?.visualSizeBoid);
+  if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
+    return Math.max(0.001, configuredDiameter / (2 * 0.7));
+  }
+  return Math.max(0.001, defaultDiameter / (2 * 0.7));
 }
 
 function buildColormapLUT(colormapEntries) {

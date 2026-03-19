@@ -126,20 +126,6 @@
         }
       },
       {
-        "key": "size",
-        "label": "Object Visual Size",
-        "default": 0.8,
-        "unit": "m",
-        "group": "dynamic",
-        "uiMin": 0.2,
-        "uiMax": 2.5,
-        "control": {
-          "type": "slider",
-          "icon": "bi-rulers",
-          "step": 0.05
-        }
-      },
-      {
         "key": "speed",
         "label": "Speed",
         "default": 1.2,
@@ -397,6 +383,16 @@
       {
         "key": "firefly",
         "default": "#ffd86b"
+      }
+    ],
+    "size": [
+      {
+        "key": "firefly",
+        "default": 0.8,
+        "unit": "m",
+        "uiMin": 0.2,
+        "uiMax": 2.5,
+        "step": 0.05
       }
     ]
   },

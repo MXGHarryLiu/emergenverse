@@ -291,7 +291,7 @@ export class FireflySimulation extends BaseSimulation {
       return;
     }
 
-    const scale = Math.max(0.08, this.params.size ?? 0.8);
+    const scale = getFireflyVisualSize(this.params);
     const frequencyRange = this.getFrequencyRange();
     const idleColor = this.params.stateColorIdle || "#4f7dff";
     const blinkColor = this.params.stateColorBlink || "#ffd74a";
@@ -485,6 +485,26 @@ function getFireflySolidColorDefault() {
 function getFireflySolidColor(params) {
   const fallback = getFireflySolidColorDefault();
   return normalizeHexColor(params?.solidColorFirefly ?? fallback, fallback);
+}
+
+function getFireflyVisualSizeDefault() {
+  const sizeEntries = Array.isArray(FIREFLY_APPLET_CONFIG.visual?.size)
+    ? FIREFLY_APPLET_CONFIG.visual.size
+    : [];
+  const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "firefly");
+  const fallbackEntry = sizeEntries[0] || null;
+  const fallback = 0.8;
+  const value = Number(entry?.default ?? fallbackEntry?.default ?? fallback);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getFireflyVisualSize(params) {
+  const defaultDiameter = getFireflyVisualSizeDefault();
+  const configuredDiameter = Number(params?.visualSizeFirefly);
+  if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
+    return Math.max(0.08, configuredDiameter / (2 * 0.45));
+  }
+  return Math.max(0.08, defaultDiameter / (2 * 0.45));
 }
 
 function randomWorldPosition(params) {

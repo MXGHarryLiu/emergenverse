@@ -146,20 +146,6 @@
         }
       },
       {
-        "key": "scale",
-        "label": "Object Visual Size",
-        "default": 0.03,
-        "unit": "m",
-        "group": "dynamic",
-        "uiMin": 0.01,
-        "uiMax": 0.05,
-        "control": {
-          "type": "slider",
-          "icon": "bi-rulers",
-          "step": 0.001
-        }
-      },
-      {
         "key": "speed",
         "label": "Speed",
         "default": 0.012,
@@ -497,6 +483,16 @@
       {
         "key": "nest",
         "default": "#5b9dff"
+      }
+    ],
+    "size": [
+      {
+        "key": "ant",
+        "default": 2,
+        "unit": "mm",
+        "uiMin": 1,
+        "uiMax": 6,
+        "step": 0.1
       }
     ]
   },

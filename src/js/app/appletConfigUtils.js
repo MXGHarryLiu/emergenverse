@@ -556,6 +556,21 @@ function normalizeVisualConfig(visualConfig) {
       };
     });
 
+  const sizeEntries = Array.isArray(visualConfig.size) ? visualConfig.size : [];
+  normalized.size = sizeEntries
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry, index) => {
+      const next = { ...entry };
+      if (typeof next.unit === "string" && next.unit.trim().length > 0) {
+        const unit = next.unit.trim();
+        validateUnitExponentNotation(unit, `visual.size[${index}]`);
+        validateAngleUnitLabel(unit, `visual.size[${index}]`);
+        validateFrequencyUnitLabel(unit, `visual.size[${index}]`);
+        next.unit = unit;
+      }
+      return next;
+    });
+
   return normalized;
 }
 
@@ -660,6 +675,7 @@ export function validateAppletConfig(config) {
   validateKeyedParams(config?.stats?.params, "stats.params");
   validateKeyedParams(normalizedVisual?.params, "visual.params");
   validateKeyedParams(normalizedVisual?.color, "visual.color");
+  validateKeyedParams(normalizedVisual?.size, "visual.size");
   if (Array.isArray(normalizedVisual?.colormap)) {
     normalizedVisual.colormap.forEach((entry, index) => {
       assertValidIdentifierKey(entry?.key, `visual.colormap[${index}]`);

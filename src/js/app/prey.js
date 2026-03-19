@@ -351,8 +351,8 @@ export class PreySimulation extends BaseSimulation {
 
   syncInstances() {
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.85;
-    const preyScale = Math.max(0.1, this.params.scale ?? 0.62);
-    const predatorScale = Math.max(0.1, this.params.predatorScale ?? 1.0);
+    const preyScale = getPreyVisualSize(this.params, "prey");
+    const predatorScale = getPreyVisualSize(this.params, "predator");
     const mode = this.params.colorMode ?? "energy";
 
     // Prey body color is not driven by predator colormap/energy mode.
@@ -645,6 +645,34 @@ function getPreySolidColor(params, type) {
     return normalizeHexColor(params?.solidColorPrey ?? defaults.prey, defaults.prey);
   }
   return normalizeHexColor(params?.solidColorPredator ?? defaults.predator, defaults.predator);
+}
+
+function getPreyVisualSizeDefaults() {
+  const sizeEntries = Array.isArray(PREY_APPLET_CONFIG.visual?.size)
+    ? PREY_APPLET_CONFIG.visual.size
+    : [];
+  const preyEntry = sizeEntries.find((item) => String(item?.key || "").trim() === "prey");
+  const predatorEntry = sizeEntries.find((item) => String(item?.key || "").trim() === "predator");
+  return {
+    prey: Number.isFinite(Number(preyEntry?.default)) ? Number(preyEntry.default) : 0.62,
+    predator: Number.isFinite(Number(predatorEntry?.default)) ? Number(predatorEntry.default) : 1.0,
+  };
+}
+
+function getPreyVisualSize(params, type) {
+  const defaults = getPreyVisualSizeDefaults();
+  if (type === "prey") {
+    const configuredDiameter = Number(params?.visualSizePrey);
+    if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
+      return Math.max(0.1, configuredDiameter / (2 * 0.42));
+    }
+    return Math.max(0.1, defaults.prey / (2 * 0.42));
+  }
+  const configuredDiameter = Number(params?.visualSizePredator);
+  if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
+    return Math.max(0.1, configuredDiameter / (2 * 0.5));
+  }
+  return Math.max(0.1, defaults.predator / (2 * 0.5));
 }
 
 function randomWorldPosition(params) {

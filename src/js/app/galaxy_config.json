@@ -175,20 +175,6 @@
         }
       },
       {
-        "key": "particleSize",
-        "label": "Object Visual Size",
-        "default": 0.75,
-        "unit": "kly",
-        "group": "dynamic",
-        "uiMin": 0.08,
-        "uiMax": 2,
-        "control": {
-          "type": "slider",
-          "icon": "bi-rulers",
-          "step": 0.02
-        }
-      },
-      {
         "key": "spin",
         "label": "Initial Orbital Speed",
         "default": 1.0,
@@ -392,6 +378,16 @@
       {
         "key": "galaxy",
         "default": "#c9ddff"
+      }
+    ],
+    "size": [
+      {
+        "key": "galaxy",
+        "default": 0.75,
+        "unit": "kly",
+        "uiMin": 0.08,
+        "uiMax": 2,
+        "step": 0.02
       }
     ]
   },

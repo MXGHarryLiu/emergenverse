@@ -264,7 +264,7 @@ export class GalaxySimulation extends BaseSimulation {
       return;
     }
 
-    const scale = Math.max(0.05, this.params.particleSize ?? 0.8);
+    const scale = getGalaxyVisualSize(this.params);
     this.speedBounds = this.getSpeedBounds();
 
     for (let i = 0; i < this.particles.length; i += 1) {
@@ -527,6 +527,26 @@ function getGalaxySolidColorDefault() {
 function getGalaxySolidColor(params) {
   const fallback = getGalaxySolidColorDefault();
   return normalizeHexColor(params?.solidColorGalaxy ?? fallback, fallback);
+}
+
+function getGalaxyVisualSizeDefault() {
+  const sizeEntries = Array.isArray(GALAXY_APPLET_CONFIG.visual?.size)
+    ? GALAXY_APPLET_CONFIG.visual.size
+    : [];
+  const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "galaxy");
+  const fallbackEntry = sizeEntries[0] || null;
+  const fallback = 0.75;
+  const value = Number(entry?.default ?? fallbackEntry?.default ?? fallback);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getGalaxyVisualSize(params) {
+  const defaultDiameter = getGalaxyVisualSizeDefault();
+  const configuredDiameter = Number(params?.visualSizeGalaxy);
+  if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
+    return Math.max(0.05, configuredDiameter / (2 * 0.42));
+  }
+  return Math.max(0.05, defaultDiameter / (2 * 0.42));
 }
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {

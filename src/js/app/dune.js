@@ -256,7 +256,7 @@ export class DuneSimulation extends BaseSimulation {
 
     const gridX = this.gridX;
     const gridY = this.gridY;
-    const spacing = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const spacing = getDuneVisualSize(this.params);
     const coverageX = gridX * spacing;
     const coverageY = gridY * spacing;
     const offsetX = (this.params.worldSizeX - coverageX) * 0.5;
@@ -340,7 +340,7 @@ export class DuneSimulation extends BaseSimulation {
   }
 
   getGridResolution() {
-    const objectSize = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const objectSize = getDuneVisualSize(this.params);
     const gridX = THREE.MathUtils.clamp(
       Math.floor(this.params.worldSizeX / objectSize),
       1,
@@ -355,7 +355,7 @@ export class DuneSimulation extends BaseSimulation {
   }
 
   getColumnMassRange() {
-    const spacing = Math.max(0.1, this.params.objectSizeM ?? 5.0);
+    const spacing = getDuneVisualSize(this.params);
     const cellArea = spacing * spacing;
     const fallbackMass = Math.max(0.05, this.params.baseHeight ?? 2.2) * cellArea;
 
@@ -451,6 +451,23 @@ function getDuneSolidColorDefault() {
 function getDuneSolidColor(params) {
   const fallback = getDuneSolidColorDefault();
   return normalizeHexColor(params?.solidColorDune ?? fallback, fallback);
+}
+
+function getDuneVisualSizeDefault() {
+  const sizeEntries = Array.isArray(DUNE_APPLET_CONFIG.visual?.size)
+    ? DUNE_APPLET_CONFIG.visual.size
+    : [];
+  const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "dune");
+  const fallbackEntry = sizeEntries[0] || null;
+  const fallback = 2.5;
+  const value = Number(entry?.default ?? fallbackEntry?.default ?? fallback);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function getDuneVisualSize(params) {
+  const fallback = getDuneVisualSizeDefault();
+  const value = Number(params?.visualSizeDune ?? fallback);
+  return Math.max(0.1, Number.isFinite(value) ? value : fallback);
 }
 
 function pickWindStep(angle) {

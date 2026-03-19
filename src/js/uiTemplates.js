@@ -748,6 +748,10 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   stateColorsHost.setAttribute("data-shared-state-colors-host", appletId);
   body.appendChild(stateColorsHost);
 
+  const visualSizeHost = document.createElement("div");
+  visualSizeHost.setAttribute("data-shared-visual-size-host", appletId);
+  body.appendChild(visualSizeHost);
+
   if (controlIds.solidColorId && controlIds.solidColorValueId && controlIds.singleColorWrapId) {
     const wrap = document.createElement("div");
     wrap.id = controlIds.singleColorWrapId;
@@ -880,11 +884,34 @@ function buildSimulationUnitsBadge(appletId) {
   const lengthDescription = units.length?.description || lengthLabel;
   const timeDescription = units.time?.description || timeLabel;
   const massDescription = units.mass?.description || massLabel;
+  const lengthLabelHtml = formatUnitBadgeLabelHtml(lengthLabel);
+  const timeLabelHtml = formatUnitBadgeLabelHtml(timeLabel);
+  const massLabelHtml = formatUnitBadgeLabelHtml(massLabel);
   return `
-    <span title="Length unit: ${lengthDescription} (${lengthLabel})" aria-label="Length unit ${lengthDescription} (${lengthLabel})">L: ${lengthLabel}</span>
-    <span title="Time unit: ${timeDescription} (${timeLabel})" aria-label="Time unit ${timeDescription} (${timeLabel})">T: ${timeLabel}</span>
-    <span title="Mass unit: ${massDescription} (${massLabel})" aria-label="Mass unit ${massDescription} (${massLabel})">M: ${massLabel}</span>
+    <span title="Length unit: ${lengthDescription} (${lengthLabel})" aria-label="Length unit ${lengthDescription} (${lengthLabel})">L: ${lengthLabelHtml}</span>
+    <span title="Time unit: ${timeDescription} (${timeLabel})" aria-label="Time unit ${timeDescription} (${timeLabel})">T: ${timeLabelHtml}</span>
+    <span title="Mass unit: ${massDescription} (${massLabel})" aria-label="Mass unit ${massDescription} (${massLabel})">M: ${massLabelHtml}</span>
   `;
+}
+
+function formatUnitBadgeLabelHtml(unitLabel) {
+  let html = escapeHtml(String(unitLabel || "").trim());
+  if (!html) {
+    return "";
+  }
+  html = html.replace(/\bM_sun\b/g, "M_☉");
+  html = html.replace(/\^([A-Za-z0-9+\-]+)/g, "<sup>$1</sup>");
+  html = html.replace(/_([A-Za-z0-9+\-☉]+)/g, "<sub>$1</sub>");
+  return html;
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Math rendering helper

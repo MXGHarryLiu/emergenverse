@@ -556,9 +556,11 @@ export class AntSimulation extends BaseSimulation {
   }
 
   getAntBodyScale() {
-    const baseScale = Math.max(0.0005, Number(this.params.scale) || 0.003);
-    const visualScaleCompensation = 0.1;
-    return Math.max(0.0005, this.toWorldLength(baseScale, 0.003) * visualScaleCompensation);
+    const configuredLength = Number(this.params.visualSizeAnt);
+    if (Number.isFinite(configuredLength) && configuredLength > 0) {
+      return Math.max(0.0005, configuredLength / 1.05);
+    }
+    return Math.max(0.0005, getAntVisualSizeDefault() / 1.05);
   }
 
   applyAntColor(ant, outColor) {
@@ -983,6 +985,17 @@ function getAntSolidColor(params, type) {
     return normalizeHexColor(params?.solidColorNest ?? defaults.nest, defaults.nest);
   }
   return normalizeHexColor(params?.solidColorAnt ?? defaults.ant, defaults.ant);
+}
+
+function getAntVisualSizeDefault() {
+  const sizeEntries = Array.isArray(ANT_APPLET_CONFIG.visual?.size)
+    ? ANT_APPLET_CONFIG.visual.size
+    : [];
+  const antEntry = sizeEntries.find((entry) => String(entry?.key || "").trim() === "ant");
+  const fallbackEntry = sizeEntries[0] || null;
+  const fallback = 15;
+  const value = Number(antEntry?.default ?? fallbackEntry?.default ?? fallback);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function wrapAxisLocal(value, halfExtent) {

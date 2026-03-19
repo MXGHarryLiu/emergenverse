@@ -55,6 +55,13 @@ export function createVisualControls({
     }
   }
 
+  function hideVisualSizePanel() {
+    dom.visualSizePanel.panel?.classList.add("is-hidden");
+    if (dom.visualSizePanel.list) {
+      dom.visualSizePanel.list.innerHTML = "";
+    }
+  }
+
   function mountColormapPanel(appletId) {
     const panel = dom.colormapPanel.panel;
     const host = dom.colormapPanel.hosts[appletId];
@@ -67,6 +74,15 @@ export function createVisualControls({
   function mountStateColorsPanel(appletId) {
     const panel = dom.stateColorsPanel.panel;
     const host = dom.stateColorsPanel.hosts[appletId];
+    if (!panel || !host || panel.parentElement === host) {
+      return;
+    }
+    host.appendChild(panel);
+  }
+
+  function mountVisualSizePanel(appletId) {
+    const panel = dom.visualSizePanel.panel;
+    const host = dom.visualSizePanel.hosts[appletId];
     if (!panel || !host || panel.parentElement === host) {
       return;
     }
@@ -225,6 +241,219 @@ export function createVisualControls({
         return { key, label, paramKey, fallback };
       })
       .filter(Boolean);
+  }
+
+  function toVisualSizeParamKey(entryKey) {
+    const token = String(entryKey || "").trim();
+    if (!token) {
+      return "";
+    }
+    const pascal = token
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join("");
+    return pascal ? `visualSize${pascal}` : "";
+  }
+
+  function formatVisualSizeNumber(value, step = 0.01) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return String(value ?? "");
+    }
+    const numericStep = Number(step);
+    const decimals = Number.isFinite(numericStep) && numericStep > 0
+      ? Math.min(6, Math.max(0, String(numericStep).split(".")[1]?.length || 0))
+      : 2;
+    return numeric.toFixed(decimals);
+  }
+
+  function formatVisualSizeValue(value, unit = "", step = 0.01) {
+    const text = formatVisualSizeNumber(value, step);
+    return unit ? `${text} ${unit}` : text;
+  }
+
+  function getVisualSizeEntries(appletId) {
+    const appletConfig = APPLET_CONFIGS[appletId];
+    const entries = Array.isArray(appletConfig?.visual?.size) ? appletConfig.visual.size : [];
+    const worldUnit = String(appletConfig?.world?.unitLabel || appletConfig?.world?.lengthUnit?.name || "m").trim();
+    return entries
+      .map((entry) => {
+        const key = String(entry?.key || "").trim();
+        if (!key) {
+          return null;
+        }
+        const paramKey = toVisualSizeParamKey(key);
+        if (!paramKey) {
+          return null;
+        }
+        const defaultValue = Number(entry?.default);
+        const uiMin = Number(entry?.uiMin);
+        const uiMax = Number(entry?.uiMax);
+        const step = Number(entry?.step);
+        const safeDefault = Number.isFinite(defaultValue) ? defaultValue : 1;
+        const safeMin = Number.isFinite(uiMin) ? uiMin : Math.max(0.0001, safeDefault * 0.2);
+        const safeMax = Number.isFinite(uiMax) ? uiMax : Math.max(safeMin + 0.0001, safeDefault * 3);
+        const safeStep = Number.isFinite(step) && step > 0 ? step : Math.max(0.001, (safeMax - safeMin) / 200);
+        const unit = String(entry?.unit || worldUnit || "").trim();
+        return {
+          key,
+          paramKey,
+          defaultValue: safeDefault,
+          min: safeMin,
+          max: safeMax,
+          step: safeStep,
+          unit,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function syncVisualSizePanel(appletId) {
+    const panel = dom.visualSizePanel.panel;
+    const list = dom.visualSizePanel.list;
+    const appletParams = params?.[appletId];
+    const simulation = simulations[appletId];
+    const sizeEntries = getVisualSizeEntries(appletId);
+    if (!panel || !list || !appletParams || sizeEntries.length === 0) {
+      hideVisualSizePanel();
+      return;
+    }
+
+    mountVisualSizePanel(appletId);
+    panel.classList.remove("is-hidden");
+    list.innerHTML = "";
+
+    sizeEntries.forEach((entry, index) => {
+      const raw = Number(appletParams[entry.paramKey]);
+      const currentValue = Number.isFinite(raw) ? raw : entry.defaultValue;
+      appletParams[entry.paramKey] = currentValue;
+      const displayName = entry.key.charAt(0).toUpperCase() + entry.key.slice(1);
+
+      const row = document.createElement("div");
+      row.className = "simulation-slider-row visual-size-row";
+
+      const label = document.createElement("div");
+      label.className = "form-label visual-size-toggle";
+
+      const title = document.createElement("span");
+      title.className = "visual-size-title";
+      title.textContent = `${index + 1}. ${displayName}`;
+
+      const input = document.createElement("input");
+      input.type = "range";
+      input.className = "form-range section-active-slider visual-size-slider";
+      input.min = String(entry.min);
+      input.max = String(entry.max);
+      input.step = String(entry.step);
+      input.value = String(currentValue);
+      const sliderId = `${appletId}-visual-size-${entry.key}`;
+      input.id = sliderId;
+      input.setAttribute("aria-label", `${entry.key} visual size`);
+
+      const valueText = document.createElement("span");
+      valueText.className = "label-value compact-value-trigger visual-size-value";
+      valueText.setAttribute("role", "textbox");
+      valueText.setAttribute("tabindex", "0");
+      valueText.setAttribute("contenteditable", "true");
+      valueText.setAttribute("spellcheck", "false");
+      const syncValueText = (value, editing = false) => {
+        valueText.textContent = editing
+          ? formatVisualSizeNumber(value, entry.step)
+          : formatVisualSizeValue(value, entry.unit, entry.step);
+      };
+      syncValueText(currentValue, false);
+
+      const hub = document.createElement("div");
+      hub.className = "section-slider-hub visual-size-hub is-hidden";
+      hub.innerHTML = `
+        <div class="section-slider-head">
+          <span class="section-slider-title">${displayName}</span>
+          <span class="section-slider-value">${formatVisualSizeValue(currentValue, entry.unit, entry.step)}</span>
+        </div>
+      `;
+      const hubValue = hub.querySelector(".section-slider-value");
+      hub.appendChild(input);
+
+      const openRow = () => {
+        row.classList.add("is-expanded");
+        hub.classList.remove("is-hidden");
+      };
+      const closeRow = () => {
+        row.classList.remove("is-expanded");
+        hub.classList.add("is-hidden");
+      };
+      const closeIfFocusLeftRow = () => {
+        requestAnimationFrame(() => {
+          const activeEl = document.activeElement;
+          if (activeEl instanceof Element && row.contains(activeEl)) {
+            return;
+          }
+          closeRow();
+        });
+      };
+
+      input.addEventListener("input", () => {
+        const nextValue = Number(input.value);
+        if (!Number.isFinite(nextValue)) {
+          return;
+        }
+        appletParams[entry.paramKey] = nextValue;
+        syncValueText(nextValue, document.activeElement === valueText);
+        if (hubValue) {
+          hubValue.textContent = formatVisualSizeValue(nextValue, entry.unit, entry.step);
+        }
+        simulation?.syncInstances?.();
+      });
+
+      const commitTextEdit = () => {
+        const parsed = Number(valueText.textContent);
+        if (!Number.isFinite(parsed)) {
+          syncValueText(appletParams[entry.paramKey], false);
+          return;
+        }
+        const clamped = Math.min(entry.max, Math.max(entry.min, parsed));
+        appletParams[entry.paramKey] = clamped;
+        input.value = String(clamped);
+        syncValueText(clamped, false);
+        if (hubValue) {
+          hubValue.textContent = formatVisualSizeValue(clamped, entry.unit, entry.step);
+        }
+        simulation?.syncInstances?.();
+      };
+
+      valueText.addEventListener("focus", () => {
+        openRow();
+        syncValueText(appletParams[entry.paramKey], true);
+      });
+      label.addEventListener("click", (event) => {
+        openRow();
+        if (event.target !== valueText) {
+          valueText.focus();
+        }
+      });
+      valueText.addEventListener("blur", commitTextEdit);
+      row.addEventListener("focusout", closeIfFocusLeftRow);
+      valueText.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          valueText.blur();
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          syncValueText(appletParams[entry.paramKey], false);
+          valueText.blur();
+        }
+      });
+      input.addEventListener("focus", openRow);
+
+      label.appendChild(title);
+      label.appendChild(valueText);
+      row.appendChild(label);
+      row.appendChild(hub);
+      list.appendChild(row);
+    });
   }
 
   function getColormapConfig(appletId) {
@@ -441,12 +670,14 @@ export function createVisualControls({
     if (!config) {
       hideColormapPanel();
       hideStateColorsPanel();
+      hideVisualSizePanel();
       return;
     }
 
     if (colorModeType === "states") {
       hideColormapPanel();
       syncStateColorsPanel(activeApplet, colorModeOption);
+      syncVisualSizePanel(activeApplet);
       return;
     }
 
@@ -456,6 +687,7 @@ export function createVisualControls({
     ) {
       hideColormapPanel();
       syncSolidColorsPanel(activeApplet);
+      syncVisualSizePanel(activeApplet);
       return;
     }
 
@@ -466,6 +698,7 @@ export function createVisualControls({
     if (!config.visible) {
       dom.colormapPanel.legend.container?.classList.add("is-hidden");
       dom.colormapPanel.invertWrap?.classList.add("is-hidden");
+      syncVisualSizePanel(activeApplet);
       return;
     }
 
@@ -483,6 +716,7 @@ export function createVisualControls({
       invertToggle.disabled = !showInvert;
     }
     renderConfigLegend(config);
+    syncVisualSizePanel(activeApplet);
   }
 
   function syncSingleColorVisibility(appletId) {
@@ -631,11 +865,13 @@ export function createVisualControls({
 function getVisualControlsDom() {
   const hosts = {};
   const stateColorHosts = {};
+  const visualSizeHosts = {};
   const appletControls = {};
 
   Object.entries(APPLET_VISUALS).forEach(([id]) => {
     hosts[id] = document.querySelector(`[data-shared-colormap-host="${id}"]`);
     stateColorHosts[id] = document.querySelector(`[data-shared-state-colors-host="${id}"]`);
+    visualSizeHosts[id] = document.querySelector(`[data-shared-visual-size-host="${id}"]`);
       const controlIds = deriveVisualControlIds(id);
     appletControls[id] = {
       colorMode: document.getElementById(controlIds.colorModeId),
@@ -667,6 +903,11 @@ function getVisualControlsDom() {
       panel: document.getElementById("shared-state-colors-panel"),
       list: document.getElementById("state-colors-list"),
       hosts: stateColorHosts,
+    },
+    visualSizePanel: {
+      panel: document.getElementById("shared-visual-size-panel"),
+      list: document.getElementById("visual-size-list"),
+      hosts: visualSizeHosts,
     },
   };
 }
