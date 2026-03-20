@@ -37,10 +37,10 @@
           const url = new URL(window.location.href);
           const hasAppletQuery = url.searchParams.has("app");
           if (!hasAppletQuery) {
-            document.documentElement.classList.add("boot-show-launcher");
+            document.documentElement.classList.add("boot-show-splash");
           }
         } catch (_error) {
-          document.documentElement.classList.add("boot-show-launcher");
+          document.documentElement.classList.add("boot-show-splash");
         }
       })();
     </script>
@@ -76,6 +76,13 @@
         document.documentElement.style.colorScheme = effectiveTheme === "dark" ? "dark" : "light";
       })();
     </script>
+    <section class="splash-overlay is-hidden" id="splash-overlay" aria-hidden="true">
+      <div class="splash-stage" aria-live="polite">
+        <span class="brand-mark splash-mark">E</span>
+        <div class="splash-title">Emergenverse</div>
+        <div class="splash-slogan">Discover patterns from simple rules</div>
+      </div>
+    </section>
     <section class="launcher-overlay is-hidden" id="launcher-overlay" aria-hidden="true">
       <div class="launcher-surface">
         <header class="launcher-head">
@@ -998,3 +1005,4 @@
     <script type="module" src="./js/app.js"></script>
 </body>
 </html>
+

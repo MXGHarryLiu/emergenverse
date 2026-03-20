@@ -1,4 +1,67 @@
 /* Launcher Overlay */
+.splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 430;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
+  background:
+    radial-gradient(circle at 18% 20%, var(--bg-glow-1), transparent 40%),
+    radial-gradient(circle at 82% 78%, var(--bg-glow-2), transparent 44%),
+    linear-gradient(160deg, var(--bg-base), var(--bg-mid) 44%, var(--bg-tail));
+  opacity: 1;
+  transition: opacity 420ms ease;
+}
+
+.splash-stage {
+  display: grid;
+  justify-items: center;
+  gap: clamp(0.5rem, 1.8vw, 0.9rem);
+  text-align: center;
+  animation: splash-rise 760ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.splash-mark {
+  width: clamp(3.4rem, 9vw, 5.2rem);
+  height: clamp(3.4rem, 9vw, 5.2rem);
+  font-size: clamp(1.6rem, 4.2vw, 2.2rem);
+}
+
+.splash-title {
+  margin: 0;
+  font: 700 clamp(1.55rem, 5vw, 3rem) / 1.02 "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--title-color);
+}
+
+.splash-slogan {
+  margin: 0;
+  max-width: min(92vw, 34rem);
+  font: 500 clamp(0.82rem, 2.6vw, 1.08rem) / 1.35 "Space Grotesk", "Segoe UI", sans-serif;
+  letter-spacing: 0.055em;
+  color: var(--text-soft);
+}
+
+.splash-overlay.is-leaving {
+  opacity: 0;
+}
+
+@keyframes splash-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+    filter: blur(2px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 .launcher-overlay {
   position: fixed;
   inset: 0;
@@ -287,6 +350,10 @@ html.boot-show-launcher #launcher-overlay.is-hidden {
   display: block !important;
 }
 
+html.boot-show-splash #splash-overlay.is-hidden {
+  display: grid !important;
+}
+
 @media (max-width: 980px) {
   .launcher-overlay {
     padding: 0.6rem;
@@ -326,3 +393,4 @@ html.boot-show-launcher #launcher-overlay.is-hidden {
     grid-template-columns: 1fr;
   }
 }
+

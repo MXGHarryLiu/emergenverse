@@ -266,6 +266,19 @@ export function getSectionInputControls(sectionConfig) {
   return controls;
 }
 
+export function getCameraParamDefault(config, key, fallback = undefined) {
+  const targetKey = String(key || "").trim();
+  if (!targetKey) {
+    return fallback;
+  }
+  const cameraParams = Array.isArray(config?.camera?.params) ? config.camera.params : [];
+  const entry = cameraParams.find((param) => String(param?.key || "").trim() === targetKey);
+  if (!entry || entry.default === undefined) {
+    return fallback;
+  }
+  return entry.default;
+}
+
 export function createAppletParams(rootParams, appletId) {
   const requestedId = String(appletId || "").trim();
   const targetParams = rootParams[requestedId] ?? {};
@@ -498,7 +511,6 @@ function normalizeCameraParams(cameraConfig = {}, fallbackUnits = {}) {
       key: "projection",
       default: String(
         projectionParam?.default ??
-        cameraConfig.defaultProjection ??
         DEFAULT_CAMERA_PROJECTION_PARAM?.default ??
         "perspective",
       ).trim().toLowerCase() === "orthographic"
@@ -699,7 +711,6 @@ export function validateAppletConfig(config) {
     length: dominantLengthUnit,
     time: String(normalizedUnit?.time?.label || UNIT_DEFAULTS?.time?.label || "s").trim() || "s",
   });
-  const cameraProjectionParam = cameraParams.find((entry) => entry.key === "projection");
   const legacyCameraControls = buildLegacyCameraControlsFromParams(cameraParams);
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
   const cameraMoveSpeedParam = cameraParams.find((entry) => entry.key === "moveSpeed");
@@ -741,9 +752,6 @@ export function validateAppletConfig(config) {
       distance: config.camera?.distance ?? toFiniteNumber(CAMERA_DEFAULTS?.distance, 185),
       height: config.camera?.height ?? toFiniteNumber(CAMERA_DEFAULTS?.height, 80),
       fov: toFiniteNumber(cameraFovParam?.default, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
-      defaultProjection: String(cameraProjectionParam?.default || DEFAULT_CAMERA_PROJECTION_PARAM?.default || "perspective").trim().toLowerCase() === "orthographic"
-        ? "orthographic"
-        : "perspective",
       locked: normalizeBoolean(
         configuredCameraLocked,
         config.camera?.locked ?? normalizeBoolean(DEFAULT_CAMERA_LOCKED_PARAM?.default, false),

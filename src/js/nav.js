@@ -488,6 +488,7 @@ export function showLauncherNavigator({
     return;
   }
   document.documentElement.classList.remove("boot-show-launcher");
+  document.documentElement.classList.remove("boot-show-splash");
   if (launcherState) {
     launcherState.mode = mode === "manage" ? "manage" : "start";
     launcherState.sortMode = "grouped";
@@ -511,6 +512,7 @@ export function hideLauncherNavigator({
     return;
   }
   document.documentElement.classList.remove("boot-show-launcher");
+  document.documentElement.classList.remove("boot-show-splash");
   dom.launcherOverlay.classList.add("is-hidden");
   dom.launcherOverlay.setAttribute("aria-hidden", "true");
   document.body.classList.remove("launcher-visible");
@@ -578,3 +580,4 @@ export function setupLauncherEntryPoints({
     onOpenLauncher?.();
   });
 }
+

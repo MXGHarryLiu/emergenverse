@@ -27,7 +27,7 @@ import {
   setAppletRouteInUrl as setAppletRouteInUrlParam,
   setupAppRouting as setupUrlRouting,
 } from "./routing.js";
-import { getSectionInputControls } from "./app/appletConfigUtils.js";
+import { getCameraParamDefault, getSectionInputControls } from "./app/appletConfigUtils.js";
 import {
   APPLET_CONFIGS,
   APPLET_DEFINITIONS,
@@ -196,6 +196,10 @@ const cameraControlDefaults = Object.freeze({
     defaultValue: Number(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.default ?? 84),
   }),
 });
+const SPLASH_HOLD_MS = 1200;
+const SPLASH_FADE_MS = 420;
+let splashPlayedThisLoad = false;
+let splashPromise = null;
 
 function getAppletCameraDefaults(appletId = activeApplet) {
   const camera = APPLET_CONFIGS[appletId]?.camera;
@@ -393,6 +397,7 @@ const dom = {
   openedAppsMenuList: document.getElementById("opened-apps-menu-list"),
   mobileNavLauncher: document.getElementById("mobile-nav-launcher"),
   launcherOverlay: document.getElementById("launcher-overlay"),
+  splashOverlay: document.getElementById("splash-overlay"),
   launcherGridGroups: document.getElementById("launcher-grid-groups"),
   launcherStatusCopy: document.getElementById("launcher-status-copy"),
   launcherSiteVersion: document.getElementById("launcher-site-version"),
@@ -400,6 +405,7 @@ const dom = {
   launcherClose: document.getElementById("launcher-close"),
 };
 
+// Section: DOM Lookup Helpers and Mutable UI State
 const elementCache = new Map();
 
 function getElement(id) {
@@ -510,15 +516,9 @@ function getWorldBoundaryAxesDefault(appletId) {
 }
 
 function getAppletDefaultProjection(appletId = activeApplet) {
-  const configDefault = APPLET_CONFIGS[appletId]?.camera?.defaultProjection;
-  if (typeof configDefault === "string" && configDefault.trim().length > 0) {
-    return configDefault.trim().toLowerCase() === "orthographic" ? "orthographic" : "perspective";
-  }
-  const cameraParams = Array.isArray(APPLET_CONFIGS[appletId]?.camera?.params)
-    ? APPLET_CONFIGS[appletId].camera.params
-    : [];
-  const projectionParam = cameraParams.find((entry) => String(entry?.key || "").trim() === "projection");
-  const projection = String(projectionParam?.default || "perspective").trim().toLowerCase();
+  const projection = String(
+    getCameraParamDefault(APPLET_CONFIGS[appletId], "projection", "perspective") || "perspective",
+  ).trim().toLowerCase();
   return projection === "orthographic" ? "orthographic" : "perspective";
 }
 
@@ -537,20 +537,6 @@ function getWorldParamLengthTransform(appletId, key) {
   const sourceUnit = getWorldParamLengthUnit(appletId, key);
   const targetUnit = getAppletLengthUnit(appletId);
   return getLengthUnitDisplayTransform(sourceUnit, targetUnit);
-}
-
-function convertLengthForDisplay(value, appletId = activeApplet) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return value;
-}
-
-function convertLengthFromDisplay(value, appletId = activeApplet) {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return value;
 }
 
 function convertWorldParamToDisplay(value, worldKey, appletId = activeApplet) {
@@ -649,6 +635,7 @@ function refreshAppletLegend(appletId = activeApplet) {
   visualControls?.refreshLegend?.(appletId);
 }
 
+// Section: Session Registries and Routing Constants
 const compactRangeRegistry = new Map();
 const compactSelectRegistry = new Map();
 const compactSectionState = {};
@@ -692,6 +679,8 @@ function syncAppletSessionMirrors() {
   loadedAppletIds = appletSession.getLoadedAppletIds();
   loadedAppletIdSet = appletSession.getLoadedAppletIdSet();
 }
+
+// Section: Launcher and Pause State
 const launcherState = {
   mode: "start",
   sortMode: "grouped",
@@ -1400,6 +1389,7 @@ function setupCameraTelemetryEditors() {
   });
 }
 
+// Section: Camera Telemetry Edit Helpers
 function getCameraTelemetryNumericText(key, type) {
   const activeCamera = cameraController.getActiveCamera();
   if (!activeCamera) {
@@ -1407,7 +1397,7 @@ function getCameraTelemetryNumericText(key, type) {
   }
   if (type === "length") {
     const rawValue = activeCamera.position[key] ?? 0;
-    const displayValue = convertLengthForDisplay(rawValue, activeApplet);
+    const displayValue = Number.isFinite(rawValue) ? rawValue : 0;
     return formatEditableNumericValue(displayValue);
   }
 
@@ -1436,7 +1426,7 @@ function applyCameraTelemetryValue(key, type, displayValue, math) {
 
   if (type === "length") {
     const axisIndex = key === "x" ? 0 : key === "y" ? 1 : 2;
-    const worldValue = convertLengthFromDisplay(displayValue, activeApplet);
+    const worldValue = Number.isFinite(displayValue) ? displayValue : Number.NaN;
     if (!Number.isFinite(worldValue)) {
       return false;
     }
@@ -1532,6 +1522,7 @@ function parseCameraTelemetryInput(text, type) {
   return parseStrictNumericText(raw);
 }
 
+// Section: Simulation Control Binding and Value Normalization
 function getSimulationSliderInputId(appletId, slider) {
   return `${appletId}-${slider.id}`;
 }
@@ -2108,6 +2099,11 @@ function showLauncherNavigator(options = {}) {
     onCloseOpenedAppsMenu: closeOpenedAppsMenu,
     onRenderLauncherNavigator: renderLauncherNavigator,
   });
+  if (mode === "start") {
+    playSplashIfNeeded().catch(() => {
+      // Keep launcher visible even if splash timing encounters an error.
+    });
+  }
 }
 
 function hideLauncherNavigator() {
@@ -2119,6 +2115,63 @@ function hideLauncherNavigator() {
   restoreLauncherPauseIfNeeded();
 }
 
+// Section: Splash Screen Playback Lifecycle
+function hideSplashOverlay() {
+  const overlay = dom.splashOverlay;
+  if (!overlay) {
+    return;
+  }
+  overlay.classList.remove("is-leaving");
+  overlay.classList.add("is-hidden");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+function shouldShowSplashForCurrentUrl() {
+  try {
+    const url = new URL(window.location.href);
+    return !url.searchParams.has("app");
+  } catch (_error) {
+    return true;
+  }
+}
+
+function playSplashIfNeeded() {
+  if (splashPlayedThisLoad || !shouldShowSplashForCurrentUrl()) {
+    hideSplashOverlay();
+    document.documentElement.classList.remove("boot-show-splash");
+    return Promise.resolve();
+  }
+  if (splashPromise) {
+    return splashPromise;
+  }
+  const overlay = dom.splashOverlay;
+  if (!overlay) {
+    splashPlayedThisLoad = true;
+    document.documentElement.classList.remove("boot-show-splash");
+    return Promise.resolve();
+  }
+
+  document.documentElement.classList.remove("boot-show-splash");
+  overlay.classList.remove("is-hidden");
+  overlay.classList.remove("is-leaving");
+  overlay.setAttribute("aria-hidden", "false");
+
+  splashPromise = new Promise((resolve) => {
+    window.setTimeout(() => {
+      overlay.classList.add("is-leaving");
+      window.setTimeout(() => {
+        hideSplashOverlay();
+        splashPlayedThisLoad = true;
+        splashPromise = null;
+        resolve();
+      }, SPLASH_FADE_MS);
+    }, SPLASH_HOLD_MS);
+  });
+
+  return splashPromise;
+}
+
+// Section: Launcher Setup and Routing Entry Points
 function setupLauncherNavigator() {
   setupLauncherNavigatorUi({
     dom,
@@ -2202,6 +2255,7 @@ function setupAppRouting() {
   });
 }
 
+// Section: Per-Applet World State Persistence and Restore
 function createDefaultWorldState(appletId) {
   const { x: xParam, y: yParam, z: zParam, gridSize: gridParam } = getWorldDimensionParams(appletId);
   return {
@@ -3385,6 +3439,7 @@ function setControlValue(inputId, value, valueId, formatter) {
   syncCompactSectionSlider(inputId);
 }
 
+// Section: Compact Control Hub Wiring and Inline Editing
 function setupCompactSectionSliders() {
   const sliderHubs = document.querySelectorAll("[data-slider-hub]");
   sliderHubs.forEach((hub) => {
@@ -4156,4 +4211,6 @@ function scheduleMathRendering() {
     { once: true },
   );
 }
+
+
 
