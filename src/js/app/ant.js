@@ -330,7 +330,7 @@ export class AntSimulation extends BaseSimulation {
     for (let i = 0; i < this.ants.length; i += 1) {
       this.applyBoundaryConditions(this.ants[i]);
     }
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLostAnts();
     }
 
@@ -338,11 +338,11 @@ export class AntSimulation extends BaseSimulation {
     this.emitStats();
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     for (let i = 0; i < this.ants.length; i += 1) {
       this.applyBoundaryConditions(this.ants[i]);
     }
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLostAnts();
     }
     this.syncInstances();
@@ -461,7 +461,7 @@ export class AntSimulation extends BaseSimulation {
       this.depositField(depositField, ant.position.x, ant.position.y, depositRate * dt);
     }
 
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLostAnts();
     }
 
@@ -702,7 +702,7 @@ export class AntSimulation extends BaseSimulation {
     const size = this.fieldSize;
     const diffusion = THREE.MathUtils.clamp(this.params.diffusionRate * dt, 0, 0.45);
     const decay = THREE.MathUtils.clamp(this.params.evapRate * dt, 0, 0.95);
-    const periodicXY = isPeriodicXYBoundary(this.params.boundaryMode);
+    const periodicXY = isPeriodicXYBoundary(this.params);
 
     for (let y = 0; y < size; y += 1) {
       const yUp = y === 0 ? (periodicXY ? size - 1 : 0) : y - 1;
@@ -861,18 +861,19 @@ export class AntSimulation extends BaseSimulation {
   applyBoundaryConditions(ant) {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
-    const mode = normalizeBoundaryMode(this.params.boundaryMode);
+    const axes = getBoundaryAxes(this.params);
 
-    if (mode === "cyclic-xyz" || mode === "cyclic-xy") {
+    if (axes.x === "cyclic") {
       ant.position.x = wrapAxisLocal(ant.position.x, halfX);
+    }
+    if (axes.y === "cyclic") {
       ant.position.y = wrapAxisLocal(ant.position.y, halfY);
-      ant.lost = false;
-      return true;
     }
 
-    const outOfBounds = Math.abs(ant.position.x) > halfX || Math.abs(ant.position.y) > halfY;
-    ant.lost = outOfBounds;
-    return !outOfBounds;
+    const outX = axes.x === "lost" && Math.abs(ant.position.x) > halfX;
+    const outY = axes.y === "lost" && Math.abs(ant.position.y) > halfY;
+    ant.lost = outX || outY;
+    return !ant.lost;
   }
 
   emitStats() {
@@ -1009,19 +1010,25 @@ function wrapAxisLocal(value, halfExtent) {
   return value;
 }
 
-function normalizeBoundaryMode(mode) {
-  if (mode === "cyclic") {
-    return "cyclic-xyz";
-  }
-  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-    return mode;
-  }
-  return "cyclic-xyz";
+function isPeriodicXYBoundary(params) {
+  const axes = getBoundaryAxes(params);
+  return axes.x === "cyclic" && axes.y === "cyclic";
 }
 
-function isPeriodicXYBoundary(mode) {
-  const normalized = normalizeBoundaryMode(mode);
-  return normalized === "cyclic-xyz" || normalized === "cyclic-xy";
+function getBoundaryAxes(params) {
+  const explicit = (params?.boundaryAxes && typeof params.boundaryAxes === "object")
+    ? params.boundaryAxes
+    : {};
+  return {
+    x: String(explicit.x || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+    y: String(explicit.y || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+    z: String(explicit.z || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+  };
+}
+
+function hasAnyLostBoundaryAxis(params) {
+  const axes = getBoundaryAxes(params);
+  return axes.x === "lost" || axes.y === "lost" || axes.z === "lost";
 }
 
 function shortestAngleDelta(value) {

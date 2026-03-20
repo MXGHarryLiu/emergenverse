@@ -1,12 +1,7 @@
 // URL routing helpers for applet selection via query string.
 const DEFAULT_MAX_APPLETS = 3;
-const APPLET_ID_ALIASES = Object.freeze({
-  ants: "ant",
-});
-
 function normalizeAppletAlias(value) {
-  const normalized = String(value || "").toLowerCase().trim();
-  return APPLET_ID_ALIASES[normalized] || normalized;
+  return String(value || "").toLowerCase().trim();
 }
 
 function ensureActiveInLoadedOrder(loadedAppletIds, activeAppletId, maxApplets = DEFAULT_MAX_APPLETS) {

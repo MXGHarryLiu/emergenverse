@@ -63,8 +63,8 @@ export class SimulationManager {
     active?.onWorldGeometryChanged?.();
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     const active = this.activeId ? this.simulations.get(this.activeId) : null;
-    active?.onBoundaryModeChanged?.();
+    active?.onBoundaryChanged?.();
   }
 }

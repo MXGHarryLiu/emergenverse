@@ -65,7 +65,7 @@ export class TemplateSimulation extends BaseSimulation {
 
   onWorldGeometryChanged() {}
 
-  onBoundaryModeChanged() {}
+  onBoundaryChanged() {}
 
   step() {}
 }

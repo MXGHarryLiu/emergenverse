@@ -530,6 +530,11 @@
     ]
   },
   "world": {
+    "boundary": {
+      "x": { "default": "cyclic" },
+      "y": { "default": "cyclic" },
+      "z": { "default": "lost" }
+    },
     "params": [
       {
         "key": "x",
@@ -558,12 +563,7 @@
         "uiMin": 50,
         "uiMax": 10000,
         "step": 50
-      },
-      {
-        "key": "boundaryMode",
-        "default": "cyclic-xy"
-      }
-    ],
+      }],
     "lengthUnit": {
       "name": "mm",
       "toSI": 0.001

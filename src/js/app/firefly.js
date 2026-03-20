@@ -127,14 +127,14 @@ export class FireflySimulation extends BaseSimulation {
     for (let i = 0; i < this.fireflies.length; i += 1) {
       this.applyBoundary(this.fireflies[i]);
     }
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLost();
     }
     this.syncInstances();
     this.emitStats(0);
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     this.onWorldGeometryChanged();
   }
 
@@ -257,7 +257,7 @@ export class FireflySimulation extends BaseSimulation {
       }
     }
 
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLost();
     }
 
@@ -375,30 +375,12 @@ export class FireflySimulation extends BaseSimulation {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
     const halfZ = this.params.worldSizeZ * 0.5;
-    const mode = normalizeBoundaryMode(this.params.boundaryMode);
-
-    if (mode === "cyclic-xyz") {
-      agent.position.x = wrapAxis(agent.position.x, halfX);
-      agent.position.y = wrapAxis(agent.position.y, halfY);
-      agent.position.z = wrapAxis(agent.position.z, halfZ);
-      agent.lost = false;
-      return true;
-    }
-
-    if (mode === "cyclic-xy") {
-      agent.position.x = wrapAxis(agent.position.x, halfX);
-      agent.position.y = wrapAxis(agent.position.y, halfY);
-      const outOfBoundsZ = Math.abs(agent.position.z) > halfZ;
-      agent.lost = outOfBoundsZ;
-      return !outOfBoundsZ;
-    }
-
-    const outOfBounds =
-      Math.abs(agent.position.x) > halfX ||
-      Math.abs(agent.position.y) > halfY ||
-      Math.abs(agent.position.z) > halfZ;
-    agent.lost = outOfBounds;
-    return !outOfBounds;
+    const axes = getBoundaryAxesFor3D(this.params);
+    const outX = applyAxisBoundary(agent.position, "x", halfX, axes.x);
+    const outY = applyAxisBoundary(agent.position, "y", halfY, axes.y);
+    const outZ = applyAxisBoundary(agent.position, "z", halfZ, axes.z);
+    agent.lost = outX || outY || outZ;
+    return !agent.lost;
   }
 
   removeLost() {
@@ -537,14 +519,32 @@ function wrapAxis(value, halfExtent) {
   return value;
 }
 
-function normalizeBoundaryMode(mode) {
-  if (mode === "cyclic") {
-    return "cyclic-xyz";
+function normalizeBoundaryAxis(axisMode) {
+  return String(axisMode || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic";
+}
+
+function getBoundaryAxesFor3D(params) {
+  const explicit = (params?.boundaryAxes && typeof params.boundaryAxes === "object")
+    ? params.boundaryAxes
+    : {};
+  return {
+    x: normalizeBoundaryAxis(explicit.x),
+    y: normalizeBoundaryAxis(explicit.y),
+    z: normalizeBoundaryAxis(explicit.z),
+  };
+}
+
+function applyAxisBoundary(position, axis, halfExtent, axisMode) {
+  if (normalizeBoundaryAxis(axisMode) === "cyclic") {
+    position[axis] = wrapAxis(position[axis], halfExtent);
+    return false;
   }
-  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-    return mode;
-  }
-  return "cyclic-xyz";
+  return Math.abs(position[axis]) > halfExtent;
+}
+
+function hasAnyLostBoundaryAxis(params) {
+  const axes = getBoundaryAxesFor3D(params);
+  return axes.x === "lost" || axes.y === "lost" || axes.z === "lost";
 }
 
 function buildColormapLUT(colormapEntries) {

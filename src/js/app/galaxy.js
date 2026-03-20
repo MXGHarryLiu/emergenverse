@@ -158,14 +158,14 @@ export class GalaxySimulation extends BaseSimulation {
     for (let i = 0; i < this.particles.length; i += 1) {
       this.world.applyBoundaryConditions(this.particles[i]);
     }
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLost();
     }
     this.syncInstances();
     this.emitStats();
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     this.onWorldGeometryChanged();
   }
 
@@ -233,7 +233,7 @@ export class GalaxySimulation extends BaseSimulation {
       this.world.applyBoundaryConditions(p);
     }
 
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLost();
     }
 
@@ -547,6 +547,12 @@ function getGalaxyVisualSize(params) {
     return Math.max(0.05, configuredDiameter / (2 * 0.42));
   }
   return Math.max(0.05, defaultDiameter / (2 * 0.42));
+}
+
+function hasAnyLostBoundaryAxis(params) {
+  const explicit = params?.boundaryAxes;
+  return [explicit?.x, explicit?.y, explicit?.z]
+    .some((axisMode) => String(axisMode || "").trim().toLowerCase() === "lost");
 }
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {

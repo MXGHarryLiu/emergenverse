@@ -125,7 +125,7 @@ export class DuneSimulation extends BaseSimulation {
     this.reset();
   }
 
-  onBoundaryModeChanged() {}
+  onBoundaryChanged() {}
 
   step(dt) {
     const { x: gridX, y: gridY } = this.getGridResolution();

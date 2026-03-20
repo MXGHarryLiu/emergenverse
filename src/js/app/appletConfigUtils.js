@@ -275,12 +275,7 @@ export function getSectionInputControls(sectionConfig) {
 
 export function createAppletParams(rootParams, appletId) {
   const requestedId = String(appletId || "").trim();
-  const aliasId = requestedId === "ant"
-    ? "ants"
-    : requestedId === "ants"
-      ? "ant"
-      : null;
-  const targetParams = rootParams[requestedId] ?? (aliasId ? rootParams[aliasId] : undefined) ?? {};
+  const targetParams = rootParams[requestedId] ?? {};
 
   return new Proxy(targetParams, {
     get(target, prop) {
@@ -347,40 +342,6 @@ function normalizeUnitConfig(unitConfig) {
 }
 
 function normalizeWorldParams(worldConfig = {}) {
-  const defaults = worldConfig.defaults ?? {};
-  const range = worldConfig.range ?? {};
-  const legacyStep = toFiniteNumber(range.step, 2);
-
-  const defaultByKey = {
-    x: toFiniteNumber(defaults.x, 100),
-    y: toFiniteNumber(defaults.y, 100),
-    z: toFiniteNumber(defaults.z, 100),
-    gridSize: toFiniteNumber(worldConfig.gridSize, 5),
-  };
-
-  const legacyBounds = {
-    x: {
-      uiMin: toFiniteNumber(range.minX, 40),
-      uiMax: toFiniteNumber(range.maxX, 320),
-      step: legacyStep,
-    },
-    y: {
-      uiMin: toFiniteNumber(range.minY, 40),
-      uiMax: toFiniteNumber(range.maxY, 320),
-      step: legacyStep,
-    },
-    z: {
-      uiMin: toFiniteNumber(range.minZ, 30),
-      uiMax: toFiniteNumber(range.maxZ, 260),
-      step: legacyStep,
-    },
-    gridSize: {
-      uiMin: Math.max(1, legacyStep),
-      uiMax: toFiniteNumber(range.maxX, 320),
-      step: legacyStep,
-    },
-  };
-
   const providedParams = Array.isArray(worldConfig.params) ? worldConfig.params : [];
   const paramByKey = new Map(
     providedParams
@@ -388,26 +349,46 @@ function normalizeWorldParams(worldConfig = {}) {
       .map((entry) => [String(entry.key || "").trim(), entry]),
   );
 
-  const keys = ["x", "y", "z", "gridSize"];
-  const normalized = keys.map((key) => {
-    const existing = paramByKey.get(key) || {};
-    const legacy = legacyBounds[key];
+  const requiredKeys = ["x", "y", "z", "gridSize"];
+  return requiredKeys.map((key) => {
+    const existing = paramByKey.get(key);
+    if (!existing || typeof existing !== "object") {
+      throw new Error(`[appletConfigUtils] world.params must include "${key}".`);
+    }
+
+    const defaultValue = Number(existing.default);
+    const uiMin = Number(existing.uiMin);
+    const uiMax = Number(existing.uiMax);
+    const step = Number(existing.step);
+
+    if (!Number.isFinite(defaultValue)) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires numeric default.`);
+    }
+    if (!Number.isFinite(uiMin)) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires numeric uiMin.`);
+    }
+    if (!Number.isFinite(uiMax)) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires numeric uiMax.`);
+    }
+    if (!Number.isFinite(step) || step <= 0) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires positive numeric step.`);
+    }
+    if (uiMax <= uiMin) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires uiMax > uiMin.`);
+    }
+
     return {
       key,
-      default: toFiniteNumber(existing.default, defaultByKey[key]),
-      uiMin: toFiniteNumber(existing.uiMin, legacy.uiMin),
-      uiMax: toFiniteNumber(existing.uiMax, legacy.uiMax),
-      step: toFiniteNumber(existing.step, legacy.step),
+      default: defaultValue,
+      uiMin,
+      uiMax,
+      step,
     };
   });
+}
 
-  const boundaryParam = paramByKey.get("boundaryMode") || {};
-  normalized.push({
-    key: "boundaryMode",
-    default: String(boundaryParam.default ?? "cyclic-xyz"),
-  });
-
-  return normalized;
+function normalizeBoundaryAxisMode(value) {
+  return String(value || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic";
 }
 
 function buildLegacyWorldShapeFromParams(worldParams) {
@@ -601,6 +582,27 @@ function validateKeyedParams(params, contextPath) {
   });
 }
 
+function validateWorldBoundaryConfig(boundaryConfig) {
+  if (!boundaryConfig || typeof boundaryConfig !== "object") {
+    return;
+  }
+  ["x", "y", "z"].forEach((axis) => {
+    const axisEntry = boundaryConfig[axis];
+    if (!axisEntry || typeof axisEntry !== "object") {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(axisEntry, "default")) {
+      const mode = normalizeBoundaryAxisMode(axisEntry.default);
+      const raw = String(axisEntry.default || "").trim().toLowerCase();
+      if (raw && mode !== raw) {
+        throw new Error(
+          `[appletConfigUtils] world.boundary.${axis}.default must be "cyclic" or "lost".`,
+        );
+      }
+    }
+  });
+}
+
 function normalizeBoolean(value, fallback) {
   if (typeof value === "boolean") {
     return value;
@@ -665,12 +667,20 @@ export function validateAppletConfig(config) {
   const legacyCameraControls = buildLegacyCameraControlsFromParams(cameraParams);
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
   const cameraMoveSpeedParam = cameraParams.find((entry) => entry.key === "moveSpeed");
-  const worldBoundaryModeParam = worldParams.find((entry) => entry.key === "boundaryMode");
+  const worldBoundaryConfig = (config?.world?.boundary && typeof config.world.boundary === "object")
+    ? config.world.boundary
+    : {};
+  const normalizedBoundaryAxes = {
+    x: normalizeBoundaryAxisMode(worldBoundaryConfig?.x?.default),
+    y: normalizeBoundaryAxisMode(worldBoundaryConfig?.y?.default),
+    z: normalizeBoundaryAxisMode(worldBoundaryConfig?.z?.default),
+  };
   const normalizedVisual = normalizeVisualConfig(config.visual ?? null);
 
   validateKeyedParams(config?.simulation?.params, "simulation.params");
   validateKeyedParams(config?.camera?.params, "camera.params");
   validateKeyedParams(config?.world?.params, "world.params");
+  validateWorldBoundaryConfig(config?.world?.boundary);
   validateKeyedParams(config?.interaction?.params, "interaction.params");
   validateKeyedParams(config?.stats?.params, "stats.params");
   validateKeyedParams(normalizedVisual?.params, "visual.params");
@@ -705,7 +715,7 @@ export function validateAppletConfig(config) {
     },
     world: {
       params: worldParams,
-      defaultBoundaryMode: String(worldBoundaryModeParam?.default || "cyclic-xyz").trim(),
+      defaultBoundaryAxes: normalizedBoundaryAxes,
       defaults: legacyWorld.defaults,
       range: legacyWorld.range,
       gridSize: legacyWorld.gridSize,

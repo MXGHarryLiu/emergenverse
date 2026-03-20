@@ -427,6 +427,11 @@
     ]
   },
   "world": {
+    "boundary": {
+      "x": { "default": "lost" },
+      "y": { "default": "lost" },
+      "z": { "default": "lost" }
+    },
     "params": [
       {
         "key": "x",
@@ -455,12 +460,7 @@
         "uiMin": 5,
         "uiMax": 800,
         "step": 5
-      },
-      {
-        "key": "boundaryMode",
-        "default": "lost"
-      }
-    ],
+      }],
     "lengthUnit": {
       "name": "kly",
       "toSI": 9.4607304725808E+18

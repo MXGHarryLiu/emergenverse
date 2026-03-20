@@ -49,7 +49,7 @@ export class BaseSimulation {
 
   onWorldGeometryChanged() {}
 
-  onBoundaryModeChanged() {}
+  onBoundaryChanged() {}
 
   step() {
     const appletId = BaseSimulation.resolveAppletId(this.constructor);

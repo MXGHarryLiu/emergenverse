@@ -145,19 +145,19 @@ export class BoidSimulation extends BaseSimulation {
     for (let i = 0; i < this.boids.length; i += 1) {
       this.world.applyBoundaryConditions(this.boids[i]);
     }
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLostBoids();
     }
     this.syncInstances();
     this.emitCurrentStats();
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     for (let i = 0; i < this.boids.length; i += 1) {
       this.world.applyBoundaryConditions(this.boids[i]);
     }
 
-    if (this.params.boundaryMode === "lost") {
+    if (hasAnyLostBoundaryAxis(this.params)) {
       this.removeLostBoids();
     }
 
@@ -216,7 +216,7 @@ export class BoidSimulation extends BaseSimulation {
   step(dt) {
     const perceptionSq = this.params.perceptionRadius * this.params.perceptionRadius;
     const separationSq = this.params.separationDistance * this.params.separationDistance;
-    const usingLostBounds = this.params.boundaryMode === "lost";
+    const usingLostBounds = hasAnyLostBoundaryAxis(this.params);
 
     let speedSum = 0;
     let neighborSum = 0;
@@ -591,6 +591,12 @@ function getBoidVisualSize(params) {
     return Math.max(0.001, configuredDiameter / (2 * 0.7));
   }
   return Math.max(0.001, defaultDiameter / (2 * 0.7));
+}
+
+function hasAnyLostBoundaryAxis(params) {
+  const explicit = params?.boundaryAxes;
+  return [explicit?.x, explicit?.y, explicit?.z]
+    .some((axisMode) => String(axisMode || "").trim().toLowerCase() === "lost");
 }
 
 function buildColormapLUT(colormapEntries) {

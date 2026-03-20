@@ -177,7 +177,7 @@ export class PreySimulation extends BaseSimulation {
     this.emitStats();
   }
 
-  onBoundaryModeChanged() {
+  onBoundaryChanged() {
     this.applyBoundaryToAll();
     this.removeLostAgents();
     this.syncInstances();
@@ -494,18 +494,19 @@ export class PreySimulation extends BaseSimulation {
   applyBoundary(agent) {
     const halfX = this.params.worldSizeX * 0.5;
     const halfY = this.params.worldSizeY * 0.5;
-    const mode = normalizeBoundaryMode(this.params.boundaryMode);
+    const axes = getBoundaryAxes(this.params);
 
-    if (mode === "cyclic-xyz" || mode === "cyclic-xy") {
+    if (axes.x === "cyclic") {
       agent.position.x = wrapAxis(agent.position.x, halfX);
+    }
+    if (axes.y === "cyclic") {
       agent.position.y = wrapAxis(agent.position.y, halfY);
-      agent.lost = false;
-      return true;
     }
 
-    const outOfBounds = Math.abs(agent.position.x) > halfX || Math.abs(agent.position.y) > halfY;
-    agent.lost = outOfBounds;
-    return !outOfBounds;
+    const outX = axes.x === "lost" && Math.abs(agent.position.x) > halfX;
+    const outY = axes.y === "lost" && Math.abs(agent.position.y) > halfY;
+    agent.lost = outX || outY;
+    return !agent.lost;
   }
 
   removeLostAgents() {
@@ -697,14 +698,15 @@ function wrapAxis(value, halfExtent) {
   return value;
 }
 
-function normalizeBoundaryMode(mode) {
-  if (mode === "cyclic") {
-    return "cyclic-xyz";
-  }
-  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-    return mode;
-  }
-  return "cyclic-xyz";
+function getBoundaryAxes(params) {
+  const explicit = (params?.boundaryAxes && typeof params.boundaryAxes === "object")
+    ? params.boundaryAxes
+    : {};
+  return {
+    x: String(explicit.x || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+    y: String(explicit.y || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+    z: String(explicit.z || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic",
+  };
 }
 
 function enforce2DSpeed(vector, minSpeed, maxSpeed) {

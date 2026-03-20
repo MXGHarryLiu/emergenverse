@@ -190,7 +190,7 @@ function validateSimulationContract(id, SimulationClass) {
     "onTheme",
     "reset",
     "onWorldGeometryChanged",
-    "onBoundaryModeChanged",
+    "onBoundaryChanged",
     "step",
   ];
   const prototype = SimulationClass?.prototype || {};
@@ -238,7 +238,7 @@ export const APPLET_META = Object.fromEntries(
       {
         id,
         label: metaConfig?.label ?? config?.label ?? id,
-        shortLabel: metaConfig?.shortLabel ?? metaConfig?.label?.split(/\s+/)[0] ?? id,
+        shortLabel: String(metaConfig?.shortLabel || "").trim() || undefined,
         group: String(metaConfig?.group || "").trim() || "physical",
         thumbnail: String(metaConfig?.thumbnail || "").trim() || "",
         key: String(config?.key ?? id).trim() || id,

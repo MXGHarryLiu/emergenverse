@@ -85,10 +85,7 @@
               <div class="brand-subtitle">Discover patterns from simple rules</div>
             </div>
           </div>
-        </header>
-        <div class="launcher-toolbar" role="toolbar" aria-label="Launcher navigator options">
-          <p class="launcher-toolbar-copy is-hidden" id="launcher-status-copy"></p>
-          <div class="launcher-toolbar-actions">
+          <div class="launcher-head-actions">
             <button
               class="chip chip-button nav-icon-btn"
               id="launcher-sort-toggle"
@@ -102,6 +99,9 @@
               Done
             </button>
           </div>
+        </header>
+        <div class="launcher-toolbar" role="toolbar" aria-label="Launcher navigator options">
+          <p class="launcher-toolbar-copy is-hidden" id="launcher-status-copy"></p>
         </div>
         <div class="launcher-grid-groups" id="launcher-grid-groups" aria-live="polite"></div>
         <footer class="launcher-foot">
@@ -506,14 +506,31 @@
           </label>
           <input class="form-range" type="range" id="world-size-z" min="30" max="260" step="2" value="100" />
 
-          <label class="form-label mt-1" for="boundary-mode">
-            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Mode</span>
-            <span class="label-value" id="boundary-mode-value">Cyclic (3D)</span>
+          <label class="form-label mt-1" for="boundary-x">
+            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary X</span>
+            <span class="label-value" id="boundary-x-value">Cyclic</span>
           </label>
-          <select class="form-select form-select-sm theme-select" id="boundary-mode">
-            <option value="cyclic-xyz" data-short="Cyclic (3D)" selected>Cyclic (X, Y, Z)</option>
-            <option value="cyclic-xy" data-short="Cyclic (2D)">Cyclic (X, Y)</option>
-            <option value="lost" data-short="Lost">Lost (remove out-of-bounds)</option>
+          <select class="form-select form-select-sm theme-select" id="boundary-x">
+            <option value="cyclic" data-short="Cyclic" selected>Cyclic</option>
+            <option value="lost" data-short="Lost">Lost</option>
+          </select>
+
+          <label class="form-label mt-1" for="boundary-y">
+            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Y</span>
+            <span class="label-value" id="boundary-y-value">Cyclic</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="boundary-y">
+            <option value="cyclic" data-short="Cyclic" selected>Cyclic</option>
+            <option value="lost" data-short="Lost">Lost</option>
+          </select>
+
+          <label class="form-label mt-1" for="boundary-z">
+            <span class="label-name"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i>Boundary Z</span>
+            <span class="label-value" id="boundary-z-value">Cyclic</span>
+          </label>
+          <select class="form-select form-select-sm theme-select" id="boundary-z">
+            <option value="cyclic" data-short="Cyclic" selected>Cyclic</option>
+            <option value="lost" data-short="Lost">Lost</option>
           </select>
 
           <div class="d-flex align-items-center justify-content-between mt-1 compact-toggle-row">

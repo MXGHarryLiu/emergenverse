@@ -744,7 +744,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return;
     }
 
-    const mode = normalizeBoundaryMode(params.boundaryMode);
+    const boundaryAxes = getBoundaryAxes(params);
     const halfX = Math.max(1e-6, (Number(params.worldSizeX) || 0) * 0.5);
     const halfY = Math.max(1e-6, (Number(params.worldSizeY) || 0) * 0.5);
     const halfZ = Math.max(1e-6, (Number(params.worldSizeZ) || 0) * 0.5);
@@ -756,19 +756,9 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     let nextY = originalY;
     let nextZ = originalZ;
 
-    if (mode === "cyclic-xyz") {
-      nextX = wrapAxis(originalX, halfX);
-      nextY = wrapAxis(originalY, halfY);
-      nextZ = wrapAxis(originalZ, halfZ);
-    } else if (mode === "cyclic-xy") {
-      nextX = wrapAxis(originalX, halfX);
-      nextY = wrapAxis(originalY, halfY);
-      nextZ = THREE.MathUtils.clamp(originalZ, -halfZ, halfZ);
-    } else {
-      nextX = THREE.MathUtils.clamp(originalX, -halfX, halfX);
-      nextY = THREE.MathUtils.clamp(originalY, -halfY, halfY);
-      nextZ = THREE.MathUtils.clamp(originalZ, -halfZ, halfZ);
-    }
+    nextX = boundaryAxes.x === "cyclic" ? wrapAxis(originalX, halfX) : THREE.MathUtils.clamp(originalX, -halfX, halfX);
+    nextY = boundaryAxes.y === "cyclic" ? wrapAxis(originalY, halfY) : THREE.MathUtils.clamp(originalY, -halfY, halfY);
+    nextZ = boundaryAxes.z === "cyclic" ? wrapAxis(originalZ, halfZ) : THREE.MathUtils.clamp(originalZ, -halfZ, halfZ);
 
     const deltaX = nextX - originalX;
     const deltaY = nextY - originalY;
@@ -785,9 +775,9 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       controls.target.z += deltaZ;
     }
 
-    const clampedX = mode === "lost" && Math.abs(deltaX) > spaceshipClampEpsilon;
-    const clampedY = mode === "lost" && Math.abs(deltaY) > spaceshipClampEpsilon;
-    const clampedZ = (mode === "lost" || mode === "cyclic-xy") && Math.abs(deltaZ) > spaceshipClampEpsilon;
+    const clampedX = boundaryAxes.x === "lost" && Math.abs(deltaX) > spaceshipClampEpsilon;
+    const clampedY = boundaryAxes.y === "lost" && Math.abs(deltaY) > spaceshipClampEpsilon;
+    const clampedZ = boundaryAxes.z === "lost" && Math.abs(deltaZ) > spaceshipClampEpsilon;
     if (clampedX) {
       spaceshipLinearVelocity.x = 0;
     }
@@ -852,14 +842,19 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     };
   }
 
-  function normalizeBoundaryMode(mode) {
-    if (mode === "cyclic") {
-      return "cyclic-xyz";
-    }
-    if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-      return mode;
-    }
-    return "cyclic-xyz";
+  function normalizeBoundaryAxis(value) {
+    return String(value || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic";
+  }
+
+  function getBoundaryAxes(state) {
+    const explicit = (state?.boundaryAxes && typeof state.boundaryAxes === "object")
+      ? state.boundaryAxes
+      : {};
+    return {
+      x: normalizeBoundaryAxis(explicit.x),
+      y: normalizeBoundaryAxis(explicit.y),
+      z: normalizeBoundaryAxis(explicit.z),
+    };
   }
 
   function wrapAxis(value, halfExtent) {

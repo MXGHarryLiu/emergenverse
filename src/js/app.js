@@ -58,7 +58,7 @@ const params = {
   worldSizeY: 100,
   worldSizeZ: 100,
   worldGridSize: 5,
-  boundaryMode: "cyclic-xyz",
+  boundaryAxes: { x: "cyclic", y: "cyclic", z: "cyclic" },
   cameraDistance: 185,
   cameraHeight: 80,
   cameraFov: 50,
@@ -258,8 +258,12 @@ const dom = {
   showBounds: document.getElementById("show-bounds"),
   cameraLocked: document.getElementById("camera-locked"),
   spaceshipMode: document.getElementById("spaceship-mode"),
-  boundaryMode: document.getElementById("boundary-mode"),
-  boundaryModeValue: document.getElementById("boundary-mode-value"),
+  boundaryX: document.getElementById("boundary-x"),
+  boundaryY: document.getElementById("boundary-y"),
+  boundaryZ: document.getElementById("boundary-z"),
+  boundaryXValue: document.getElementById("boundary-x-value"),
+  boundaryYValue: document.getElementById("boundary-y-value"),
+  boundaryZValue: document.getElementById("boundary-z-value"),
   supportInfoOpen: document.getElementById("support-info-open"),
   supportInfoClose: document.getElementById("support-info-close"),
   supportInfoBackdrop: document.getElementById("support-info-backdrop"),
@@ -368,14 +372,17 @@ const middleLayoutState = {
 
 let visualControls = null;
 
-function normalizeBoundaryMode(mode) {
-  if (mode === "cyclic") {
-    return "cyclic-xyz";
+function normalizeBoundaryAxis(axisMode) {
+  return String(axisMode || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic";
+}
+
+function normalizeBoundaryAxes(axes, fallbackAxes = { x: "cyclic", y: "cyclic", z: "cyclic" }) {
+  const source = (axes && typeof axes === "object") ? axes : {};
+  return {
+    x: normalizeBoundaryAxis(source.x ?? fallbackAxes.x),
+    y: normalizeBoundaryAxis(source.y ?? fallbackAxes.y),
+    z: normalizeBoundaryAxis(source.z ?? fallbackAxes.z),
   }
-  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-    return mode;
-  }
-  return "cyclic-xyz";
 }
 
 function initializeSimulationsWithAppletWorldState() {
@@ -384,7 +391,7 @@ function initializeSimulationsWithAppletWorldState() {
     worldSizeY: params.worldSizeY,
     worldSizeZ: params.worldSizeZ,
     worldGridSize: params.worldGridSize,
-    boundaryMode: params.boundaryMode,
+    boundaryAxes: { ...params.boundaryAxes },
   };
 
   APPLET_ORDER.forEach((appletId) => {
@@ -395,8 +402,9 @@ function initializeSimulationsWithAppletWorldState() {
     params.worldGridSize = Number.isFinite(state.gridSize)
       ? state.gridSize
       : snapshot.worldGridSize;
-    params.boundaryMode = normalizeBoundaryMode(
-      state.boundaryMode ?? getWorldBoundaryModeDefault(appletId),
+    params.boundaryAxes = normalizeBoundaryAxes(
+      state.boundaryAxes ?? getWorldBoundaryAxesDefault(appletId),
+      getWorldBoundaryAxesDefault(appletId),
     );
     simulations[appletId]?.init?.();
   });
@@ -405,7 +413,7 @@ function initializeSimulationsWithAppletWorldState() {
   params.worldSizeY = snapshot.worldSizeY;
   params.worldSizeZ = snapshot.worldSizeZ;
   params.worldGridSize = snapshot.worldGridSize;
-  params.boundaryMode = snapshot.boundaryMode;
+  params.boundaryAxes = { ...snapshot.boundaryAxes };
 }
 
 // World Unit + Display Formatting Helpers
@@ -414,7 +422,6 @@ const DEFAULT_WORLD_PARAM_DEFINITIONS = Object.freeze({
   y: Object.freeze({ key: "y", default: 100, uiMin: 40, uiMax: 320, step: 2 }),
   z: Object.freeze({ key: "z", default: 100, uiMin: 30, uiMax: 260, step: 2 }),
   gridSize: Object.freeze({ key: "gridSize", default: 5, uiMin: 2, uiMax: 320, step: 2 }),
-  boundaryMode: Object.freeze({ key: "boundaryMode", default: "cyclic-xyz" }),
 });
 const DEFAULT_WORLD_LENGTH_UNIT = Object.freeze({ name: "m", toSI: 1 });
 
@@ -428,22 +435,15 @@ function getWorldParamDefinition(appletId, key) {
     return paramEntry;
   }
 
-  if (normalizedKey === "boundaryMode") {
-    return {
-      key: "boundaryMode",
-      default: DEFAULT_WORLD_PARAM_DEFINITIONS.boundaryMode.default,
-    };
-  }
-
   return DEFAULT_WORLD_PARAM_DEFINITIONS[normalizedKey] ?? DEFAULT_WORLD_PARAM_DEFINITIONS.gridSize;
 }
 
-function getWorldBoundaryModeDefault(appletId) {
-  const configDefault = APPLET_CONFIGS[appletId]?.world?.defaultBoundaryMode;
-  if (typeof configDefault === "string" && configDefault.trim().length > 0) {
-    return normalizeBoundaryMode(configDefault);
+function getWorldBoundaryAxesDefault(appletId) {
+  const configured = APPLET_CONFIGS[appletId]?.world?.defaultBoundaryAxes;
+  if (configured && typeof configured === "object") {
+    return normalizeBoundaryAxes(configured);
   }
-  return normalizeBoundaryMode(getWorldParamDefinition(appletId, "boundaryMode")?.default);
+  return normalizeBoundaryAxes({ x: "cyclic", y: "cyclic", z: "cyclic" });
 }
 
 function getAppletDefaultProjection(appletId = activeApplet) {
@@ -561,7 +561,7 @@ function formatKeyboardRotationSpeed(value) {
 }
 
 function getViewportAppletLabel(appletId = activeApplet) {
-  return APPLET_META[appletId]?.shortLabel ?? APPLET_META[appletId]?.label ?? "Applet";
+  return APPLET_META[appletId]?.label ?? "Applet";
 }
 
 function refreshAppletLegend(appletId = activeApplet) {
@@ -794,7 +794,7 @@ setupUiOverlays({
           sizeY: Number(params.worldSizeY),
           sizeZ: Number(params.worldSizeZ),
           gridSize: Number(params.worldGridSize),
-          boundaryMode: normalizeBoundaryMode(params.boundaryMode),
+          boundaryAxes: cloneJsonSafe(params.boundaryAxes, { x: "cyclic", y: "cyclic", z: "cyclic" }),
         },
       },
       visual: cloneJsonSafe(visualParams, {}),
@@ -997,14 +997,26 @@ function setupControls() {
     spaceshipHud.update();
   });
 
-  dom.boundaryMode.addEventListener("change", () => {
-    params.boundaryMode = normalizeBoundaryMode(dom.boundaryMode.value);
-    syncBoundaryModeDisplayText();
-    if (worldStatePersistenceEnabled) {
-      persistActiveAppletWorldState();
+  const bindBoundaryAxisControl = (axisKey, selectElement, valueElement) => {
+    if (!(selectElement instanceof HTMLSelectElement)) {
+      return;
     }
-    simulationManager.onBoundaryModeChanged();
-  });
+    selectElement.addEventListener("change", () => {
+      params.boundaryAxes = normalizeBoundaryAxes({
+        ...params.boundaryAxes,
+        [axisKey]: normalizeBoundaryAxis(selectElement.value),
+      });
+      syncBoundaryAxisDisplayText(axisKey, valueElement, selectElement);
+      if (worldStatePersistenceEnabled) {
+        persistActiveAppletWorldState();
+      }
+      simulationManager.onBoundaryChanged();
+    });
+  };
+
+  bindBoundaryAxisControl("x", dom.boundaryX, dom.boundaryXValue);
+  bindBoundaryAxisControl("y", dom.boundaryY, dom.boundaryYValue);
+  bindBoundaryAxisControl("z", dom.boundaryZ, dom.boundaryZValue);
 
   if (dom.cameraProjectionToggle) {
     dom.cameraProjectionToggle.addEventListener("click", () => {
@@ -1088,9 +1100,21 @@ function setupControls() {
     cameraController.haltAllSpaceshipMotion?.();
     spaceshipHud.update();
   });
-  dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
-  syncBoundaryModeDisplayText();
-  registerCompactSelectControl("boundary-mode", "boundary-mode-value");
+  if (dom.boundaryX) {
+    dom.boundaryX.value = normalizeBoundaryAxis(params.boundaryAxes?.x);
+  }
+  if (dom.boundaryY) {
+    dom.boundaryY.value = normalizeBoundaryAxis(params.boundaryAxes?.y);
+  }
+  if (dom.boundaryZ) {
+    dom.boundaryZ.value = normalizeBoundaryAxis(params.boundaryAxes?.z);
+  }
+  syncBoundaryAxisDisplayText("x", dom.boundaryXValue, dom.boundaryX);
+  syncBoundaryAxisDisplayText("y", dom.boundaryYValue, dom.boundaryY);
+  syncBoundaryAxisDisplayText("z", dom.boundaryZValue, dom.boundaryZ);
+  registerCompactSelectControl("boundary-x", "boundary-x-value");
+  registerCompactSelectControl("boundary-y", "boundary-y-value");
+  registerCompactSelectControl("boundary-z", "boundary-z-value");
   APPLET_ORDER.forEach((appletId) => {
     APPLET_DEFINITIONS[appletId].runtime?.bindInteractionControls?.({
       appletId,
@@ -2083,21 +2107,25 @@ function createDefaultWorldState(appletId) {
     y: convertLengthFromDisplay(Number(yParam.default ?? 100), appletId),
     z: convertLengthFromDisplay(Number(zParam.default ?? 100), appletId),
     gridSize: convertLengthFromDisplay(Number(gridParam.default ?? 5), appletId),
-    boundaryMode: getWorldBoundaryModeDefault(appletId),
+    boundaryAxes: getWorldBoundaryAxesDefault(appletId),
   };
 }
 
-function persistActiveAppletWorldState() {
-  if (!appletSession.isValidAppletId(activeApplet)) {
+function persistAppletWorldState(appletId) {
+  if (!appletSession.isValidAppletId(appletId)) {
     return;
   }
-  appletSession.persistActiveWorldState({
+  appletSession.setWorldState(appletId, {
     x: params.worldSizeX,
     y: params.worldSizeY,
     z: params.worldSizeZ,
     gridSize: params.worldGridSize,
-    boundaryMode: normalizeBoundaryMode(params.boundaryMode),
+    boundaryAxes: normalizeBoundaryAxes(params.boundaryAxes),
   });
+}
+
+function persistActiveAppletWorldState() {
+  persistAppletWorldState(activeApplet);
 }
 
 function applyWorldSliderConstraints(appletId) {
@@ -2124,13 +2152,14 @@ function applyAppletWorldState(appletId, options = {}) {
   params.worldGridSize = Number.isFinite(state.gridSize)
     ? state.gridSize
     : convertLengthFromDisplay(Number(gridParam.default ?? 5), appletId);
-  const defaultBoundaryMode = getWorldBoundaryModeDefault(appletId);
+  const defaultBoundaryAxes = getWorldBoundaryAxesDefault(appletId);
   if (forceBoundaryDefault) {
-    state.boundaryMode = defaultBoundaryMode;
+    state.boundaryAxes = defaultBoundaryAxes;
     appletSession.setWorldState(appletId, state);
   }
-  params.boundaryMode = normalizeBoundaryMode(
-    state.boundaryMode ?? defaultBoundaryMode,
+  params.boundaryAxes = normalizeBoundaryAxes(
+    state.boundaryAxes ?? defaultBoundaryAxes,
+    defaultBoundaryAxes,
   );
 
   setControlValue(
@@ -2151,13 +2180,21 @@ function applyAppletWorldState(appletId, options = {}) {
     "world-size-z-value",
     (value) => formatWorldDisplayValue(value, appletId),
   );
-  if (dom.boundaryMode) {
-    dom.boundaryMode.value = normalizeBoundaryMode(params.boundaryMode);
-    syncBoundaryModeDisplayText();
+  if (dom.boundaryX) {
+    dom.boundaryX.value = normalizeBoundaryAxis(params.boundaryAxes?.x);
   }
+  if (dom.boundaryY) {
+    dom.boundaryY.value = normalizeBoundaryAxis(params.boundaryAxes?.y);
+  }
+  if (dom.boundaryZ) {
+    dom.boundaryZ.value = normalizeBoundaryAxis(params.boundaryAxes?.z);
+  }
+  syncBoundaryAxisDisplayText("x", dom.boundaryXValue, dom.boundaryX);
+  syncBoundaryAxisDisplayText("y", dom.boundaryYValue, dom.boundaryY);
+  syncBoundaryAxisDisplayText("z", dom.boundaryZValue, dom.boundaryZ);
 
   rebuildBoundsAndGrid();
-  simulationManager.onBoundaryModeChanged();
+  simulationManager.onBoundaryChanged();
   refreshAppletLegend(appletId);
 }
 
@@ -2290,7 +2327,7 @@ function applyAppletMode(appletId, options = {}) {
 
   if (previousApplet && previousApplet !== normalizedId && APPLET_IDS.has(previousApplet)) {
     appletCameraState[previousApplet] = cameraController.getCameraSnapshot();
-    persistActiveAppletWorldState();
+    persistAppletWorldState(previousApplet);
   }
 
   applySceneObjectVisibility(normalizedId);
@@ -3319,26 +3356,26 @@ function getSelectDisplayText(select) {
   return option?.textContent?.trim() || String(select.value || "");
 }
 
-function getBoundaryModeDisplayText(value = dom.boundaryMode?.value) {
-  if (!dom.boundaryMode) {
-    return String(value ?? "");
+function getBoundaryAxisDisplayText(select, value) {
+  if (!(select instanceof HTMLSelectElement)) {
+    return normalizeBoundaryAxis(value) === "lost" ? "Lost" : "Cyclic";
   }
-  const normalized = normalizeBoundaryMode(value);
-  const option = Array.from(dom.boundaryMode.options || []).find((item) => item.value === normalized);
+  const normalized = normalizeBoundaryAxis(value ?? select.value);
+  const option = Array.from(select.options || []).find((item) => item.value === normalized);
   const shortText = option?.getAttribute("data-short")?.trim();
   if (shortText) {
     return shortText;
   }
-  return option?.textContent?.trim() || normalized;
+  return option?.textContent?.trim() || (normalized === "lost" ? "Lost" : "Cyclic");
 }
 
-function syncBoundaryModeDisplayText() {
-  if (!dom.boundaryModeValue) {
+function syncBoundaryAxisDisplayText(_axisKey, output, select) {
+  if (!(output instanceof HTMLElement)) {
     return;
   }
-  const display = getBoundaryModeDisplayText(dom.boundaryMode?.value);
-  dom.boundaryModeValue.textContent = display;
-  dom.boundaryModeValue.dataset.formattedValue = display;
+  const display = getBoundaryAxisDisplayText(select, select?.value);
+  output.textContent = display;
+  output.dataset.formattedValue = display;
 }
 
 function registerCompactSelectControl(selectRef, outputRef) {
@@ -3369,8 +3406,8 @@ function registerCompactSelectControl(selectRef, outputRef) {
   output.setAttribute("aria-label", `Edit ${labelText}`);
 
   const syncOutput = () => {
-    const display = select.id === "boundary-mode"
-      ? getBoundaryModeDisplayText(select.value)
+    const display = select.id === "boundary-x" || select.id === "boundary-y" || select.id === "boundary-z"
+      ? getBoundaryAxisDisplayText(select, select.value)
       : getSelectDisplayText(select);
     output.textContent = display;
     output.dataset.formattedValue = display;

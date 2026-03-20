@@ -465,6 +465,11 @@
     ]
   },
   "world": {
+    "boundary": {
+      "x": { "default": "cyclic" },
+      "y": { "default": "cyclic" },
+      "z": { "default": "lost" }
+    },
     "params": [
       {
         "key": "x",
@@ -493,12 +498,7 @@
         "uiMin": 2,
         "uiMax": 320,
         "step": 2
-      },
-      {
-        "key": "boundaryMode",
-        "default": "cyclic-xy"
-      }
-    ]
+      }]
   },
   "params": {
     "avoidRadius": 14,

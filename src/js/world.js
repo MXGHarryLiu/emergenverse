@@ -76,31 +76,12 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
     const halfX = params.worldSizeX * 0.5;
     const halfY = params.worldSizeY * 0.5;
     const halfZ = params.worldSizeZ * 0.5;
-    const mode = normalizeBoundaryMode(params.boundaryMode);
-
-    if (mode === "cyclic-xyz") {
-      entity.position.x = wrapAxis(entity.position.x, halfX);
-      entity.position.y = wrapAxis(entity.position.y, halfY);
-      entity.position.z = wrapAxis(entity.position.z, halfZ);
-      entity.lost = false;
-      return true;
-    }
-
-    if (mode === "cyclic-xy") {
-      entity.position.x = wrapAxis(entity.position.x, halfX);
-      entity.position.y = wrapAxis(entity.position.y, halfY);
-      const outOfBoundsZ = Math.abs(entity.position.z) > halfZ;
-      entity.lost = outOfBoundsZ;
-      return !outOfBoundsZ;
-    }
-
-    const outOfBounds =
-      Math.abs(entity.position.x) > halfX ||
-      Math.abs(entity.position.y) > halfY ||
-      Math.abs(entity.position.z) > halfZ;
-
-    entity.lost = outOfBounds;
-    return !outOfBounds;
+    const axes = getBoundaryAxes(params);
+    const outX = applyAxisBoundary(entity.position, "x", halfX, axes.x);
+    const outY = applyAxisBoundary(entity.position, "y", halfY, axes.y);
+    const outZ = applyAxisBoundary(entity.position, "z", halfZ, axes.z);
+    entity.lost = outX || outY || outZ;
+    return !entity.lost;
   }
 
   return {
@@ -111,14 +92,28 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
   };
 }
 
-function normalizeBoundaryMode(mode) {
-  if (mode === "cyclic") {
-    return "cyclic-xyz";
+export function getBoundaryAxes(params) {
+  const explicit = (params?.boundaryAxes && typeof params.boundaryAxes === "object")
+    ? params.boundaryAxes
+    : {};
+  return {
+    x: normalizeBoundaryAxis(explicit.x),
+    y: normalizeBoundaryAxis(explicit.y),
+    z: normalizeBoundaryAxis(explicit.z),
+  };
+}
+
+function normalizeBoundaryAxis(axisMode) {
+  return String(axisMode || "").trim().toLowerCase() === "lost" ? "lost" : "cyclic";
+}
+
+function applyAxisBoundary(position, axis, halfExtent, mode) {
+  const axisMode = normalizeBoundaryAxis(mode);
+  if (axisMode === "cyclic") {
+    position[axis] = wrapAxis(position[axis], halfExtent);
+    return false;
   }
-  if (mode === "cyclic-xyz" || mode === "cyclic-xy" || mode === "lost") {
-    return mode;
-  }
-  return "cyclic-xyz";
+  return Math.abs(position[axis]) > halfExtent;
 }
 
 function buildFloorGrid({ width, height, z, step }) {

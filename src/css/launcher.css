@@ -29,8 +29,10 @@
 }
 
 .launcher-head {
-  display: grid;
-  gap: 0.46rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
 }
 
 .launcher-brand {
@@ -46,6 +48,14 @@
   color: var(--title-color);
 }
 
+.launcher-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .launcher-copy {
   margin: 0;
   max-width: 66ch;
@@ -56,9 +66,8 @@
 .launcher-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.8rem;
-  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.5rem;
 }
 
 .launcher-toolbar-copy {
@@ -66,12 +75,6 @@
   color: var(--text-soft);
   font-size: 0.78rem;
   letter-spacing: 0.03em;
-}
-
-.launcher-toolbar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
 }
 
 .launcher-grid-groups {
@@ -93,6 +96,11 @@
   font: 700 0.82rem/1.1 "Syne", "Space Grotesk", sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.2rem 0;
+  background: color-mix(in srgb, var(--bg-elev) 72%, transparent);
 }
 
 .launcher-card-grid {
@@ -296,17 +304,22 @@ html.boot-show-launcher #launcher-overlay.is-hidden {
 }
 
 @media (max-width: 640px) {
+  .launcher-head {
+    align-items: center;
+  }
+
+  .launcher-head-actions {
+    margin-left: 0;
+  }
+
   .launcher-toolbar {
+    justify-content: flex-start;
     align-items: flex-start;
   }
 
   .launcher-toolbar-copy {
     width: 100%;
     font-size: 0.74rem;
-  }
-
-  .launcher-toolbar-actions {
-    width: 100%;
   }
 
   .launcher-card-grid {
