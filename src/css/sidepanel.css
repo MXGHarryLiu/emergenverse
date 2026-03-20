@@ -1,0 +1,376 @@
+:root {
+  --control-value-radius: 0.45rem;
+}
+
+/* Information panel container */
+.information-panel {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.86rem 0.95rem 1rem;
+  border-right: 1px solid var(--panel-divider);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(90, 164, 255, 0.72) rgba(7, 14, 30, 0.78);
+  animation-delay: 80ms;
+}
+
+/* Information panel scrollbar */
+.information-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.information-panel::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(8, 16, 34, 0.72), rgba(9, 21, 42, 0.72));
+  border-left: 1px solid rgba(130, 180, 255, 0.14);
+  border-radius: 999px;
+}
+
+.information-panel::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(76, 211, 182, 0.78), rgba(90, 164, 255, 0.82));
+  border-radius: 999px;
+  border: 2px solid rgba(8, 16, 34, 0.82);
+}
+
+.information-panel::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(112, 241, 214, 0.88), rgba(121, 183, 255, 0.9));
+}
+
+/* Controls panel container */
+.controls-panel {
+  grid-column: 5;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.86rem 0.95rem 1rem;
+  border-left: 1px solid var(--panel-divider);
+  animation-delay: 240ms;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(90, 164, 255, 0.78) rgba(7, 14, 30, 0.82);
+}
+
+/* Controls panel scrollbar */
+.controls-panel::-webkit-scrollbar {
+  width: 11px;
+}
+
+.controls-panel::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(8, 16, 34, 0.85), rgba(9, 21, 42, 0.85));
+  border-left: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+
+.controls-panel::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(76, 211, 182, 0.88), rgba(90, 164, 255, 0.9));
+  border-radius: 999px;
+  border: 2px solid rgba(8, 16, 34, 0.86);
+}
+
+.controls-panel::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(112, 241, 214, 0.95), rgba(121, 183, 255, 0.95));
+}
+
+.controls-panel::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Controls panel row labels */
+.controls-panel .form-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.25rem;
+  color: var(--title-color);
+  font-size: 0.79rem;
+  letter-spacing: 0.015em;
+  text-transform: none;
+}
+
+.controls-panel .form-label .label-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.controls-panel .form-label .label-name i {
+  color: var(--accent-2);
+  font-size: 0.86rem;
+}
+
+.controls-panel .form-label .label-value {
+  margin-left: auto;
+  min-width: 7.2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
+  background: rgba(12, 25, 48, 0.54);
+  border: 1px solid rgba(113, 166, 249, 0.2);
+  border-radius: var(--control-value-radius);
+  padding: 0.09rem 0.42rem;
+}
+
+/* Compact source widgets */
+.compact-source-slider {
+  display: none !important;
+}
+
+.compact-source-select {
+  display: none !important;
+}
+
+.compact-source-select.is-active-select {
+  display: block !important;
+}
+
+/* Active slider hub */
+.section-slider-hub {
+  margin: 0.15rem 0 0.85rem;
+  padding: 0.5rem 0.58rem 0.32rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 0.62rem;
+  background: rgba(10, 21, 41, 0.5);
+}
+
+.section-slider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.58rem;
+  margin-bottom: 0.25rem;
+}
+
+.section-slider-title {
+  color: var(--title-color);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+
+.controls-panel .form-label .label-name sub,
+.section-slider-title sub {
+  font-size: 0.72em;
+  vertical-align: baseline;
+  position: relative;
+  bottom: -0.28em;
+  line-height: 1;
+}
+
+.section-slider-value {
+  color: var(--accent);
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ant-carrying-label {
+  text-transform: none !important;
+}
+
+.section-active-slider {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Active slider visibility */
+.controls-panel [data-control-section] .form-range {
+  display: none;
+}
+
+.controls-panel [data-control-section] .form-range.section-active-slider {
+  display: block;
+}
+
+/* Editable value triggers */
+.controls-panel .form-label .label-value.compact-value-trigger {
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.controls-panel .form-label .label-value.compact-value-trigger:hover,
+.controls-panel .form-label .label-value.compact-value-trigger:focus-visible {
+  color: #94fff0;
+  border-color: rgba(76, 211, 182, 0.58);
+}
+
+.controls-panel .form-label .label-value.compact-value-trigger.is-active-control {
+  border-color: rgba(76, 211, 182, 0.78);
+  color: #94fff0;
+}
+
+.controls-panel .form-label .label-value.compact-value-trigger[contenteditable="true"] {
+  cursor: text;
+  user-select: text;
+}
+
+/* Compact toggle rows */
+.controls-panel .compact-toggle-row {
+  margin-top: 0.28rem !important;
+}
+
+.controls-panel .compact-toggle-row .form-check {
+  min-height: 0;
+}
+
+.controls-panel .compact-toggle-row .form-switch .form-check-input {
+  width: 1.95rem;
+  height: 1.05rem;
+  margin-top: 0;
+}
+
+/* Visual size list */
+.visual-size-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.visual-size-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+
+.visual-size-row .form-label {
+  margin-bottom: 0.08rem;
+}
+
+.visual-size-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0;
+  text-align: left;
+}
+
+.visual-size-toggle:hover .visual-size-value,
+.visual-size-toggle:focus-visible .visual-size-value {
+  border-color: rgba(76, 211, 182, 0.58);
+  color: #94fff0;
+}
+
+.visual-size-title {
+  text-transform: none;
+}
+
+.visual-size-slider {
+  width: 100%;
+  min-width: 7.5rem;
+  display: block;
+  margin: 0 0 0.28rem;
+}
+
+.visual-size-value {
+  min-width: 7.2ch;
+}
+
+/* Color chips */
+.color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(113, 166, 249, 0.2);
+  border-radius: var(--control-value-radius);
+  background: rgba(12, 25, 48, 0.54);
+  padding: 0.09rem 0.42rem 0.09rem 0.12rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.color-chip:focus-visible,
+.color-chip:hover {
+  border-color: rgba(76, 211, 182, 0.58);
+}
+
+.color-chip-swatch {
+  width: 1.35rem;
+  min-width: 1.35rem;
+  height: 1.05rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(114, 164, 245, 0.36);
+  background: #ffffff;
+}
+
+.color-chip-value {
+  min-width: 6.9ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.79rem;
+  letter-spacing: 0.015em;
+  line-height: 1.1;
+}
+
+/* State and single-color rows */
+.state-colors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.04rem;
+}
+
+.state-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.38rem;
+  min-height: 1.62rem;
+  padding: 0;
+}
+
+.state-color-title {
+  color: var(--title-color);
+  font-size: 0.79rem;
+  letter-spacing: 0.015em;
+  line-height: 1.05;
+}
+
+.state-color-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.single-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.single-color-inline-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+/* Hidden native color inputs */
+.single-color-inline-input {
+  width: 0;
+  min-width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+.state-color-input {
+  width: 0;
+  min-width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+}

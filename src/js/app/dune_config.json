@@ -50,21 +50,21 @@
         ]
       },
       {
-        "title": "Initial Bed",
-        "equation": "$$h_{ij}(0)=h_0+\\Delta h\\,\\xi_{ij},\\qquad \\xi_{ij}\\in[-1,1]$$",
-        "explanation": "The dune field starts from a uniform base height with optional random roughness. With <em>&Delta;h = 0</em>, the initial bed is flat.",
-        "parameters": [
-          "<strong>Base Height</strong> (\\(h_0\\)) sets the starting sand thickness.",
-          "<strong>Noise Amplitude</strong> (\\(\\Delta h\\)) controls how much initial roughness is added to the flat bed."
-        ]
-      },
-      {
         "title": "Rendered Height",
         "equation": "$$w_{ij}=S_{xy}\\,\\Delta x,\\qquad \\ell_{ij}=S_{xy}\\,\\Delta y,\\qquad z_{ij}=S_h\\,h_{ij}$$",
         "explanation": "Each square column is drawn using the simulation cell size scaled into a visual footprint in x and y, together with a separate visual height scale in z. The dune visual map colors columns by a mass proxy proportional to column height because each tile keeps a fixed footprint in the underlying model.",
         "parameters": [
           "<strong>Object Visual Size</strong> (\\(w = \\ell = s_{obj}\\)) sets the rendered column width and length in meters without changing the simulation grid.",
           "<strong>Vertical Exaggeration</strong> (\\(S_h\\)) scales column height in the rendered scene."
+        ]
+      },
+      {
+        "title": "Initial Bed",
+        "equation": "$$h_{ij}(0)=h_0+\\Delta h\\,\\xi_{ij},\\qquad \\xi_{ij}\\in[-1,1]$$",
+        "explanation": "The dune field starts from a uniform base height with optional random roughness. With <em>&Delta;h = 0</em>, the initial bed is flat.",
+        "parameters": [
+          "<strong>Base Height</strong> (\\(h_0\\)) sets the starting sand thickness.",
+          "<strong>Noise Amplitude</strong> (\\(\\Delta h\\)) controls how much initial roughness is added to the flat bed."
         ]
       }
     ]

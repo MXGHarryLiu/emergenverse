@@ -22,7 +22,7 @@ const SUPPORTED_SECTION_ICONS = Object.freeze({
 // Public renderer
 export function renderAppletSectionsFromConfig() {
   const leftPanel = document.getElementById("left-panel");
-  const rightPanel = document.getElementById("right-panel");
+  const rightPanel = document.getElementById("controls-panel");
   if (!leftPanel || !rightPanel) {
     return;
   }

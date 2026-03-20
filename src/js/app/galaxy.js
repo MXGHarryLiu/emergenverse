@@ -533,7 +533,7 @@ function getGalaxyVisualSizeDefault() {
   const sizeEntries = Array.isArray(GALAXY_APPLET_CONFIG.visual?.size)
     ? GALAXY_APPLET_CONFIG.visual.size
     : [];
-  const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "galaxy");
+  const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "star");
   const fallbackEntry = sizeEntries[0] || null;
   const fallback = 0.75;
   const value = Number(entry?.default ?? fallbackEntry?.default ?? fallback);
@@ -542,7 +542,7 @@ function getGalaxyVisualSizeDefault() {
 
 function getGalaxyVisualSize(params) {
   const defaultDiameter = getGalaxyVisualSizeDefault();
-  const configuredDiameter = Number(params?.visualSizeGalaxy);
+  const configuredDiameter = Number(params?.visualSizeStar);
   if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
     return Math.max(0.05, configuredDiameter / (2 * 0.42));
   }

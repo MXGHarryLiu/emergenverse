@@ -15,6 +15,7 @@ const SCREENSHOT_STATUS_OVERLAY =
   "Overlay mode includes orientation marker and status label; viewport tool buttons remain hidden.";
 const SHARE_STATUS_DEFAULT = "Copy link to share the current app and URL state.";
 const EXPORT_STATUS_DEFAULT = "Download current parameters as a JSON file.";
+const MODAL_OPEN_CLASS = "modal-open";
 
 // Public API
 export function setupUiOverlays({
@@ -166,11 +167,23 @@ function handleEscapeOverlayKeydown(event) {
 function openOverlay(backdrop) {
   backdrop?.classList.remove("is-hidden");
   backdrop?.setAttribute("aria-hidden", "false");
+  syncModalOpenState();
 }
 
 function closeOverlay(backdrop) {
   backdrop?.classList.add("is-hidden");
   backdrop?.setAttribute("aria-hidden", "true");
+  syncModalOpenState();
+}
+
+function syncModalOpenState() {
+  const body = document.body;
+  if (!body) {
+    return;
+  }
+  const hasOpenModal = Array.from(document.querySelectorAll(".controls-modal-backdrop"))
+    .some((backdrop) => !backdrop.classList.contains("is-hidden"));
+  body.classList.toggle(MODAL_OPEN_CLASS, hasOpenModal);
 }
 
 // Basic popups

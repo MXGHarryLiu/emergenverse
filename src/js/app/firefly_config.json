@@ -13,7 +13,6 @@
     ]
   },
   "model": {
-    "subtitle": "Local oscillator coupling with blink resets and a global order parameter.",
     "references": [
       {
         "label": "Wikipedia: Kuramoto model",
@@ -33,11 +32,14 @@
     "items": [
       {
         "title": "Phase (\\(\\theta\\))",
-        "equation": "$$\\begin{aligned}\\frac{d\\theta}{dt}&=\\omega + \\frac{K}{N}\\sum_{j\\in\\mathcal{N}}\\sin(\\theta_j-\\theta) + \\eta(t)\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+\\left(\\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)\\right)\\Delta t\\end{aligned}$$",
+        "equation": "$$\\begin{aligned}\\mathcal{N}_i&=\\left\\{j\\neq i:\\left\\lVert\\mathbf{x}_j-\\mathbf{x}_i\\right\\rVert\\le r\\right\\}\\\\\\theta_i(t+\\Delta t)&=\\theta_i(t)+\\left(\\omega_i + \\frac{K}{N_i}\\sum_{j\\in\\mathcal{N}_i}\\sin(\\theta_j-\\theta_i) + \\eta_i(t)\\right)\\Delta t\\end{aligned}$$",
         "explanation": "Each firefly advances according to its natural rhythm, coupling to neighbors, and a noise term.",
         "parameters": [
           "<strong>Coupling</strong> (\\(K\\)) sets the synchronization strength.",
-          "<strong>Base Frequency</strong> (\\(\\omega\\)), <strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)), and <strong>Phase Noise</strong> (\\(\\eta\\)) shape the intrinsic rhythm spread."
+          "<strong>Interaction Radius</strong> (\\(r\\)) defines which neighbors enter \\(\\mathcal{N}_i\\) for local coupling.",
+          "<strong>Base Frequency</strong> (\\(\\omega\\)) sets the central intrinsic oscillation rate.",
+          "<strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)) sets the oscillator-to-oscillator spread around the base rate.",
+          "<strong>Phase Noise</strong> (\\(\\eta\\)) adds stochastic perturbations to phase evolution."
         ]
       },
       {
@@ -46,9 +48,19 @@
         "explanation": "A blink occurs when the phase completes a full cycle, after which the oscillator wraps back to the start of the next cycle."
       },
       {
-        "title": "Synchronization Order",
+        "title": "Synchronization Order (\\(R\\))",
         "equation": "$$R=\\left|\\frac{1}{N}\\sum_{k=1}^N e^{\\,i\\theta_k}\\right|$$",
         "explanation": "The order parameter measures how tightly the fireflies align in phase, from incoherent flashing near zero to near-perfect synchrony near one."
+      },
+      {
+        "title": "Initialization",
+        "equation": "$$\\begin{aligned}\\mathbf{x}_i(0)&\\sim \\mathcal{U}\\!\\left([-0.45L_x,0.45L_x]\\times[-0.45L_y,0.45L_y]\\times[-0.45L_z,0.45L_z]\\right)\\\\\\theta_i(0)&\\sim \\mathcal{U}(0,2\\pi)\\\\\\omega_i&\\sim \\mathcal{U}(\\omega-\\Delta\\omega,\\,\\omega+\\Delta\\omega)\\\\\\mathbf{v}_i(0)&=s\\,\\hat{\\mathbf{u}}_i,\\ \\lVert\\hat{\\mathbf{u}}_i\\rVert=1\\end{aligned}$$",
+        "explanation": "Fireflies begin from a uniform random spatial cloud with uniformly random initial phase, while intrinsic frequencies are drawn around the base rate using jitter. Initial speed magnitude is constant at the configured speed, with only direction randomized. Motion speed is not initialization-only: the same speed parameter also sets the runtime target magnitude of random-walk velocity during stepping.",
+        "parameters": [
+          "<strong>World Sizes</strong> (\\(L_x,L_y,L_z\\)) set the spawn volume extent.",
+          "<strong>Base Frequency</strong> (\\(\\omega\\)) and <strong>Frequency Jitter</strong> (\\(\\Delta\\omega\\)) define the intrinsic frequency ensemble.",
+          "<strong>Speed</strong> (\\(s\\)) sets both initial velocity magnitude and ongoing random-walk velocity scale."
+        ]
       }
     ]
   },
@@ -127,10 +139,10 @@
       },
       {
         "key": "speed",
-        "label": "Speed",
+        "label": "Speed (\\(s\\))",
         "default": 1.2,
         "unit": "m/s",
-        "group": "dynamic",
+        "group": "initial",
         "uiMin": 0.1,
         "uiMax": 4.0,
         "control": {
@@ -154,7 +166,7 @@
       },
       {
         "key": "radius",
-        "label": "Interaction Radius",
+        "label": "Interaction Radius (\\(r\\))",
         "default": 18.0,
         "unit": "m",
         "group": "dynamic",
@@ -168,7 +180,7 @@
       },
       {
         "key": "frequency",
-        "label": "Base Frequency",
+        "label": "Base Frequency (\\(\\omega\\))",
         "default": 1.8,
         "unit": "Hz",
         "group": "dynamic",
@@ -182,7 +194,7 @@
       },
       {
         "key": "freqJitter",
-        "label": "Frequency Jitter",
+        "label": "Frequency Jitter (\\(\\Delta\\omega\\))",
         "default": 0.2,
         "unit": "Hz",
         "group": "dynamic",
@@ -196,7 +208,7 @@
       },
       {
         "key": "phaseNoise",
-        "label": "Phase Noise",
+        "label": "Phase Noise (\\(\\eta\\))",
         "default": 0.4,
         "unit": "rad/s",
         "group": "dynamic",

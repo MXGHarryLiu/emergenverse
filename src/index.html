@@ -26,6 +26,7 @@
       crossorigin="anonymous"
     />
     <link rel="stylesheet" href="./css/styles.css" />
+    <link rel="stylesheet" href="./css/sidepanel.css" />
     <link rel="stylesheet" href="./css/modal.css" />
     <link rel="stylesheet" href="./css/launcher.css" />
     <link rel="stylesheet" href="./css/spaceship.css" />
@@ -261,7 +262,7 @@
     </div>
 
     <main class="app-shell">
-      <aside id="left-panel" class="panel left-panel">
+      <aside id="left-panel" class="panel information-panel">
         <div class="sidebar-head">
           <h2 class="panel-title sidebar-title">
             <i class="bi bi-info-circle panel-head-icon" aria-hidden="true"></i>
@@ -329,7 +330,7 @@
           </button>
           <button
             class="viewport-tool-btn is-hidden"
-            id="show-right-panel"
+            id="show-controls-panel"
             type="button"
             title="Show controls panel"
             aria-label="Show controls panel"
@@ -401,13 +402,13 @@
         aria-label="Resize middle right stack"
       ></div>
 
-      <aside id="right-panel" class="panel right-panel">
+      <aside id="controls-panel" class="panel controls-panel">
         <div class="sidebar-head">
           <h2 class="panel-title sidebar-title">
             <i class="bi bi-sliders2-vertical panel-head-icon" aria-hidden="true"></i>
             <span>Controls</span>
           </h2>
-          <button class="icon-btn" id="hide-right-panel" type="button" aria-label="Hide right panel">
+          <button class="icon-btn" id="hide-controls-panel" type="button" aria-label="Hide controls panel">
             <i class="bi bi-chevron-bar-right" aria-hidden="true"></i>
           </button>
         </div>

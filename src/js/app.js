@@ -293,11 +293,11 @@ const dom = {
   topNav: document.querySelector(".top-nav"),
   appShell: document.querySelector(".app-shell"),
   leftPanel: document.getElementById("left-panel"),
-  rightPanel: document.getElementById("right-panel"),
+  rightPanel: document.getElementById("controls-panel"),
   hideLeftPanel: document.getElementById("hide-left-panel"),
-  hideRightPanel: document.getElementById("hide-right-panel"),
+  hideRightPanel: document.getElementById("hide-controls-panel"),
   showLeftPanel: document.getElementById("show-left-panel"),
-  showRightPanel: document.getElementById("show-right-panel"),
+  showRightPanel: document.getElementById("show-controls-panel"),
   middleResizer: document.getElementById("middle-resizer"),
   mobilePanelBar: document.getElementById("mobile-panel-bar"),
   mobileShowInfo: document.getElementById("mobile-show-info"),
@@ -742,6 +742,12 @@ const orthographicCamera = cameraController.orthographicCamera;
 const controls = cameraController.controls;
 const onKeyDown = cameraController.onKeyDown;
 const onKeyUp = cameraController.onKeyUp;
+const onGlobalKeyDown = (event) => {
+  if (document.body?.classList.contains("modal-open")) {
+    return;
+  }
+  onKeyDown(event);
+};
 
 const world = createWorldManager({
   params,
@@ -865,7 +871,6 @@ setupUiOverlays({
 
     return {
       app: {
-        name: String(meta.label || activeApplet),
         key: String(meta.key || activeApplet),
       },
       exportedAt: new Date().toISOString(),
@@ -904,7 +909,7 @@ const resizeObserver = new ResizeObserver(() => handleViewportResize());
 resizeObserver.observe(dom.sceneHost);
 window.addEventListener("resize", handleViewportResize);
 window.addEventListener("load", handleViewportResize, { once: true });
-window.addEventListener("keydown", onKeyDown);
+window.addEventListener("keydown", onGlobalKeyDown);
 window.addEventListener("keyup", onKeyUp);
 
 const frameTimer = new THREE.Timer();
@@ -969,6 +974,21 @@ function rebuildBoundsAndGrid() {
 function setupControls() {
   bindAppletSimulationControls();
   applyCameraControlConfig(activeApplet, { resetToDefaults: true });
+  setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
+  setControlValue(
+    "camera-move-speed",
+    params.keyboardMoveSpeed,
+    "camera-move-speed-value",
+    (value) => formatKeyboardMoveSpeed(value),
+  );
+  setControlValue(
+    "camera-rotation-speed",
+    params.keyboardRotationSpeed,
+    "camera-rotation-speed-value",
+    (value) => formatKeyboardRotationSpeed(value),
+  );
+  perspectiveCamera.fov = params.cameraFov;
+  perspectiveCamera.updateProjectionMatrix();
 
   bindRange("world-size-x", "world-size-x-value", (value) => {
     params.worldSizeX = convertWorldParamFromDisplay(value, "x");
@@ -2403,6 +2423,11 @@ function applyAppletMode(appletId, options = {}) {
     normalizedRequestedAppletId === activeApplet &&
     haveSameAppletIdOrder(normalizedRequestedLoadedAppletIds, loadedAppletIds)
   ) {
+    applyLoadedAppletTabVisibility();
+    renderOpenedAppsMenu();
+    applyAppletVisibility(activeApplet);
+    updateMobileCurrentAppletLabel(activeApplet);
+
     if (updateUrl) {
       setAppletRouteInUrlParam({
         ...ROUTING_OPTIONS,
@@ -2699,8 +2724,8 @@ function setupPanelResizers() {
 
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
   const applyWidths = () => {
-    dom.appShell.style.setProperty("--left-panel-w", `${panelWidthState.left}px`);
-    dom.appShell.style.setProperty("--right-panel-w", `${panelWidthState.right}px`);
+    dom.appShell.style.setProperty("--information-panel-w", `${panelWidthState.left}px`);
+    dom.appShell.style.setProperty("--controls-panel-w", `${panelWidthState.right}px`);
   };
 
   const beginDrag = (side, pointerDownEvent) => {
@@ -4131,3 +4156,4 @@ function scheduleMathRendering() {
     { once: true },
   );
 }
+

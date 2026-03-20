@@ -223,7 +223,7 @@ body[data-theme="light"] .chip-button:focus-visible {
   background: rgba(214, 225, 243, 0.95);
 }
 
-body[data-theme="light"] .left-panel {
+body[data-theme="light"] .information-panel {
   scrollbar-color: rgba(112, 140, 188, 0.78) rgba(205, 218, 239, 0.95);
 }
 
@@ -232,35 +232,35 @@ body[data-theme="light"] .viewport-panel {
   background: linear-gradient(180deg, rgba(236, 244, 255, 0.94), rgba(227, 237, 252, 0.9));
 }
 
-body[data-theme="light"] .left-panel::-webkit-scrollbar-track {
+body[data-theme="light"] .information-panel::-webkit-scrollbar-track {
   background: linear-gradient(180deg, rgba(216, 227, 245, 0.96), rgba(205, 219, 242, 0.96));
   border-left: 1px solid rgba(104, 131, 174, 0.24);
 }
 
-body[data-theme="light"] .left-panel::-webkit-scrollbar-thumb {
+body[data-theme="light"] .information-panel::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(108, 181, 177, 0.82), rgba(101, 142, 206, 0.84));
   border: 2px solid rgba(216, 227, 245, 0.98);
 }
 
-body[data-theme="light"] .left-panel::-webkit-scrollbar-thumb:hover {
+body[data-theme="light"] .information-panel::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(91, 170, 165, 0.88), rgba(84, 130, 198, 0.9));
 }
 
-body[data-theme="light"] .right-panel {
+body[data-theme="light"] .controls-panel {
   scrollbar-color: rgba(112, 140, 188, 0.78) rgba(205, 218, 239, 0.95);
 }
 
-body[data-theme="light"] .right-panel::-webkit-scrollbar-track {
+body[data-theme="light"] .controls-panel::-webkit-scrollbar-track {
   background: linear-gradient(180deg, rgba(216, 227, 245, 0.98), rgba(205, 219, 242, 0.98));
   border-left: 1px solid rgba(104, 131, 174, 0.24);
 }
 
-body[data-theme="light"] .right-panel::-webkit-scrollbar-thumb {
+body[data-theme="light"] .controls-panel::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(108, 181, 177, 0.84), rgba(101, 142, 206, 0.86));
   border: 2px solid rgba(216, 227, 245, 0.98);
 }
 
-body[data-theme="light"] .right-panel::-webkit-scrollbar-thumb:hover {
+body[data-theme="light"] .controls-panel::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(91, 170, 165, 0.9), rgba(84, 130, 198, 0.92));
 }
 
@@ -399,7 +399,7 @@ body[data-theme="light"] .viewport-tool-btn:focus-visible {
   color: #22385c;
 }
 
-body[data-theme="light"] .right-panel .form-label .label-value {
+body[data-theme="light"] .controls-panel .form-label .label-value {
   background: rgba(211, 222, 241, 0.76);
   border-color: rgba(96, 126, 177, 0.24);
 }
@@ -414,13 +414,13 @@ body[data-theme="light"] .section-slider-hub {
   border-color: rgba(97, 126, 175, 0.26);
 }
 
-body[data-theme="light"] .right-panel .form-label .label-value.compact-value-trigger:hover,
-body[data-theme="light"] .right-panel .form-label .label-value.compact-value-trigger:focus-visible {
+body[data-theme="light"] .controls-panel .form-label .label-value.compact-value-trigger:hover,
+body[data-theme="light"] .controls-panel .form-label .label-value.compact-value-trigger:focus-visible {
   color: #1f4f8f;
   border-color: rgba(72, 114, 184, 0.58);
 }
 
-body[data-theme="light"] .right-panel .form-label .label-value.compact-value-trigger.is-active-control {
+body[data-theme="light"] .controls-panel .form-label .label-value.compact-value-trigger.is-active-control {
   color: #1f4f8f;
   border-color: rgba(72, 114, 184, 0.8);
 }
@@ -532,3 +532,4 @@ body[data-theme="light"] .screenshot-preview-card {
       rgba(70, 95, 138, 0.14)
     );
 }
+

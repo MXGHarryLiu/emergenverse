@@ -237,20 +237,6 @@ function normalizeParamControlConfig(paramConfig, index) {
   return normalized;
 }
 
-function normalizeLegacySliderConfig(sliderConfig) {
-  if (!sliderConfig || typeof sliderConfig !== "object") {
-    return sliderConfig;
-  }
-  const normalized = { ...sliderConfig };
-  if (normalized.uiMin !== undefined && normalized.min === undefined) {
-    normalized.min = String(normalized.uiMin);
-  }
-  if (normalized.uiMax !== undefined && normalized.max === undefined) {
-    normalized.max = String(normalized.uiMax);
-  }
-  return normalized;
-}
-
 export function getSectionInputControls(sectionConfig) {
   const params = Array.isArray(sectionConfig?.params) ? sectionConfig.params : [];
   const controls = {
@@ -275,16 +261,6 @@ export function getSectionInputControls(sectionConfig) {
       }
       controls.sliders.push(control);
     });
-  }
-
-  if (Array.isArray(sectionConfig?.sliders)) {
-    controls.sliders.push(...sectionConfig.sliders.map((entry) => normalizeLegacySliderConfig(entry)));
-  }
-  if (Array.isArray(sectionConfig?.selects)) {
-    controls.selects.push(...sectionConfig.selects);
-  }
-  if (Array.isArray(sectionConfig?.switches)) {
-    controls.switches.push(...sectionConfig.switches);
   }
 
   return controls;

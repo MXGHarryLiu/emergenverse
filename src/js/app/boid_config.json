@@ -28,20 +28,44 @@
     "items": [
       {
         "title": "Position (\\(x\\))",
-        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{x}}{dt}&=\\mathbf{v}\\\\\\mathbf{x}_i(t+\\Delta t)&=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t\\end{aligned}$$",
+        "equation": "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
         "explanation": "Each boid advances according to its current velocity during the next simulation step."
       },
       {
         "title": "Velocity (\\(v\\))",
-        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{clip}(\\mathbf{v}+\\mathbf{a}\\,\\Delta t)-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_i(t+\\Delta t)&=\\mathrm{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t\\right)\\end{aligned}$$",
-        "explanation": "Velocity changes by the steering acceleration and is then clamped so the boid stays within its allowed motion limits."
+        "equation": "$$\\begin{aligned}\\mathbf{a}_i(t)&=\\operatorname{clip}\\!\\big(\\mathbf{a}_{i,\\mathrm{raw}}(t),\\,a_{\\max}\\big)\\\\\\mathbf{v}_i(t+\\Delta t)&=\\operatorname{clip}\\!\\left(\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t,\\,v_{\\max}\\right)\\end{aligned}$$",
+        "explanation": "The raw steering vector is norm-clipped to a maximum turning authority, then the updated velocity is norm-clipped to a maximum speed; clip preserves direction and only limits vector magnitude.",
+        "parameters": [
+          "<strong>Maximum Acceleration</strong> (\\(a_{\\max}\\)) limits steering strength per step, which bounds how sharply heading can change.",
+          "<strong>Maximum Speed</strong> (\\(v_{\\max}\\)) limits velocity magnitude, so boids cannot move faster than the configured speed ceiling."
+        ]
       },
       {
         "title": "Steering Composition",
         "equation": "$$\\mathbf{a}_i=w_{a}\\mathbf{a}_{\\mathrm{align}}+w_{c}\\mathbf{a}_{\\mathrm{cohesion}}+w_{s}\\mathbf{a}_{\\mathrm{separation}}$$",
         "explanation": "The steering vector is formed by combining alignment, cohesion, and separation responses to nearby flockmates.",
         "parameters": [
-          "<strong>Alignment Weight</strong> (\\(w_a\\)), <strong>Cohesion Weight</strong> (\\(w_c\\)), and <strong>Separation Weight</strong> (\\(w_s\\)) scale the three steering terms."
+          "<strong>Alignment Weight</strong> (\\(w_a\\)) scales heading matching with neighbors.",
+          "<strong>Cohesion Weight</strong> (\\(w_c\\)) scales attraction toward the local center of mass.",
+          "<strong>Separation Weight</strong> (\\(w_s\\)) scales short-range repulsion that prevents crowding."
+        ]
+      },
+      {
+        "title": "Neighborhood Radii",
+        "equation": "$$\\begin{aligned}\\mathcal{N}_i^{(p)}&=\\left\\{j\\neq i:\\left\\lVert\\mathbf{x}_j-\\mathbf{x}_i\\right\\rVert\\le r_p\\right\\}\\\\\\mathcal{N}_i^{(s)}&=\\left\\{j\\in\\mathcal{N}_i^{(p)}:\\left\\lVert\\mathbf{x}_j-\\mathbf{x}_i\\right\\rVert\\le r_s\\right\\}\\end{aligned}$$",
+        "explanation": "A boid only reacts to neighbors inside perception radius, and separation is applied on the tighter near-field subset to prevent overlap.",
+        "parameters": [
+          "<strong>Perception Radius</strong> (\\(r_p\\)) sets the interaction horizon used by alignment and cohesion.",
+          "<strong>Separation Distance</strong> (\\(r_s\\)) sets the short-range repulsion zone, typically with \\(r_s < r_p\\)."
+        ]
+      },
+      {
+        "title": "Initialization",
+        "equation": "$$\\begin{aligned}\\mathbf{x}_i(0)&\\sim \\mathcal{U}\\!\\left([-0.45L_x,0.45L_x]\\times[-0.45L_y,0.45L_y]\\times[-0.45L_z,0.45L_z]\\right)\\\\\\left\\lVert\\mathbf{v}_i(0)\\right\\rVert&\\sim \\mathcal{U}\\!\\left(0.45\\,v_{\\max},\\,0.95\\,v_{\\max}\\right)\\end{aligned}$$",
+        "explanation": "Boids start from a uniform random cloud inside 90% of the world span on each axis, with random heading and an initial speed sampled as a fraction of maximum speed.",
+        "parameters": [
+          "<strong>World Sizes</strong> (\\(L_x,L_y,L_z\\)) set the spawn volume extent.",
+          "<strong>Maximum Speed</strong> (\\(v_{\\max}\\)) sets the initialization speed band."
         ]
       }
     ]
@@ -122,7 +146,7 @@
       },
       {
         "key": "perceptionRadius",
-        "label": "Perception Radius",
+        "label": "Perception Radius (\\(r_p\\))",
         "default": 18,
         "unit": "m",
         "group": "dynamic",
@@ -136,7 +160,7 @@
       },
       {
         "key": "separationDistance",
-        "label": "Separation Distance",
+        "label": "Separation Distance (\\(r_s\\))",
         "default": 8,
         "unit": "m",
         "group": "dynamic",
@@ -150,7 +174,7 @@
       },
       {
         "key": "maxSpeed",
-        "label": "Max Speed",
+        "label": "Max Speed (\\(v_{\\max}\\))",
         "default": 8,
         "unit": "m/s",
         "group": "dynamic",
@@ -164,7 +188,7 @@
       },
       {
         "key": "maxAccel",
-        "label": "Max Acceleration",
+        "label": "Max Acceleration (\\(a_{\\max}\\))",
         "default": 6,
         "unit": "m/s^2",
         "group": "dynamic",

@@ -2,12 +2,25 @@
 .controls-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 140;
+  z-index: 1200;
   display: grid;
   place-items: center;
   background: rgba(2, 8, 20, 0.62);
   backdrop-filter: blur(5px);
   padding: 1rem 1.25rem;
+  pointer-events: auto;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+body.modal-open .top-nav,
+body.modal-open .app-shell,
+body.modal-open .mobile-panel-bar,
+body.modal-open .mobile-nav-backdrop,
+body.modal-open .launcher-overlay {
+  pointer-events: none;
 }
 
 .controls-modal {

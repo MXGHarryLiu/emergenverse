@@ -33,7 +33,7 @@
     "items": [
       {
         "title": "Population Balance",
-        "equation": "$$\\dot{x}=\\alpha x-\\beta xy,\\qquad \\dot{y}=\\delta xy-\\gamma y$$",
+        "equation": "$$\\begin{aligned}x(t+\\Delta t)&=x(t)+\\left(\\alpha x(t)-\\beta x(t)y(t)\\right)\\Delta t\\\\y(t+\\Delta t)&=y(t)+\\left(\\delta x(t)y(t)-\\gamma y(t)\\right)\\Delta t\\end{aligned}$$",
         "explanation": "Prey can grow on their own, while predator-prey encounters transfer energy and change both populations over time.",
         "parameters": [
           "<strong>Prey Count</strong> (\\(x\\)) sets the initial prey population.",
@@ -45,16 +45,46 @@
         ]
       },
       {
-        "title": "Position (\\(x\\))",
-        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{p}}{dt}&=\\mathbf{v}\\\\\\mathbf{p}_k(t+\\Delta t)&=\\mathbf{p}_k(t)+\\mathbf{v}_k(t)\\Delta t\\end{aligned}$$",
-        "explanation": "Each prey or predator moves forward using its current velocity."
+        "title": "Position (\\(p\\))",
+        "equation": "$$\\mathbf{p}_{q,k}(t+\\Delta t)=\\mathbf{p}_{q,k}(t)+\\mathbf{v}_{q,k}(t)\\Delta t,\\qquad q\\in\\{x,y\\},\\;k=1,\\dots,N_q$$",
+        "explanation": "Each prey or predator agent advances using its current velocity.",
+        "parameters": [
+          "<strong>Species Index</strong> (\\(q\\)) uses \\(q=x\\) for prey and \\(q=y\\) for predator.",
+          "<strong>Agent Index</strong> (\\(k\\)) runs over individuals within each species: \\(k=1,\\dots,N_q\\)."
+        ]
       },
       {
         "title": "Velocity (\\(v\\))",
-        "equation": "$$\\begin{aligned}\\frac{d\\mathbf{v}}{dt}&=\\frac{\\mathrm{norm}(\\mathbf{v}+\\mathbf{u}\\,\\Delta t)\\,s-\\mathbf{v}}{\\Delta t}\\\\\\mathbf{v}_{k}(t+\\Delta t)&=\\mathrm{norm}\\!\\left(\\mathbf{v}_{k}(t)+\\mathbf{u}_{k}(t)\\Delta t\\right)\\,s_k\\end{aligned}$$",
-        "explanation": "Motion direction changes through pursuit or evasion steering, then the velocity is normalized back to the species speed.",
+        "equation": "$$\\mathbf{v}_{q,k}(t+\\Delta t)=\\mathrm{norm}\\!\\left(\\mathbf{v}_{q,k}(t)+\\mathbf{u}_{q,k}(t)\\Delta t\\right)\\,s_q,\\qquad q\\in\\{x,y\\}$$",
+        "explanation": "Direction changes through pursuit/evasion steering, then velocity is renormalized to the species speed.",
         "parameters": [
-          "<strong>Prey Speed</strong> (\\(s_{prey}\\)) and <strong>Predator Speed</strong> (\\(s_{pred}\\)) set the travel rates."
+          "<strong>Prey Speed</strong> (\\(s_x\\)) and <strong>Predator Speed</strong> (\\(s_y\\)) set travel rates by species.",
+          "<strong>Steering Input</strong> (\\(\\mathbf{u}_{q,k}\\)) is the species-and-agent-specific chase/escape direction update."
+        ]
+      },
+      {
+        "title": "Sense Neighborhood",
+        "equation": "$$\\mathcal{N}^{\\mathrm{sense}}_{y,k}(t)=\\left\\{j\\in\\{1,\\dots,N_x\\}:\\left\\lVert\\mathbf{p}_{x,j}(t)-\\mathbf{p}_{y,k}(t)\\right\\rVert\\le r_{\\mathrm{sense}}\\right\\}$$",
+        "explanation": "Each predator \\((y,k)\\) senses prey only within a finite radius, and steering targets are computed from this local neighborhood.",
+        "parameters": [
+          "<strong>Sense Radius</strong> (\\(r_{\\mathrm{sense}}\\)) sets predator detection range."
+        ]
+      },
+      {
+        "title": "Predation Neighborhood",
+        "equation": "$$\\mathcal{N}^{\\mathrm{pred}}_{y,k}(t)=\\left\\{j\\in\\{1,\\dots,N_x\\}:\\left\\lVert\\mathbf{p}_{x,j}(t)-\\mathbf{p}_{y,k}(t)\\right\\rVert\\le r_{\\mathrm{pred}}\\right\\}$$",
+        "explanation": "A prey is capturable only when it lies inside the predator's predation radius.",
+        "parameters": [
+          "<strong>Predation Radius</strong> (\\(r_{\\mathrm{pred}}\\)) sets the capture distance threshold."
+        ]
+      },
+      {
+        "title": "Initialization",
+        "equation": "$$\\begin{aligned}\\mathbf{p}_{q,k}(0)&\\sim \\mathcal{U}\\!\\left([-0.45L_x,0.45L_x]\\times[-0.45L_y,0.45L_y]\\times\\{0\\}\\right)\\\\\\left\\lVert\\mathbf{v}_{q,k}(0)\\right\\rVert&=s_q,\\qquad q\\in\\{x,y\\},\\;k=1,\\dots,N_q\\end{aligned}$$",
+        "explanation": "Agents start from a uniform random cloud over the floor plane using 90% of world span in x and y, with random heading and species-specific speed magnitude.",
+        "parameters": [
+          "<strong>World Sizes</strong> (\\(L_x,L_y\\)) set the spawn area extent.",
+          "<strong>Prey Speed</strong> (\\(s_x\\)) and <strong>Predator Speed</strong> (\\(s_y\\)) set initialization speed by species."
         ]
       }
     ]
@@ -86,13 +116,13 @@
       {
         "type": "chart",
         "key": "count",
-        "label": "Prey Count",
+        "label": "Prey Count (\\(x\\))",
         "liveInitial": "0"
       },
       {
         "type": "chart",
         "key": "predator",
-        "label": "Predator Count",
+        "label": "Predator Count (\\(y\\))",
         "liveInitial": "0"
       },
       {
@@ -120,7 +150,7 @@
       },
       {
         "key": "count",
-        "label": "Prey Count",
+        "label": "Prey Count (\\(x\\))",
         "default": 260,
         "group": "initial",
         "uiMin": 20,
@@ -134,7 +164,7 @@
       },
       {
         "key": "predatorCount",
-        "label": "Predator Count",
+        "label": "Predator Count (\\(y\\))",
         "default": 24,
         "group": "initial",
         "uiMin": 2,
@@ -148,7 +178,7 @@
       },
       {
         "key": "speed",
-        "label": "Prey Speed",
+        "label": "Prey Speed (\\(s_x\\))",
         "default": 4.5,
         "unit": "m/s",
         "group": "dynamic",
@@ -162,7 +192,7 @@
       },
       {
         "key": "predatorSpeed",
-        "label": "Predator Speed",
+        "label": "Predator Speed (\\(s_y\\))",
         "default": 6.2,
         "unit": "m/s",
         "group": "dynamic",
@@ -176,7 +206,7 @@
       },
       {
         "key": "predatorSenseRadius",
-        "label": "Sense Radius",
+        "label": "Sense Radius (\\(r_{\\mathrm{sense}}\\))",
         "default": 16.0,
         "unit": "m",
         "group": "dynamic",
@@ -190,7 +220,7 @@
       },
       {
         "key": "predationRadius",
-        "label": "Predation Radius",
+        "label": "Predation Radius (\\(r_{\\mathrm{pred}}\\))",
         "default": 1.6,
         "unit": "m",
         "group": "dynamic",

@@ -13,7 +13,6 @@
     ]
   },
   "model": {
-    "subtitle": "Softened gravitational interaction in a 3D volume (kilo-light years, solar masses, Myr).",
     "references": [
       {
         "label": "Wikipedia: N-body simulation",
@@ -50,6 +49,17 @@
           "<strong>Object Total Mass</strong> (\\(M_{\\mathrm{obj}}\\)) sets the total self-gravitating mass represented by particles.",
           "<strong>Count</strong> (\\(N\\)) changes resolution; per-particle mass is \\(m_p=M_{\\mathrm{obj}}/N\\).",
           "<strong>Softening</strong> (\\(\\epsilon\\)) sets the short-range smoothing scale."
+        ]
+      },
+      {
+        "title": "Initialization",
+        "equation": "$$\\begin{aligned}\\mathbf{x}_i(0)&\\sim p_{\\mathrm{shape}}\\!\\left(R_0,\\,L_x,\\,L_y,\\,L_z\\right)\\\\\\left\\|\\mathbf{v}_i(0)\\right\\|&\\approx s\\,\\sqrt{\\frac{G\\,M_{\\mathrm{enc}}(r_i)}{r_i}}\\end{aligned}$$",
+        "explanation": "Particles are seeded from the selected initial shape within the configured initial radius, then assigned near-tangential orbital velocities scaled by the spin factor and local enclosed mass.",
+        "parameters": [
+          "<strong>Initial Shape</strong> selects the sampling geometry (disk, cloud, sphere, ellipsoid).",
+          "<strong>Initial Radius</strong> (\\(R_0\\)) sets the spawn extent before clamping to world bounds.",
+          "<strong>Initial Orbital Speed</strong> (\\(s\\)) scales the circular-speed baseline used for initial velocities.",
+          "<strong>World Sizes</strong> (\\(L_x,L_y,L_z\\)) define the domain extents that bound initialization."
         ]
       }
     ]
@@ -160,7 +170,7 @@
       },
       {
         "key": "initialRadius",
-        "label": "Initial Radius",
+        "label": "Initial Radius (\\(R_0\\))",
         "default": 120,
         "unit": "kly",
         "group": "initial",
@@ -176,7 +186,7 @@
       },
       {
         "key": "spin",
-        "label": "Initial Orbital Speed",
+        "label": "Initial Orbital Speed (\\(s\\))",
         "default": 1.0,
         "group": "initial",
         "uiMin": 0.2,
@@ -382,7 +392,7 @@
     ],
     "size": [
       {
-        "key": "galaxy",
+        "key": "star",
         "default": 0.75,
         "unit": "kly",
         "uiMin": 0.08,
