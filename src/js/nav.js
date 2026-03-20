@@ -338,6 +338,8 @@ export function renderLauncherNavigator({
 
   const sortMode = launcherState?.sortMode || "grouped";
   const mode = launcherState?.mode || "start";
+  const loadedCount = loadedAppletIds?.length ?? 0;
+  const canGoBack = mode === "manage" && loadedCount > 0;
   const statusMessage = String(launcherState?.statusMessage || "");
   const groups = getGroups(appletOrder || [], appletMeta || {}, sortMode);
   const fragment = document.createDocumentFragment();
@@ -464,7 +466,13 @@ export function renderLauncherNavigator({
       : '<i class="bi bi-sort-alpha-down" aria-hidden="true"></i>';
   }
   if (dom.launcherClose) {
-    dom.launcherClose.classList.add("is-hidden");
+    dom.launcherClose.classList.toggle("is-hidden", !canGoBack);
+    dom.launcherClose.innerHTML = '<i class="bi bi-arrow-left" aria-hidden="true"></i>';
+    dom.launcherClose.setAttribute("title", "Back to active app");
+    dom.launcherClose.setAttribute("aria-label", "Back to active app");
+  }
+  if (launcherState) {
+    launcherState.canGoBack = canGoBack;
   }
 }
 
@@ -484,6 +492,7 @@ export function showLauncherNavigator({
     launcherState.mode = mode === "manage" ? "manage" : "start";
     launcherState.sortMode = "grouped";
     launcherState.statusMessage = "";
+    launcherState.canGoBack = false;
   }
   onCloseMobileNavigation?.();
   onCloseOpenedAppsMenu?.();
@@ -507,6 +516,7 @@ export function hideLauncherNavigator({
   document.body.classList.remove("launcher-visible");
   if (launcherState) {
     launcherState.statusMessage = "";
+    launcherState.canGoBack = false;
   }
   onCloseOpenedAppsMenu?.();
 }
@@ -534,15 +544,27 @@ export function setupLauncherNavigator({
   });
 
   dom.launcherClose?.addEventListener("click", () => {
-    if ((launcherState?.mode || "start") === "manage") {
+    if (launcherState?.canGoBack) {
       onHideLauncherNavigator?.();
     }
   });
 
   dom.launcherOverlay.addEventListener("click", (event) => {
-    if (event.target === dom.launcherOverlay && (launcherState?.mode || "start") === "manage") {
+    if (event.target === dom.launcherOverlay && launcherState?.canGoBack) {
       onHideLauncherNavigator?.();
     }
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    const overlayVisible = !dom.launcherOverlay.classList.contains("is-hidden");
+    if (!overlayVisible || !launcherState?.canGoBack) {
+      return;
+    }
+    event.preventDefault();
+    onHideLauncherNavigator?.();
   });
 
   onRenderLauncherNavigator?.();

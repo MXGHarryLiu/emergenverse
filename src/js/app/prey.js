@@ -165,6 +165,10 @@ export class PreySimulation extends BaseSimulation {
     this.reset();
   }
 
+  setCount(count) {
+    this.setPreyCount(count);
+  }
+
   setPredatorCount(count) {
     this.params.predatorCount = count;
     this.reset();

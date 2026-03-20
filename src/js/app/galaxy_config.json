@@ -397,22 +397,26 @@
     "params": [
       {
         "key": "projection",
-        "default": "perspective"
+        "default": "perspective",
+        "unit": ""
       },
       {
         "key": "locked",
-        "default": false
+        "default": false,
+        "unit": ""
       },
       {
         "key": "fov",
         "default": 34,
-        "uiMin": 18,
+        "unit": "deg",
+        "uiMin": 1,
         "uiMax": 88,
         "step": 1
       },
       {
         "key": "moveSpeed",
         "default": 30,
+        "unit": "kly/Myr",
         "uiMin": 1,
         "uiMax": 1000,
         "step": 1
@@ -420,6 +424,7 @@
       {
         "key": "rotationSpeed",
         "default": 84,
+        "unit": "deg/s",
         "uiMin": 10,
         "uiMax": 720,
         "step": 1
@@ -436,6 +441,7 @@
       {
         "key": "x",
         "default": 350,
+        "unit": "kly",
         "uiMin": 50,
         "uiMax": 800,
         "step": 5
@@ -443,6 +449,7 @@
       {
         "key": "y",
         "default": 350,
+        "unit": "kly",
         "uiMin": 50,
         "uiMax": 800,
         "step": 5
@@ -450,6 +457,7 @@
       {
         "key": "z",
         "default": 350,
+        "unit": "kly",
         "uiMin": 50,
         "uiMax": 800,
         "step": 5
@@ -457,13 +465,11 @@
       {
         "key": "gridSize",
         "default": 20,
+        "unit": "kly",
         "uiMin": 5,
         "uiMax": 800,
         "step": 5
-      }],
-    "lengthUnit": {
-      "name": "kly",
-      "toSI": 9.4607304725808E+18
-    }
+      }]
   }
 }
+

@@ -1,0 +1,100 @@
+{
+  "key": "default",
+  "meta": {
+    "label": "Default Settings",
+    "group": "system"
+  },
+  "unit": {
+    "length": {
+      "label": "m",
+      "description": "meter",
+      "toSI": 1
+    },
+    "time": {
+      "label": "s",
+      "description": "second",
+      "toSI": 1
+    }
+  },
+  "camera": {
+    "distance": 185,
+    "height": 80,
+    "params": [
+      {
+        "key": "projection",
+        "default": "perspective",
+        "unit": ""
+      },
+      {
+        "key": "locked",
+        "default": false,
+        "unit": ""
+      },
+      {
+        "key": "fov",
+        "default": 50,
+        "unit": "deg",
+        "uiMin": 1,
+        "uiMax": 90,
+        "step": 1
+      },
+      {
+        "key": "moveSpeed",
+        "default": 30000,
+        "unit": "m/s",
+        "uiMin": 1,
+        "uiMax": 100000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "unit": "deg/s",
+        "uiMin": 1,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "boundary": {
+      "x": { "default": "cyclic" },
+      "y": { "default": "cyclic" },
+      "z": { "default": "cyclic" }
+    },
+    "params": [
+      {
+        "key": "x",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2,
+        "unit": "m"
+      },
+      {
+        "key": "y",
+        "default": 100,
+        "uiMin": 40,
+        "uiMax": 320,
+        "step": 2,
+        "unit": "m"
+      },
+      {
+        "key": "z",
+        "default": 100,
+        "uiMin": 30,
+        "uiMax": 260,
+        "step": 2,
+        "unit": "m"
+      },
+      {
+        "key": "gridSize",
+        "default": 5,
+        "uiMin": 2,
+        "uiMax": 320,
+        "step": 2,
+        "unit": "m"
+      }
+    ]
+  }
+}

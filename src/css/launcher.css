@@ -5,9 +5,9 @@
   z-index: 400;
   padding: clamp(0.75rem, 2.2vw, 1.6rem);
   background:
-    radial-gradient(circle at 18% 20%, rgba(90, 164, 255, 0.26), transparent 40%),
-    radial-gradient(circle at 82% 78%, rgba(76, 211, 182, 0.2), transparent 44%),
-    linear-gradient(160deg, rgba(5, 12, 26, 0.94), rgba(7, 18, 36, 0.96));
+    radial-gradient(circle at 18% 20%, var(--bg-glow-1), transparent 40%),
+    radial-gradient(circle at 82% 78%, var(--bg-glow-2), transparent 44%),
+    linear-gradient(160deg, var(--bg-base), var(--bg-mid) 44%, var(--bg-tail));
   backdrop-filter: blur(8px);
   overflow: hidden;
 }
@@ -99,8 +99,8 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 0.2rem 0;
-  background: color-mix(in srgb, var(--bg-elev) 72%, transparent);
+  padding: 0.22rem 0;
+  background: transparent;
 }
 
 .launcher-card-grid {

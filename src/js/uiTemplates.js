@@ -877,7 +877,7 @@ function deriveGroupLabel(groupKey, rows) {
 function buildSimulationUnitsBadge(appletId) {
   const config = APPLET_CONFIGS[appletId] || {};
   const units = config.unit || {};
-  const worldLength = config.world?.lengthUnit?.name || config.world?.unitLabel || "m";
+  const worldLength = config.unit?.length?.label || "m";
   const lengthLabel = units.length?.label || worldLength || "m";
   const timeLabel = units.time?.label || "s";
   const massLabel = units.mass?.label || "a.u.";

@@ -83,13 +83,11 @@ export class AntSimulation extends BaseSimulation {
     super({ scene, params, world, onStats });
 
     this.geometry = new THREE.ConeGeometry(0.45, 1.05, 8);
-    this.material = new THREE.MeshPhongMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
-      shininess: 28,
-      specular: 0x1d1d1d,
-      flatShading: true,
       side: THREE.DoubleSide,
       vertexColors: false,
+      fog: false,
       toneMapped: false,
     });
 
@@ -113,12 +111,14 @@ export class AntSimulation extends BaseSimulation {
       specular: 0x2a2015,
       flatShading: false,
       side: THREE.DoubleSide,
+      fog: false,
       toneMapped: false,
     });
     this.nestMarkerGeometry = new THREE.CircleGeometry(1, 28);
     this.nestMarkerMaterial = new THREE.MeshBasicMaterial({
       color: 0x5b9dff,
       side: THREE.DoubleSide,
+      fog: false,
       toneMapped: false,
     });
 
@@ -145,6 +145,7 @@ export class AntSimulation extends BaseSimulation {
       opacity: 0.72,
       depthWrite: false,
       side: THREE.DoubleSide,
+      fog: false,
     });
 
     this.stats = {
@@ -170,6 +171,7 @@ export class AntSimulation extends BaseSimulation {
     this.updatePheromonePlaneTransform();
     this.ensureFoodMesh();
     this.ensureNestMesh();
+    this.syncMarkerColors();
     this.reset();
   }
 
@@ -189,10 +191,10 @@ export class AntSimulation extends BaseSimulation {
   }
 
   onTheme(theme) {
-    this.material.specular.set(theme === "light" ? 0x2a2a2a : 0x171717);
     this.pheromoneMaterial.opacity = theme === "light" ? 0.6 : 0.72;
     this.foodMarkerMaterial.specular.set(theme === "light" ? 0x3a2918 : 0x251a12);
     // MeshBasicMaterial has no specular term.
+    this.syncMarkerColors();
   }
 
   reset() {
@@ -271,7 +273,7 @@ export class AntSimulation extends BaseSimulation {
     if (typeof bindRange === "function" && massInput && massValue) {
       bindRange("ant-food-add-mass", "ant-food-add-mass-value", (value) => {
         this.params.foodAddMassUg = value;
-        return `${Math.round(value)} ug`;
+        return `${Math.round(value)} mg`;
       });
     }
 
@@ -597,10 +599,7 @@ export class AntSimulation extends BaseSimulation {
       return;
     }
 
-    // Food and nest are not controlled by colormap/state modes; keep their
-    // configured single-color values persistent across all color modes.
-    this.foodMarkerMaterial.color.set(getAntSolidColor(this.params, "food"));
-    this.nestMarkerMaterial.color.set(getAntSolidColor(this.params, "nest"));
+    this.syncMarkerColors();
 
     const floorZ = -this.params.worldSizeZ * 0.5 + 0.0025;
     const capacity = this.foodMeshCapacity;
@@ -624,6 +623,15 @@ export class AntSimulation extends BaseSimulation {
 
     this.foodMesh.count = visibleCount;
     this.foodMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  syncMarkerColors() {
+    // Food and nest are not controlled by colormap/state modes; keep their
+    // configured single-color values persistent across all color modes.
+    this.foodMarkerMaterial.color.set(getAntSolidColor(this.params, "food"));
+    this.nestMarkerMaterial.color.set(getAntSolidColor(this.params, "nest"));
+    this.foodMarkerMaterial.needsUpdate = true;
+    this.nestMarkerMaterial.needsUpdate = true;
   }
 
   updatePheromoneTexture() {
@@ -837,7 +845,7 @@ export class AntSimulation extends BaseSimulation {
 
   getFoodRadiusFromMass(massUg) {
     const safeMass = Math.max(0, massUg);
-    const visualScaleCompensation = 0.1;
+    const visualScaleCompensation = 0.4;
     const rawRadius = this.toWorldLength(0.01 + Math.cbrt(safeMass) * 0.0015, 0.01) * visualScaleCompensation;
     const minRadius = this.toWorldLength(0.008, 0.008) * visualScaleCompensation;
     const maxRadius = this.toWorldLength(0.08, 0.08) * visualScaleCompensation;

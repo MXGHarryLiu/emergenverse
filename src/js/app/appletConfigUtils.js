@@ -1,4 +1,21 @@
 // Shared applet config helpers used inside individual applet modules.
+import { getLengthUnitDisplayTransform } from "../units.js";
+import defaultConfig from "./default_config.json" with { type: "json" };
+
+const WORLD_DEFAULTS = defaultConfig?.world ?? {};
+const CAMERA_DEFAULTS = defaultConfig?.camera ?? {};
+const UNIT_DEFAULTS = defaultConfig?.unit ?? {};
+const DEFAULT_WORLD_PARAMS = Array.isArray(WORLD_DEFAULTS?.params) ? WORLD_DEFAULTS.params : [];
+const DEFAULT_CAMERA_PARAMS = Array.isArray(CAMERA_DEFAULTS?.params) ? CAMERA_DEFAULTS.params : [];
+const getDefaultWorldParam = (key) =>
+  DEFAULT_WORLD_PARAMS.find((entry) => String(entry?.key || "").trim() === key) || null;
+const getDefaultCameraParam = (key) =>
+  DEFAULT_CAMERA_PARAMS.find((entry) => String(entry?.key || "").trim() === key) || null;
+const DEFAULT_CAMERA_FOV_PARAM = getDefaultCameraParam("fov");
+const DEFAULT_CAMERA_MOVE_SPEED_PARAM = getDefaultCameraParam("moveSpeed");
+const DEFAULT_CAMERA_ROTATION_SPEED_PARAM = getDefaultCameraParam("rotationSpeed");
+const DEFAULT_CAMERA_PROJECTION_PARAM = getDefaultCameraParam("projection");
+const DEFAULT_CAMERA_LOCKED_PARAM = getDefaultCameraParam("locked");
 
 export function selectControl(id, label, icon, optionsList, value, options = {}) {
   // Common options:
@@ -341,7 +358,10 @@ function normalizeUnitConfig(unitConfig) {
   return normalized;
 }
 
-function normalizeWorldParams(worldConfig = {}) {
+function normalizeWorldParams(
+  worldConfig = {},
+  dominantLengthUnit = String(UNIT_DEFAULTS?.length?.label || "m").trim() || "m",
+) {
   const providedParams = Array.isArray(worldConfig.params) ? worldConfig.params : [];
   const paramByKey = new Map(
     providedParams
@@ -377,12 +397,27 @@ function normalizeWorldParams(worldConfig = {}) {
       throw new Error(`[appletConfigUtils] world.params "${key}" requires uiMax > uiMin.`);
     }
 
+    const unit = String(existing.unit || dominantLengthUnit || UNIT_DEFAULTS?.length?.label || "m").trim();
+    if (!unit) {
+      throw new Error(`[appletConfigUtils] world.params "${key}" requires a valid length unit.`);
+    }
+    const unitTransform = getLengthUnitDisplayTransform(
+      unit,
+      String(dominantLengthUnit || UNIT_DEFAULTS?.length?.label || "m").trim() || "m",
+    );
+    if (!unitTransform) {
+      throw new Error(
+        `[appletConfigUtils] world.params "${key}" unit "${unit}" is not a supported length unit.`,
+      );
+    }
+
     return {
       key,
       default: defaultValue,
       uiMin,
       uiMax,
       step,
+      unit,
     };
   });
 }
@@ -402,24 +437,24 @@ function buildLegacyWorldShapeFromParams(worldParams) {
 
   return {
     defaults: {
-      x: toFiniteNumber(x.default, 100),
-      y: toFiniteNumber(y.default, 100),
-      z: toFiniteNumber(z.default, 100),
+      x: toFiniteNumber(x.default, toFiniteNumber(getDefaultWorldParam("x")?.default, 100)),
+      y: toFiniteNumber(y.default, toFiniteNumber(getDefaultWorldParam("y")?.default, 100)),
+      z: toFiniteNumber(z.default, toFiniteNumber(getDefaultWorldParam("z")?.default, 100)),
     },
     range: {
-      minX: toFiniteNumber(x.uiMin, 40),
-      maxX: toFiniteNumber(x.uiMax, 320),
-      minY: toFiniteNumber(y.uiMin, 40),
-      maxY: toFiniteNumber(y.uiMax, 320),
-      minZ: toFiniteNumber(z.uiMin, 30),
-      maxZ: toFiniteNumber(z.uiMax, 260),
-      step: toFiniteNumber(x.step, 2),
+      minX: toFiniteNumber(x.uiMin, toFiniteNumber(getDefaultWorldParam("x")?.uiMin, 40)),
+      maxX: toFiniteNumber(x.uiMax, toFiniteNumber(getDefaultWorldParam("x")?.uiMax, 320)),
+      minY: toFiniteNumber(y.uiMin, toFiniteNumber(getDefaultWorldParam("y")?.uiMin, 40)),
+      maxY: toFiniteNumber(y.uiMax, toFiniteNumber(getDefaultWorldParam("y")?.uiMax, 320)),
+      minZ: toFiniteNumber(z.uiMin, toFiniteNumber(getDefaultWorldParam("z")?.uiMin, 30)),
+      maxZ: toFiniteNumber(z.uiMax, toFiniteNumber(getDefaultWorldParam("z")?.uiMax, 260)),
+      step: toFiniteNumber(x.step, toFiniteNumber(getDefaultWorldParam("x")?.step, 2)),
     },
-    gridSize: toFiniteNumber(gridSize.default, 5),
+    gridSize: toFiniteNumber(gridSize.default, toFiniteNumber(getDefaultWorldParam("gridSize")?.default, 5)),
   };
 }
 
-function normalizeCameraParams(cameraConfig = {}) {
+function normalizeCameraParams(cameraConfig = {}, fallbackUnits = {}) {
   const controls = cameraConfig.controls ?? {};
   const providedParams = Array.isArray(cameraConfig.params) ? cameraConfig.params : [];
   const paramByKey = new Map(
@@ -430,26 +465,40 @@ function normalizeCameraParams(cameraConfig = {}) {
 
   const defaultsByKey = {
     fov: {
-      default: toFiniteNumber(cameraConfig.fov, 50),
-      uiMin: toFiniteNumber(controls.fov?.min, 20),
-      uiMax: toFiniteNumber(controls.fov?.max, 90),
-      step: toFiniteNumber(controls.fov?.step, 1),
+      default: toFiniteNumber(cameraConfig.fov, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
+      uiMin: toFiniteNumber(controls.fov?.min, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMin, 1)),
+      uiMax: toFiniteNumber(controls.fov?.max, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 90)),
+      step: toFiniteNumber(controls.fov?.step, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.step, 1)),
     },
     moveSpeed: {
       default: toFiniteNumber(
         controls.moveSpeed?.defaultValue,
-        toFiniteNumber(cameraConfig.keyboardMoveSpeedDefault, 30000),
+        toFiniteNumber(
+          cameraConfig.keyboardMoveSpeedDefault,
+          toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.default, 30000),
+        ),
       ),
-      uiMin: toFiniteNumber(controls.moveSpeed?.min, 1),
-      uiMax: toFiniteNumber(controls.moveSpeed?.max, 100000),
-      step: toFiniteNumber(controls.moveSpeed?.step, 1),
+      uiMin: toFiniteNumber(controls.moveSpeed?.min, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.uiMin, 1)),
+      uiMax: toFiniteNumber(controls.moveSpeed?.max, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.uiMax, 100000)),
+      step: toFiniteNumber(controls.moveSpeed?.step, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.step, 1)),
     },
     rotationSpeed: {
-      default: toFiniteNumber(controls.rotationSpeed?.defaultValue, 84),
-      uiMin: toFiniteNumber(controls.rotationSpeed?.min, 1),
-      uiMax: toFiniteNumber(controls.rotationSpeed?.max, 720),
-      step: toFiniteNumber(controls.rotationSpeed?.step, 1),
+      default: toFiniteNumber(
+        controls.rotationSpeed?.defaultValue,
+        toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.default, 84),
+      ),
+      uiMin: toFiniteNumber(controls.rotationSpeed?.min, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.uiMin, 1)),
+      uiMax: toFiniteNumber(controls.rotationSpeed?.max, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.uiMax, 720)),
+      step: toFiniteNumber(controls.rotationSpeed?.step, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.step, 1)),
     },
+  };
+
+  const lengthUnit = String(fallbackUnits.length || UNIT_DEFAULTS?.length?.label || "m").trim() || "m";
+  const timeUnit = String(fallbackUnits.time || UNIT_DEFAULTS?.time?.label || "s").trim() || "s";
+  const defaultUnitByKey = {
+    fov: "deg",
+    moveSpeed: `${lengthUnit}/${timeUnit}`,
+    rotationSpeed: "deg/s",
   };
 
   const numericParams = ["fov", "moveSpeed", "rotationSpeed"].map((key) => {
@@ -461,6 +510,7 @@ function normalizeCameraParams(cameraConfig = {}) {
       uiMin: toFiniteNumber(existing.uiMin, fallback.uiMin),
       uiMax: toFiniteNumber(existing.uiMax, fallback.uiMax),
       step: toFiniteNumber(existing.step, fallback.step),
+      unit: String(existing.unit ?? defaultUnitByKey[key]).trim() || defaultUnitByKey[key],
     };
   });
 
@@ -470,13 +520,20 @@ function normalizeCameraParams(cameraConfig = {}) {
   return [
     {
       key: "projection",
-      default: String(projectionParam?.default ?? cameraConfig.defaultProjection ?? "perspective").trim().toLowerCase() === "orthographic"
+      default: String(
+        projectionParam?.default ??
+        cameraConfig.defaultProjection ??
+        DEFAULT_CAMERA_PROJECTION_PARAM?.default ??
+        "perspective",
+      ).trim().toLowerCase() === "orthographic"
         ? "orthographic"
         : "perspective",
+      unit: String(projectionParam?.unit ?? "").trim(),
     },
     {
       key: "locked",
       default: normalizeBoolean(lockedParam?.default, normalizeBoolean(cameraConfig.locked, false)),
+      unit: String(lockedParam?.unit ?? "").trim(),
     },
     ...numericParams,
   ];
@@ -620,22 +677,28 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
 
   return {
     fov: {
-      min: toFiniteNumber(fov.uiMin, 20),
-      max: toFiniteNumber(fov.uiMax, 90),
-      step: toFiniteNumber(fov.step, 1),
-      defaultValue: toFiniteNumber(fov.default, 50),
+      min: toFiniteNumber(fov.uiMin, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMin, 1)),
+      max: toFiniteNumber(fov.uiMax, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 90)),
+      step: toFiniteNumber(fov.step, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.step, 1)),
+      defaultValue: toFiniteNumber(fov.default, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
     },
     moveSpeed: {
-      min: toFiniteNumber(moveSpeed.uiMin, 1),
-      max: toFiniteNumber(moveSpeed.uiMax, 100000),
-      step: toFiniteNumber(moveSpeed.step, 1),
-      defaultValue: toFiniteNumber(moveSpeed.default, 30000),
+      min: toFiniteNumber(moveSpeed.uiMin, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.uiMin, 1)),
+      max: toFiniteNumber(moveSpeed.uiMax, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.uiMax, 100000)),
+      step: toFiniteNumber(moveSpeed.step, toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.step, 1)),
+      defaultValue: toFiniteNumber(
+        moveSpeed.default,
+        toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.default, 30000),
+      ),
     },
     rotationSpeed: {
-      min: toFiniteNumber(rotationSpeed.uiMin, 1),
-      max: toFiniteNumber(rotationSpeed.uiMax, 720),
-      step: toFiniteNumber(rotationSpeed.step, 1),
-      defaultValue: toFiniteNumber(rotationSpeed.default, 84),
+      min: toFiniteNumber(rotationSpeed.uiMin, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.uiMin, 1)),
+      max: toFiniteNumber(rotationSpeed.uiMax, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.uiMax, 720)),
+      step: toFiniteNumber(rotationSpeed.step, toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.step, 1)),
+      defaultValue: toFiniteNumber(
+        rotationSpeed.default,
+        toFiniteNumber(DEFAULT_CAMERA_ROTATION_SPEED_PARAM?.default, 84),
+      ),
     },
   };
 }
@@ -643,13 +706,7 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
 export function validateAppletConfig(config) {
   const normalizedUnit = normalizeUnitConfig(config?.unit ?? null);
   const meta = (config?.meta && typeof config.meta === "object") ? config.meta : {};
-  const worldLengthConfig = (config?.world && typeof config.world === "object" && config.world.lengthUnit)
-    ? config.world.lengthUnit
-    : {};
-  const worldLengthUnit = {
-    name: String(worldLengthConfig.name || "m"),
-    toSI: toFiniteNumber(worldLengthConfig.toSI, 1),
-  };
+  const dominantLengthUnit = String(normalizedUnit?.length?.label || UNIT_DEFAULTS?.length?.label || "m").trim() || "m";
   const label = meta?.label ?? "Applet";
   const group = String(meta?.group || "").trim();
   const shortLabel = String(meta?.shortLabel || "").trim();
@@ -657,12 +714,15 @@ export function validateAppletConfig(config) {
   const appletKey = typeof config?.key === "string" && config.key.trim().length > 0
     ? assertValidIdentifierKey(config.key.trim(), "root")
     : "";
-  const worldParams = normalizeWorldParams(config.world ?? {});
+  const worldParams = normalizeWorldParams(config.world ?? {}, dominantLengthUnit);
   const legacyWorld = buildLegacyWorldShapeFromParams(worldParams);
   const configuredCameraLocked = Array.isArray(config.camera?.params)
     ? config.camera.params.find((entry) => String(entry?.key || "").trim() === "locked")?.default
     : undefined;
-  const cameraParams = normalizeCameraParams(config.camera ?? {});
+  const cameraParams = normalizeCameraParams(config.camera ?? {}, {
+    length: dominantLengthUnit,
+    time: String(normalizedUnit?.time?.label || UNIT_DEFAULTS?.time?.label || "s").trim() || "s",
+  });
   const cameraProjectionParam = cameraParams.find((entry) => entry.key === "projection");
   const legacyCameraControls = buildLegacyCameraControlsFromParams(cameraParams);
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
@@ -702,15 +762,21 @@ export function validateAppletConfig(config) {
     },
     key: appletKey || undefined,
     camera: {
-      distance: config.camera?.distance ?? 185,
-      height: config.camera?.height ?? 80,
-      fov: toFiniteNumber(cameraFovParam?.default, 50),
-      defaultProjection: String(cameraProjectionParam?.default || "perspective").trim().toLowerCase() === "orthographic"
+      distance: config.camera?.distance ?? toFiniteNumber(CAMERA_DEFAULTS?.distance, 185),
+      height: config.camera?.height ?? toFiniteNumber(CAMERA_DEFAULTS?.height, 80),
+      fov: toFiniteNumber(cameraFovParam?.default, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
+      defaultProjection: String(cameraProjectionParam?.default || DEFAULT_CAMERA_PROJECTION_PARAM?.default || "perspective").trim().toLowerCase() === "orthographic"
         ? "orthographic"
         : "perspective",
-      locked: normalizeBoolean(configuredCameraLocked, config.camera?.locked ?? false),
+      locked: normalizeBoolean(
+        configuredCameraLocked,
+        config.camera?.locked ?? normalizeBoolean(DEFAULT_CAMERA_LOCKED_PARAM?.default, false),
+      ),
       params: cameraParams,
-      keyboardMoveSpeedDefault: toFiniteNumber(cameraMoveSpeedParam?.default, 30000),
+      keyboardMoveSpeedDefault: toFiniteNumber(
+        cameraMoveSpeedParam?.default,
+        toFiniteNumber(DEFAULT_CAMERA_MOVE_SPEED_PARAM?.default, 30000),
+      ),
       controls: legacyCameraControls,
     },
     world: {
@@ -719,8 +785,6 @@ export function validateAppletConfig(config) {
       defaults: legacyWorld.defaults,
       range: legacyWorld.range,
       gridSize: legacyWorld.gridSize,
-      lengthUnit: worldLengthUnit,
-      unitLabel: worldLengthUnit.name,
     },
     unit: normalizedUnit,
     intro: config.intro ?? null,

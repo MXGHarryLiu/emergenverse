@@ -80,6 +80,10 @@ body[data-theme="light"] .launcher-card {
   background: rgba(231, 240, 253, 0.72);
 }
 
+body[data-theme="light"] .launcher-group-title {
+  background: transparent;
+}
+
 body[data-theme="light"] .launcher-card.is-opened {
   background: rgba(216, 236, 245, 0.88);
 }
@@ -221,6 +225,11 @@ body[data-theme="light"] .chip-button:focus-visible {
 
 body[data-theme="light"] .left-panel {
   scrollbar-color: rgba(112, 140, 188, 0.78) rgba(205, 218, 239, 0.95);
+}
+
+body[data-theme="light"] .panel,
+body[data-theme="light"] .viewport-panel {
+  background: linear-gradient(180deg, rgba(236, 244, 255, 0.94), rgba(227, 237, 252, 0.9));
 }
 
 body[data-theme="light"] .left-panel::-webkit-scrollbar-track {

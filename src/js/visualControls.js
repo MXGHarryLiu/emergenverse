@@ -276,7 +276,7 @@ export function createVisualControls({
   function getVisualSizeEntries(appletId) {
     const appletConfig = APPLET_CONFIGS[appletId];
     const entries = Array.isArray(appletConfig?.visual?.size) ? appletConfig.visual.size : [];
-    const worldUnit = String(appletConfig?.world?.unitLabel || appletConfig?.world?.lengthUnit?.name || "m").trim();
+    const worldUnit = String(appletConfig?.unit?.length?.label || "m").trim();
     return entries
       .map((entry) => {
         const key = String(entry?.key || "").trim();

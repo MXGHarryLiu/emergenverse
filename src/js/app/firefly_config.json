@@ -400,22 +400,26 @@
     "params": [
       {
         "key": "projection",
-        "default": "perspective"
+        "default": "perspective",
+        "unit": ""
       },
       {
         "key": "locked",
-        "default": false
+        "default": false,
+        "unit": ""
       },
       {
         "key": "fov",
         "default": 50,
-        "uiMin": 20,
+        "unit": "deg",
+        "uiMin": 1,
         "uiMax": 90,
         "step": 1
       },
       {
         "key": "moveSpeed",
         "default": 120,
+        "unit": "m/s",
         "uiMin": 1,
         "uiMax": 100000,
         "step": 1
@@ -423,6 +427,7 @@
       {
         "key": "rotationSpeed",
         "default": 84,
+        "unit": "deg/s",
         "uiMin": 1,
         "uiMax": 720,
         "step": 1
@@ -439,6 +444,7 @@
       {
         "key": "x",
         "default": 100,
+        "unit": "m",
         "uiMin": 40,
         "uiMax": 320,
         "step": 2
@@ -446,6 +452,7 @@
       {
         "key": "y",
         "default": 100,
+        "unit": "m",
         "uiMin": 40,
         "uiMax": 320,
         "step": 2
@@ -453,6 +460,7 @@
       {
         "key": "z",
         "default": 100,
+        "unit": "m",
         "uiMin": 30,
         "uiMax": 260,
         "step": 2
@@ -460,9 +468,11 @@
       {
         "key": "gridSize",
         "default": 5,
+        "unit": "m",
         "uiMin": 2,
         "uiMax": 320,
         "step": 2
       }]
   }
 }
+

@@ -159,7 +159,12 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     const aspect = width / height;
 
     const baseSpan = Math.max(params.worldSizeX, params.worldSizeY, params.worldSizeZ) * 0.62;
-    const zoomScale = THREE.MathUtils.clamp(params.cameraFov / 50, 0.35, 2.4);
+    // Match perspective-like zoom response while avoiding a low-FOV dead zone.
+    const fovDeg = THREE.MathUtils.clamp(Number(params.cameraFov) || 50, 1, 90);
+    const referenceFovDeg = 50;
+    const referenceTan = Math.tan(THREE.MathUtils.degToRad(referenceFovDeg * 0.5));
+    const fovTan = Math.tan(THREE.MathUtils.degToRad(fovDeg * 0.5));
+    const zoomScale = THREE.MathUtils.clamp(fovTan / Math.max(referenceTan, Number.EPSILON), 0.01, 2.4);
     const verticalSpan = baseSpan * zoomScale;
     orthographicCamera.left = -verticalSpan * aspect;
     orthographicCamera.right = verticalSpan * aspect;
@@ -197,7 +202,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return;
     }
 
-    const nextFov = THREE.MathUtils.clamp(params.cameraFov + delta, 20, 90);
+    const nextFov = THREE.MathUtils.clamp(params.cameraFov + delta, 1, 90);
     if (Math.abs(nextFov - params.cameraFov) < 1e-8) {
       return;
     }
@@ -966,7 +971,7 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return false;
     }
 
-    params.cameraFov = THREE.MathUtils.clamp(Number(snapshot.cameraFov) || params.cameraFov, 20, 90);
+    params.cameraFov = THREE.MathUtils.clamp(Number(snapshot.cameraFov) || params.cameraFov, 1, 90);
     perspectiveCamera.fov = params.cameraFov;
     perspectiveCamera.updateProjectionMatrix();
     updateOrthographicCamera(false);
