@@ -39,6 +39,7 @@ export function setupUiOverlays({
   setupControlsInfoPopup(dom, popupPauseController);
   setupModelInfoPopup(dom, getActiveApplet, popupPauseController);
   setupAboutPopup(dom, popupPauseController);
+  setupTutorialOverlay(dom, popupPauseController);
   setupSharePopup(dom, getActiveApplet, popupPauseController);
   setupExportPopup(dom, getActiveApplet, getExportData, popupPauseController);
   setupScreenshotPopup({
@@ -181,7 +182,9 @@ function syncModalOpenState() {
   if (!body) {
     return;
   }
-  const hasOpenModal = Array.from(document.querySelectorAll(".controls-modal-backdrop"))
+  const hasOpenModal = Array.from(
+    document.querySelectorAll(".controls-modal-backdrop:not(.tutorial-overlay)"),
+  )
     .some((backdrop) => !backdrop.classList.contains("is-hidden"));
   body.classList.toggle(MODAL_OPEN_CLASS, hasOpenModal);
 }
@@ -219,6 +222,509 @@ function setupAboutPopup(dom, popupPauseController) {
     backdrop: dom.aboutInfoBackdrop,
     onOpen: () => popupPauseController?.onPopupOpen(dom.aboutInfoBackdrop),
     onClose: () => popupPauseController?.onPopupClose(dom.aboutInfoBackdrop),
+  });
+}
+
+function setupTutorialOverlay(dom, popupPauseController) {
+  if (
+    !dom?.tutorialOverlay ||
+    !dom?.tutorialStartGuided ||
+    !dom?.tutorialBody ||
+    !dom?.tutorialCounter ||
+    !dom?.tutorialPrev ||
+    !dom?.tutorialNext ||
+    !dom?.tutorialClose
+  ) {
+    return;
+  }
+
+  const card = dom.tutorialOverlay.querySelector(".tutorial-card");
+  const tutorialMasks = {
+    top: dom.tutorialOverlay.querySelector('[data-tutorial-mask="top"]'),
+    left: dom.tutorialOverlay.querySelector('[data-tutorial-mask="left"]'),
+    right: dom.tutorialOverlay.querySelector('[data-tutorial-mask="right"]'),
+    bottom: dom.tutorialOverlay.querySelector('[data-tutorial-mask="bottom"]'),
+  };
+  if (!card) {
+    return;
+  }
+
+  const steps = [
+    {
+      id: "viewport",
+      targetSelector: "#scene-host",
+      title: "3D Viewport",
+      placement: "bottom",
+      message:
+        '<p>This is the <strong>3D viewport</strong> where each simulation runs.</p>' +
+        '<p class="mt-2">Use <strong>keyboard / mouse / touch</strong> to move and inspect the scene from different angles.</p>' +
+        '<p class="mt-2">The <strong>orientation marker</strong> in the lower-left corner helps track camera direction.</p>',
+    },
+    {
+      id: "viewport-tools",
+      targetSelector: ".viewport-tools",
+      title: "Viewport Tool Buttons",
+      placement: "left",
+      message:
+        '<p>This top-right button cluster gives quick tools while you stay in the viewport.</p>' +
+        '<p class="mt-2"><i class="bi bi-joystick me-1" aria-hidden="true"></i><strong>Control Help</strong> opens the control help dialog.</p>' +
+        '<p class="mt-2"><i class="bi bi-camera-fill me-1" aria-hidden="true"></i>' +
+        '<strong>Screenshot</strong> captures the current viewport.</p>',
+    },
+    {
+      id: "info-panel",
+      targetSelector: "#left-panel",
+      title: "Introduction And Live Stats",
+      placement: "right",
+      message:
+        '<p>The <strong>Introduction</strong> section explains the active model and gives quick context.</p>' +
+        '<p class="mt-2">Use <strong>Open Model Equations</strong> to inspect the formal equations for the applet.</p>' +
+        '<p class="mt-2"><strong>Stats</strong> shows live metrics and charts that update while the simulation runs.</p>',
+    },
+    {
+      id: "controls-panel",
+      targetSelector: "#controls-panel",
+      title: "Control Panel",
+      placement: "left",
+      getMessage: () => {
+        const describeSection = (title) => {
+          const key = String(title || "").toLowerCase();
+          if (key.includes("simulation")) {
+            return "Core model parameters and runtime behavior controls.";
+          }
+          if (key.includes("camera")) {
+            return "View projection, movement speed, and camera interaction settings.";
+          }
+          if (key.includes("world")) {
+            return "Simulation space size and boundary condition settings.";
+          }
+          if (key.includes("visual")) {
+            return "Rendering style, sizing, and appearance options.";
+          }
+          if (key.includes("boundary")) {
+            return "Simulation domain size and world limit settings.";
+          }
+          if (key.includes("interaction")) {
+            return "Lets you interrupt and directly interact with agents.";
+          }
+          if (key.includes("environment")) {
+            return "External field and environmental behavior controls.";
+          }
+          return "Additional controls specific to this simulation.";
+        };
+
+        const sectionTitles = Array.from(
+          document.querySelectorAll("#controls-panel [data-control-section]"),
+        )
+          .map((section) => {
+            if (!(section instanceof HTMLElement)) {
+              return "";
+            }
+            const generatedTitle = section.querySelector("[data-section-title-text]");
+            if (generatedTitle?.textContent?.trim()) {
+              return generatedTitle.textContent.trim();
+            }
+            const staticTitle = section.querySelector(".section-toggle-title span:last-child");
+            if (staticTitle?.textContent?.trim()) {
+              return staticTitle.textContent.trim();
+            }
+            return "";
+          })
+          .filter(Boolean);
+
+        const uniqueTitles = [...new Set(sectionTitles)];
+        const listMarkup = uniqueTitles.length > 0
+          ? `<ul class="mt-2 mb-0">${uniqueTitles
+            .map((title) => `<li><strong>${title}</strong>: ${describeSection(title)}</li>`)
+            .join("")}</ul>`
+          : '<p class="mt-2 mb-0">Use the section headers to expand/collapse control groups.</p>';
+
+        return (
+          "<p>The <strong>Control Panel</strong> is organized into sections. This step covers all sections currently shown for the active app:</p>" +
+          listMarkup +
+          '<p class="mt-2">Scroll through the full panel and use each section header to expand/collapse details while tuning parameters.</p>'
+        );
+      },
+    },
+  ];
+
+  let currentStepIndex = 0;
+  let tutorialOpen = false;
+  const layoutSnapshot = {
+    forcedForViewport: false,
+    panelStateAdjusted: false,
+    leftWasVisible: false,
+    rightWasVisible: false,
+  };
+
+  const getOverlapArea = (a, b) => {
+    if (!a || !b) {
+      return 0;
+    }
+    const overlapW = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const overlapH = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return overlapW * overlapH;
+  };
+
+  const panelBlocksViewport = (panelElement, viewportRect, threshold = 0.75) => {
+    if (
+      !(panelElement instanceof HTMLElement) ||
+      panelElement.classList.contains("is-hidden") ||
+      !viewportRect
+    ) {
+      return false;
+    }
+    const panelRect = panelElement.getBoundingClientRect();
+    const viewportArea = Math.max(1, viewportRect.width * viewportRect.height);
+    const overlapArea = getOverlapArea(panelRect, viewportRect);
+    return overlapArea / viewportArea >= threshold;
+  };
+
+  const clearFocusedElement = () => {};
+
+  const setMaskRect = (target) => {
+    const masks = tutorialMasks;
+    if (!masks.top || !masks.left || !masks.right || !masks.bottom) {
+      return;
+    }
+
+    const vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    const rect = target?.getBoundingClientRect?.() ?? null;
+    const hasRect = Boolean(rect && rect.width > 1 && rect.height > 1);
+
+    if (!hasRect) {
+      masks.top.style.left = "0px";
+      masks.top.style.top = "0px";
+      masks.top.style.width = `${vw}px`;
+      masks.top.style.height = `${vh}px`;
+      masks.left.style.width = "0px";
+      masks.left.style.height = "0px";
+      masks.right.style.width = "0px";
+      masks.right.style.height = "0px";
+      masks.bottom.style.width = "0px";
+      masks.bottom.style.height = "0px";
+      return;
+    }
+
+    const pad = 8;
+    const left = Math.max(0, Math.min(vw, Math.floor(rect.left - pad)));
+    const top = Math.max(0, Math.min(vh, Math.floor(rect.top - pad)));
+    const right = Math.max(0, Math.min(vw, Math.ceil(rect.right + pad)));
+    const bottom = Math.max(0, Math.min(vh, Math.ceil(rect.bottom + pad)));
+    const holeWidth = Math.max(0, right - left);
+    const holeHeight = Math.max(0, bottom - top);
+
+    masks.top.style.left = "0px";
+    masks.top.style.top = "0px";
+    masks.top.style.width = `${vw}px`;
+    masks.top.style.height = `${top}px`;
+
+    masks.left.style.left = "0px";
+    masks.left.style.top = `${top}px`;
+    masks.left.style.width = `${left}px`;
+    masks.left.style.height = `${holeHeight}px`;
+
+    masks.right.style.left = `${right}px`;
+    masks.right.style.top = `${top}px`;
+    masks.right.style.width = `${Math.max(0, vw - right)}px`;
+    masks.right.style.height = `${holeHeight}px`;
+
+    masks.bottom.style.left = "0px";
+    masks.bottom.style.top = `${bottom}px`;
+    masks.bottom.style.width = `${vw}px`;
+    masks.bottom.style.height = `${Math.max(0, vh - bottom)}px`;
+  };
+
+  const focusElement = (element) => {
+    if (!(element instanceof HTMLElement)) {
+      setMaskRect(null);
+      return;
+    }
+    setMaskRect(element);
+  };
+
+  const getLayoutMode = () => {
+    if (document.body.classList.contains("layout-mobile")) {
+      return "mobile";
+    }
+    if (document.body.classList.contains("layout-middle")) {
+      return "middle";
+    }
+    return "desktop";
+  };
+
+  const resolveStepPlacement = (step = null) => {
+    const layoutMode = getLayoutMode();
+    const stepId = String(step?.id || "");
+    const isInfoStep = stepId === "info-panel";
+    const isViewportStep = stepId === "viewport";
+    const isViewportToolsStep = stepId === "viewport-tools";
+
+    if (layoutMode === "mobile") {
+      return "bottom-fixed";
+    }
+
+    if (isInfoStep) {
+      return layoutMode === "middle" ? "left-fixed" : "right-fixed";
+    }
+
+    if (isViewportStep || isViewportToolsStep) {
+      return "left-fixed";
+    }
+
+    return step?.placement || "bottom";
+  };
+
+  const positionCardNearTarget = (target, step = null) => {
+    const margin = 12;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const cardRect = card.getBoundingClientRect();
+    const cardWidth = Math.min(cardRect.width || 360, viewportWidth - margin * 2);
+    const cardHeight = cardRect.height || 220;
+    const targetRect = target?.getBoundingClientRect?.() ?? null;
+    const placement = resolveStepPlacement(step);
+
+    let left = Math.max(margin, Math.round((viewportWidth - cardWidth) * 0.5));
+    let top = Math.max(margin, Math.round((viewportHeight - cardHeight) * 0.5));
+
+    if (placement === "bottom-fixed") {
+      left = Math.round((viewportWidth - cardWidth) * 0.5);
+      top = viewportHeight - cardHeight - margin;
+      left = Math.max(margin, Math.min(viewportWidth - cardWidth - margin, left));
+      top = Math.max(margin, Math.min(viewportHeight - cardHeight - margin, top));
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+      return;
+    }
+
+    if (placement === "left-fixed") {
+      left = margin;
+      top = Math.round((viewportHeight - cardHeight) * 0.5);
+      left = Math.max(margin, Math.min(viewportWidth - cardWidth - margin, left));
+      top = Math.max(margin, Math.min(viewportHeight - cardHeight - margin, top));
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+      return;
+    }
+
+    if (placement === "right-fixed") {
+      left = viewportWidth - cardWidth - margin;
+      top = Math.round((viewportHeight - cardHeight) * 0.5);
+      left = Math.max(margin, Math.min(viewportWidth - cardWidth - margin, left));
+      top = Math.max(margin, Math.min(viewportHeight - cardHeight - margin, top));
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+      return;
+    }
+
+    if (targetRect && targetRect.width > 1 && targetRect.height > 1) {
+      const candidateBottom = {
+        left: targetRect.left + Math.min(24, targetRect.width * 0.1),
+        top: targetRect.bottom + margin,
+      };
+      const candidateTop = {
+        left: targetRect.left + Math.min(24, targetRect.width * 0.1),
+        top: targetRect.top - cardHeight - margin,
+      };
+      const candidateRight = {
+        left: targetRect.right + margin,
+        top: targetRect.top,
+      };
+      const candidateLeft = {
+        left: targetRect.left - cardWidth - margin,
+        top: targetRect.top,
+      };
+
+      const chooseCandidate = (...candidates) => {
+        for (const candidate of candidates) {
+          const fitsHorizontally =
+            candidate.left >= margin && candidate.left + cardWidth <= viewportWidth - margin;
+          const fitsVertically =
+            candidate.top >= margin && candidate.top + cardHeight <= viewportHeight - margin;
+          if (fitsHorizontally && fitsVertically) {
+            return candidate;
+          }
+        }
+        return candidates[0];
+      };
+
+      if (placement === "right") {
+        ({ left, top } = chooseCandidate(candidateRight, candidateBottom, candidateTop, candidateLeft));
+      } else if (placement === "left") {
+        ({ left, top } = chooseCandidate(candidateLeft, candidateBottom, candidateTop, candidateRight));
+      } else if (placement === "top") {
+        ({ left, top } = chooseCandidate(candidateTop, candidateBottom, candidateRight, candidateLeft));
+      } else {
+        ({ left, top } = chooseCandidate(candidateBottom, candidateTop, candidateRight, candidateLeft));
+      }
+    } else {
+      left = (viewportWidth - cardWidth) * 0.5;
+      top = (viewportHeight - cardHeight) * 0.5;
+    }
+
+    left = Math.max(margin, Math.min(viewportWidth - cardWidth - margin, left));
+    top = Math.max(margin, Math.min(viewportHeight - cardHeight - margin, top));
+
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.round(top)}px`;
+  };
+
+  const renderStep = () => {
+    const total = steps.length;
+    const step = steps[currentStepIndex];
+    const stepId = String(step?.id || "");
+    if (layoutSnapshot.forcedForViewport) {
+      if (stepId === "viewport" || stepId === "viewport-tools") {
+        if (dom.leftPanel && !dom.leftPanel.classList.contains("is-hidden")) {
+          dom.hideLeftPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+        if (dom.rightPanel && !dom.rightPanel.classList.contains("is-hidden")) {
+          dom.hideRightPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+      } else if (stepId === "info-panel") {
+        if (dom.leftPanel?.classList.contains("is-hidden")) {
+          dom.showLeftPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+        if (dom.rightPanel && !dom.rightPanel.classList.contains("is-hidden")) {
+          dom.hideRightPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+      } else if (stepId === "controls-panel") {
+        if (dom.rightPanel?.classList.contains("is-hidden")) {
+          dom.showRightPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+        if (dom.leftPanel && !dom.leftPanel.classList.contains("is-hidden")) {
+          dom.hideLeftPanel?.click();
+          layoutSnapshot.panelStateAdjusted = true;
+        }
+      }
+    } else {
+      if (stepId === "info-panel" && dom.leftPanel?.classList.contains("is-hidden")) {
+        dom.showLeftPanel?.click();
+        layoutSnapshot.panelStateAdjusted = true;
+      }
+      if (stepId === "controls-panel" && dom.rightPanel?.classList.contains("is-hidden")) {
+        dom.showRightPanel?.click();
+        layoutSnapshot.panelStateAdjusted = true;
+      }
+    }
+
+    const target = step?.targetSelector ? document.querySelector(step.targetSelector) : null;
+
+    const stepMessage = typeof step?.getMessage === "function"
+      ? step.getMessage()
+      : step?.message || "";
+    dom.tutorialBody.innerHTML = `
+      <div class="tutorial-step-title">${step?.title || "Tutorial"}</div>
+      ${stepMessage}
+    `;
+    dom.tutorialCounter.textContent = `${currentStepIndex + 1} / ${total}`;
+    dom.tutorialPrev.disabled = currentStepIndex === 0;
+    const isLastStep = currentStepIndex >= total - 1;
+    dom.tutorialNext.innerHTML = isLastStep
+      ? '<i class="bi bi-check-lg" aria-hidden="true"></i>'
+      : '<i class="bi bi-arrow-right" aria-hidden="true"></i>';
+    dom.tutorialNext.setAttribute("title", isLastStep ? "Finish tutorial" : "Next step");
+    dom.tutorialNext.setAttribute("aria-label", isLastStep ? "Finish tutorial" : "Next step");
+
+    focusElement(target);
+    positionCardNearTarget(target, step);
+  };
+
+  const closeTutorial = () => {
+    if (!tutorialOpen) {
+      return;
+    }
+    clearFocusedElement();
+    setMaskRect(null);
+    closeOverlay(dom.tutorialOverlay);
+    popupPauseController?.onPopupClose(dom.tutorialOverlay);
+    if (layoutSnapshot.forcedForViewport || layoutSnapshot.panelStateAdjusted) {
+      const leftVisibleNow = Boolean(dom.leftPanel && !dom.leftPanel.classList.contains("is-hidden"));
+      const rightVisibleNow = Boolean(dom.rightPanel && !dom.rightPanel.classList.contains("is-hidden"));
+      if (layoutSnapshot.leftWasVisible && !leftVisibleNow) {
+        dom.showLeftPanel?.click();
+      }
+      if (!layoutSnapshot.leftWasVisible && leftVisibleNow) {
+        dom.hideLeftPanel?.click();
+      }
+      if (layoutSnapshot.rightWasVisible && !rightVisibleNow) {
+        dom.showRightPanel?.click();
+      }
+      if (!layoutSnapshot.rightWasVisible && rightVisibleNow) {
+        dom.hideRightPanel?.click();
+      }
+      layoutSnapshot.forcedForViewport = false;
+      layoutSnapshot.panelStateAdjusted = false;
+    }
+    tutorialOpen = false;
+  };
+
+  const openTutorial = () => {
+    if (tutorialOpen) {
+      return;
+    }
+
+    if (dom.aboutInfoBackdrop && !dom.aboutInfoBackdrop.classList.contains("is-hidden")) {
+      closeOverlay(dom.aboutInfoBackdrop);
+      popupPauseController?.onPopupClose(dom.aboutInfoBackdrop);
+    }
+
+    layoutSnapshot.leftWasVisible = Boolean(dom.leftPanel && !dom.leftPanel.classList.contains("is-hidden"));
+    layoutSnapshot.rightWasVisible = Boolean(dom.rightPanel && !dom.rightPanel.classList.contains("is-hidden"));
+    layoutSnapshot.panelStateAdjusted = false;
+    const viewportRect = dom.sceneHost?.getBoundingClientRect?.() ?? null;
+    const leftBlocksViewport = panelBlocksViewport(dom.leftPanel, viewportRect);
+    const rightBlocksViewport = panelBlocksViewport(dom.rightPanel, viewportRect);
+    layoutSnapshot.forcedForViewport = leftBlocksViewport || rightBlocksViewport;
+    if (layoutSnapshot.forcedForViewport) {
+      if (dom.leftPanel && !dom.leftPanel.classList.contains("is-hidden")) {
+        dom.hideLeftPanel?.click();
+      }
+      if (dom.rightPanel && !dom.rightPanel.classList.contains("is-hidden")) {
+        dom.hideRightPanel?.click();
+      }
+    }
+
+    currentStepIndex = 0;
+    tutorialOpen = true;
+    popupPauseController?.onPopupOpen(dom.tutorialOverlay);
+    openOverlay(dom.tutorialOverlay);
+    renderStep();
+  };
+
+  dom.tutorialStartGuided.addEventListener("click", openTutorial);
+  dom.tutorialClose.addEventListener("click", closeTutorial);
+
+  dom.tutorialPrev.addEventListener("click", () => {
+    if (currentStepIndex <= 0) {
+      return;
+    }
+    currentStepIndex -= 1;
+    renderStep();
+  });
+
+  dom.tutorialNext.addEventListener("click", () => {
+    if (currentStepIndex >= steps.length - 1) {
+      closeTutorial();
+      return;
+    }
+    currentStepIndex += 1;
+    renderStep();
+  });
+
+  bindBackdropToClose(dom.tutorialOverlay, closeTutorial);
+  bindEscapeToOverlay(dom.tutorialOverlay, closeTutorial);
+  window.addEventListener("resize", () => {
+    if (tutorialOpen) {
+      renderStep();
+    }
   });
 }
 

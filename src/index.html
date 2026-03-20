@@ -173,10 +173,10 @@
             class="chip chip-button nav-icon-btn"
             id="about-info-open"
             type="button"
-            title="About this project"
-            aria-label="About this project"
+            title="Open tutorial"
+            aria-label="Open tutorial"
           >
-            <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
+            <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
           </button>
           <button
             class="chip chip-button status-chip run-chip nav-icon-btn"
@@ -236,11 +236,11 @@
             class="mobile-nav-action-btn is-hidden"
             id="mobile-nav-about"
             type="button"
-            aria-label="About this project"
-            title="About this project"
+            aria-label="Open tutorial"
+            title="Open tutorial"
           >
-            <i class="bi bi-journal-bookmark" aria-hidden="true"></i>
-            <span>About</span>
+            <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
+            <span>Tutorial</span>
           </button>
         </div>
       </aside>
@@ -663,17 +663,22 @@
       <section class="controls-modal" role="dialog" aria-modal="true" aria-labelledby="about-info-title">
         <header class="controls-modal-head">
           <h2 class="panel-title controls-modal-title" id="about-info-title">
-            <i class="bi bi-journal-bookmark panel-head-icon" aria-hidden="true"></i>
-            <span>About Emergenverse</span>
+            <i class="bi bi-question-circle-fill panel-head-icon" aria-hidden="true"></i>
+            <span>Tutorial</span>
           </h2>
-          <button class="icon-btn" id="about-info-close" type="button" aria-label="Close about dialog">
+          <button class="icon-btn" id="about-info-close" type="button" aria-label="Close tutorial dialog">
             <i class="bi bi-x-lg" aria-hidden="true"></i>
           </button>
         </header>
         <div class="controls-modal-body">
           <p class="panel-copy">
-            Emergenverse explores how complex system-level behavior emerges from simple local interaction rules.
+            Start an on-screen guided tutorial and learn the viewport controls step by step.
           </p>
+          <div class="modal-actions mt-3">
+            <button class="btn btn-theme w-100" id="tutorial-start-guided" type="button">
+              Start Guided Tutorial
+            </button>
+          </div>
           <ul class="controls-list about-links mt-3">
             <li>
               <strong>Version</strong>:
@@ -775,6 +780,48 @@
           <p class="control-note mt-2 mb-0" id="export-status">Download current parameters as a JSON file.</p>
         </div>
       </section>
+    </div>
+
+    <div class="controls-modal-backdrop tutorial-overlay is-hidden" id="tutorial-overlay" aria-hidden="true">
+      <div class="tutorial-mask tutorial-mask-top" data-tutorial-mask="top" aria-hidden="true"></div>
+      <div class="tutorial-mask tutorial-mask-left" data-tutorial-mask="left" aria-hidden="true"></div>
+      <div class="tutorial-mask tutorial-mask-right" data-tutorial-mask="right" aria-hidden="true"></div>
+      <div class="tutorial-mask tutorial-mask-bottom" data-tutorial-mask="bottom" aria-hidden="true"></div>
+      <div class="tutorial-card" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+        <header class="tutorial-head">
+          <h2 class="panel-title controls-modal-title tutorial-title" id="tutorial-title">
+            <i class="bi bi-question-circle-fill panel-head-icon" aria-hidden="true"></i>
+            <span>Tutorial</span>
+          </h2>
+          <button class="icon-btn" id="tutorial-close" type="button" aria-label="Close tutorial">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="tutorial-body" id="tutorial-body"></div>
+        <footer class="tutorial-foot">
+          <span class="tutorial-counter" id="tutorial-counter">1 / 1</span>
+          <div class="tutorial-actions">
+            <button
+              class="btn btn-sm btn-outline-theme btn-icon-only"
+              id="tutorial-prev"
+              type="button"
+              title="Previous step"
+              aria-label="Previous step"
+            >
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-sm btn-theme btn-icon-only"
+              id="tutorial-next"
+              type="button"
+              title="Next step"
+              aria-label="Next step"
+            >
+              <i class="bi bi-arrow-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </footer>
+      </div>
     </div>
 
     <div class="controls-modal-backdrop is-hidden" id="screenshot-info-backdrop" aria-hidden="true">
