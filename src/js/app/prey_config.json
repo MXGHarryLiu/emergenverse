@@ -159,7 +159,7 @@
           "type": "slider",
           "icon": "bi-circle-fill",
           "step": 10,
-          "resetTrendCharts": true
+          "simulationAction": "reset"
         }
       },
       {
@@ -173,7 +173,7 @@
           "type": "slider",
           "icon": "bi-triangle-fill",
           "step": 1,
-          "resetTrendCharts": true
+          "simulationAction": "reset"
         }
       },
       {

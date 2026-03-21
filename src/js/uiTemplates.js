@@ -470,6 +470,7 @@ function createSimulationSelectRow(appletId, selectConfig) {
   const labelName = document.createElement("span");
   labelName.className = "label-name";
   const iconClass = selectConfig.icon || "bi bi-sliders";
+  const valueId = getSimulationSelectValueId(appletId, selectConfig);
   labelName.innerHTML = `<i class="${iconClass}" aria-hidden="true"></i><span data-select-label-text></span>`;
   const labelTextNode = labelName.querySelector("[data-select-label-text]");
   if (labelTextNode) {
@@ -477,15 +478,20 @@ function createSimulationSelectRow(appletId, selectConfig) {
     renderInlineMathIfAvailable(labelTextNode);
   }
   label.appendChild(labelName);
+  const value = document.createElement("span");
+  value.className = "label-value";
+  value.id = valueId;
+  value.textContent = String(selectConfig.value ?? "");
+  label.appendChild(value);
   row.appendChild(label);
 
   const select = document.createElement("select");
-  select.className = "form-select form-select-sm theme-select";
+  select.className = "form-select form-select-sm theme-select compact-source-select";
   select.id = inputId;
   (Array.isArray(selectConfig.options) ? selectConfig.options : []).forEach((optionConfig) => {
     const option = document.createElement("option");
     option.value = String(optionConfig.key ?? "");
-    option.textContent = String(optionConfig.label);
+    option.textContent = String(optionConfig.label ?? optionConfig.value ?? optionConfig.key ?? "");
     select.appendChild(option);
   });
   if (selectConfig.value !== undefined && selectConfig.value !== null) {
@@ -837,6 +843,16 @@ function getSimulationSliderValueId(appletId, slider) {
 
 function getSimulationSelectInputId(appletId, selectConfig) {
   return `${appletId}-${selectConfig.id}`;
+}
+
+function getSimulationSelectValueId(appletId, selectConfig) {
+  const paramKey = String(selectConfig?.paramKey || "").trim();
+  if (!paramKey) {
+    throw new Error(
+      `[uiTemplates] Simulation select "${selectConfig?.id ?? "unknown"}" is missing paramKey.`,
+    );
+  }
+  return `${appletId}-${paramKey}-value`;
 }
 
 function deriveVisualControlIds(appletId) {

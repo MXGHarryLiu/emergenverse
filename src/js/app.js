@@ -946,6 +946,12 @@ function updateFpsMetric(dt) {
     return;
   }
 
+  if (params.paused) {
+    // Freeze FPS text while simulation is paused instead of reporting render-loop cadence.
+    fpsUiAccumulator = 0;
+    return;
+  }
+
   const fps = 1 / dt;
   fpsSmoothed = fpsSmoothed === 0 ? fps : fpsSmoothed * 0.9 + fps * 0.1;
   fpsUiAccumulator += dt;
@@ -1241,6 +1247,39 @@ function setupControls() {
 }
 
 function bindAppletSimulationControls() {
+  let activeCompactSimulationSelect = null;
+
+  const setCompactSimulationSelectActive = (entry, active) => {
+    if (!entry) {
+      return;
+    }
+    entry.input?.classList.toggle("is-active-select", active);
+    entry.valueEl?.classList.toggle("is-active-control", active);
+  };
+
+  const deactivateCompactSimulationSelect = () => {
+    if (!activeCompactSimulationSelect) {
+      return;
+    }
+    setCompactSimulationSelectActive(activeCompactSimulationSelect, false);
+    activeCompactSimulationSelect = null;
+  };
+
+  const activateCompactSimulationSelect = (entry) => {
+    if (!entry?.input || !entry?.valueEl) {
+      return;
+    }
+    if (activeCompactSimulationSelect === entry) {
+      entry.input.focus();
+      return;
+    }
+    clearActiveCompactRangeControls();
+    deactivateCompactSimulationSelect();
+    activeCompactSimulationSelect = entry;
+    setCompactSimulationSelectActive(entry, true);
+    entry.input.focus();
+  };
+
   APPLET_ORDER.forEach((appletId) => {
     const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
     const { sliders, selects } = getSectionInputControls(simulationConfig);
@@ -1285,8 +1324,49 @@ function bindAppletSimulationControls() {
         if (!input) {
           return;
         }
+        const valueEl = document.getElementById(getSimulationSelectValueId(appletId, selectConfig));
+        const paramKey = inferSliderParamKey(appletId, selectConfig);
+        const appletParams = params[appletId] || {};
+        const initialValue = paramKey && Object.prototype.hasOwnProperty.call(appletParams, paramKey)
+          ? appletParams[paramKey]
+          : selectConfig.value;
+        if (initialValue !== undefined && initialValue !== null) {
+          input.value = String(initialValue);
+        }
+        syncSimulationSelectValueDisplay(appletId, selectConfig, input.value);
+        input.classList.add("compact-source-select");
+
+        const compactEntry = { input, valueEl };
+        input.addEventListener("blur", () => {
+          setTimeout(() => {
+            if (activeCompactSimulationSelect === compactEntry) {
+              deactivateCompactSimulationSelect();
+            }
+          }, 0);
+        });
+
+        if (valueEl) {
+          valueEl.classList.add("compact-value-trigger");
+          valueEl.setAttribute("role", "button");
+          valueEl.setAttribute("tabindex", "0");
+          valueEl.setAttribute("aria-label", `Edit ${selectConfig?.label || "selection"}`);
+          const activate = (event) => {
+            if (event.type === "keydown" && event.key !== "Enter" && event.key !== " " && event.key !== "F2") {
+              return;
+            }
+            if (event.type === "keydown") {
+              event.preventDefault();
+            }
+            activateCompactSimulationSelect(compactEntry);
+          };
+          valueEl.addEventListener("click", activate);
+          valueEl.addEventListener("keydown", activate);
+        }
+
         input.addEventListener("change", () => {
           handleAppletSelectInput(appletId, selectConfig, input.value);
+          syncSimulationSelectValueDisplay(appletId, selectConfig, input.value);
+          deactivateCompactSimulationSelect();
         });
       });
     }
@@ -1548,6 +1628,39 @@ function getSimulationSelectInputId(appletId, selectConfig) {
   return `${appletId}-${selectConfig.id}`;
 }
 
+function getSimulationSelectValueId(appletId, selectConfig) {
+  const paramKey = String(selectConfig?.paramKey || "").trim();
+  if (!paramKey) {
+    throw new Error(
+      `[app] Simulation select "${selectConfig?.id ?? "unknown"}" is missing paramKey.`,
+    );
+  }
+  return `${appletId}-${paramKey}-value`;
+}
+
+function getSimulationSelectDisplayMeta(selectConfig, value) {
+  const options = Array.isArray(selectConfig?.options) ? selectConfig.options : [];
+  const selectedValue = String(value ?? "").trim();
+  const selectedOption = options.find(
+    (option) => String(option?.key ?? "").trim() === selectedValue,
+  ) || null;
+  const shortValue = String(selectedOption?.key ?? selectedValue ?? "");
+  const longLabel = String(selectedOption?.label ?? selectedOption?.value ?? shortValue);
+  return { shortValue, longLabel };
+}
+
+function syncSimulationSelectValueDisplay(appletId, selectConfig, value) {
+  const valueEl = document.getElementById(getSimulationSelectValueId(appletId, selectConfig));
+  if (!valueEl) {
+    return;
+  }
+  const { shortValue, longLabel } = getSimulationSelectDisplayMeta(selectConfig, value);
+  valueEl.textContent = shortValue;
+  valueEl.dataset.formattedValue = shortValue;
+  valueEl.setAttribute("title", longLabel);
+  valueEl.setAttribute("aria-label", longLabel);
+}
+
 function handleAppletSliderInput(appletId, slider, rawValue) {
   const appletParams = params[appletId];
   const simulation = simulations[appletId];
@@ -1576,7 +1689,7 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
     refreshLegend: () => refreshAppletLegend(appletId),
   });
 
-  if (slider?.resetTrendCharts) {
+  if (String(slider?.simulationAction || "").trim().toLowerCase() === "reset") {
     resetTrendCharts(appletId);
   }
   refreshAppletLegend(appletId);
@@ -1616,7 +1729,7 @@ function handleAppletSelectInput(appletId, selectConfig, rawValue) {
     refreshLegend: () => refreshAppletLegend(appletId),
   });
 
-  if (selectConfig?.resetTrendCharts) {
+  if (String(selectConfig?.simulationAction || "").trim().toLowerCase() === "reset") {
     resetTrendCharts(appletId);
   }
   refreshAppletLegend(appletId);

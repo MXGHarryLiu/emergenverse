@@ -4,24 +4,62 @@ import { validateAppletConfig } from "./appletConfigUtils.js";
 import galaxyConfigData from "./galaxy_config.json" with { type: "json" };
 import { BaseSimulation } from "./baseSimulation.js";
 
-// Unit metadata used to derive the internal gravity constant from SI.
-const GALAXY_UNITS = {
-  length: { label: "kly", description: "kilo-light-year", toSI: 9.4607304725808e18 },
-  mass: { label: "M_sun", description: "solar mass", toSI: 1.98847e30 },
-  time: { label: "Myr", description: "million years", toSI: 31557600000000 },
-};
+// Applet UI and metadata configuration.
+export const GALAXY_APPLET_CONFIG = validateAppletConfig(galaxyConfigData);
+
+// Unit metadata sourced from applet config and used to derive the internal gravity constant from SI.
+const GALAXY_UNITS = requireAppletUnits(GALAXY_APPLET_CONFIG.unit, "galaxy");
 const GALAXY_SPEED_UNIT = `${GALAXY_UNITS.length.label}/${GALAXY_UNITS.time.label}`;
 const GALAXY_SI_GRAVITATIONAL_CONSTANT = 6.6743e-11;
-const GALAXY_TIME_SCALE_MYR_PER_SECOND = 8;
-const GALAXY_DEFAULT_OBJECT_MASS_FRACTION = 0.2;
 const GALAXY_GRAVITY_INTERNAL_SCALE =
   ((GALAXY_UNITS.time.toSI * GALAXY_UNITS.time.toSI) * GALAXY_UNITS.mass.toSI)
   / (GALAXY_UNITS.length.toSI ** 3);
 const GALAXY_GRAVITY_INTERNAL = GALAXY_SI_GRAVITATIONAL_CONSTANT * GALAXY_GRAVITY_INTERNAL_SCALE;
-const GALAXY_DEFAULT_CENTRAL_MASS = 2.2e11;
-const GALAXY_DEFAULT_OBJECT_TOTAL_MASS = GALAXY_DEFAULT_CENTRAL_MASS * GALAXY_DEFAULT_OBJECT_MASS_FRACTION;
-// Applet UI and metadata configuration.
-export const GALAXY_APPLET_CONFIG = validateAppletConfig(galaxyConfigData);
+const GALAXY_DEFAULT_CENTRAL_MASS = requireSimulationParamNumberDefault(
+  GALAXY_APPLET_CONFIG,
+  "centralMass",
+);
+const GALAXY_DEFAULT_OBJECT_TOTAL_MASS = requireSimulationParamNumberDefault(
+  GALAXY_APPLET_CONFIG,
+  "objectTotalMass",
+);
+const GALAXY_DEFAULT_SOFTENING = requireSimulationParamNumberDefault(
+  GALAXY_APPLET_CONFIG,
+  "softening",
+);
+const GALAXY_DEFAULT_SPIN = requireSimulationParamNumberDefault(
+  GALAXY_APPLET_CONFIG,
+  "spin",
+);
+const GALAXY_DEFAULT_INITIAL_RADIUS = requireSimulationParamNumberDefault(
+  GALAXY_APPLET_CONFIG,
+  "initialRadius",
+);
+const GALAXY_DEFAULT_INITIAL_SHAPE = requireSimulationSelectValueDefault(
+  GALAXY_APPLET_CONFIG,
+  "initialShape",
+);
+const GALAXY_SEED_VELOCITY_NOISE_FRACTION = 0.03;
+const GALAXY_INSTANCE_BASE_RADIUS = 0.42;
+const GALAXY_INSTANCE_WIDTH_SEGMENTS = 10;
+const GALAXY_INSTANCE_HEIGHT_SEGMENTS = 8;
+const GALAXY_INSTANCE_SCALE_MIN = 0.05;
+const GALAXY_INSTANCE_CAPACITY_SHRINK_FACTOR = 2;
+const GALAXY_MIN_SOFTENING = 1e-3;
+const GALAXY_MIN_CENTRAL_MASS = 1e8;
+const GALAXY_MIN_PARTICLE_RADIUS = 0.2;
+const GALAXY_MIN_WORLD_SPREAD = 2;
+const GALAXY_WORLD_SPREAD_LIMIT_FRACTION = 0.49;
+const GALAXY_DISK_THICKNESS_FACTOR = 0.08;
+const GALAXY_DISK_MIN_THICKNESS = 0.08;
+const GALAXY_ELLIPSOID_Z_SCALE = 0.5;
+const GALAXY_RANDOM_VECTOR_SPREAD = 2;
+const GALAXY_RANDOM_SPHERE_ATTEMPTS = 16;
+const GALAXY_PARALLEL_ALIGNMENT_LIMIT = 0.95;
+const GALAXY_COLORMAP_SPAN_EPSILON = 1e-6;
+const GALAXY_LENGTH_SQ_EPSILON = 1e-8;
+const GALAXY_GRAVITY_EPSILON = 1e-12;
+const GALAXY_SPEED_RANGE_PADDING = 0.5;
 
 // Shell runtime hooks.
 const GALAXY_APPLET_RUNTIME = {
@@ -83,11 +121,59 @@ const GALAXY_COLORMAPS = buildColormapLUT(GALAXY_APPLET_CONFIG.visual?.colormap)
 const lerpA = new THREE.Color();
 const lerpB = new THREE.Color();
 
-function massToInternalSolarMass(value) {
+function requireAppletUnits(rawUnits, appletId) {
+  if (!rawUnits || typeof rawUnits !== "object") {
+    throw new Error(`[${appletId}] unit config is required.`);
+  }
+  return {
+    length: requireUnitEntry(rawUnits.length, `${appletId}.unit.length`),
+    mass: requireUnitEntry(rawUnits.mass, `${appletId}.unit.mass`),
+    time: requireUnitEntry(rawUnits.time, `${appletId}.unit.time`),
+  };
+}
+
+function requireUnitEntry(entry, path) {
+  if (!entry || typeof entry !== "object") {
+    throw new Error(`[${path}] entry is required.`);
+  }
+  const label = String(entry.label || "").trim();
+  if (!label) {
+    throw new Error(`[${path}] label is required.`);
+  }
+  const toSI = Number(entry.toSI);
+  if (!Number.isFinite(toSI) || toSI <= 0) {
+    throw new Error(`[${path}] toSI must be a positive finite number.`);
+  }
+  const description = String(entry.description || "").trim();
+  return { label, description, toSI };
+}
+
+function requireSimulationParamNumberDefault(config, key) {
+  const entries = Array.isArray(config?.simulation?.params) ? config.simulation.params : [];
+  const entry = entries.find((item) => String(item?.key || "").trim() === key);
+  const value = Number(entry?.default);
+  if (!Number.isFinite(value)) {
+    throw new Error(`[galaxy] simulation.params "${key}" must define a finite numeric default.`);
+  }
   return value;
 }
 
-function lengthToInternalLightYears(value) {
+function requireSimulationSelectValueDefault(config, paramKey) {
+  const params = Array.isArray(config?.simulation?.params) ? config.simulation.params : [];
+  const paramEntry = params.find((item) => String(item?.key || "").trim() === paramKey);
+  const paramValue = String(paramEntry?.default || "").trim().toLowerCase();
+  if (paramValue) {
+    return paramValue;
+  }
+
+  const selects = Array.isArray(config?.simulation?.selects) ? config.simulation.selects : [];
+  const selectEntry = selects.find((item) => String(item?.paramKey || "").trim() === paramKey);
+  const value = String(selectEntry?.value || "").trim().toLowerCase();
+  if (!value) {
+    throw new Error(
+      `[galaxy] initial select "${paramKey}" must define a default in simulation.params or simulation.selects.`,
+    );
+  }
   return value;
 }
 
@@ -107,7 +193,11 @@ export class GalaxySimulation extends BaseSimulation {
   constructor({ scene, params, world, onStats }) {
     super({ scene, params, world, onStats });
 
-    this.geometry = new THREE.SphereGeometry(0.42, 10, 8);
+    this.geometry = new THREE.SphereGeometry(
+      GALAXY_INSTANCE_BASE_RADIUS,
+      GALAXY_INSTANCE_WIDTH_SEGMENTS,
+      GALAXY_INSTANCE_HEIGHT_SEGMENTS,
+    );
     this.material = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       vertexColors: false,
@@ -176,12 +266,12 @@ export class GalaxySimulation extends BaseSimulation {
       return;
     }
 
-    const dtMyr = dt * GALAXY_TIME_SCALE_MYR_PER_SECOND;
-    const soft = Math.max(0.001, lengthToInternalLightYears(this.params.softening ?? 0.18));
+    const dtMyr = dt;
+    const soft = Math.max(GALAXY_MIN_SOFTENING, this.params.softening ?? GALAXY_DEFAULT_SOFTENING);
     const softSq = soft * soft;
     const G = GALAXY_GRAVITY_INTERNAL;
-    const centralMass = Math.max(0, massToInternalSolarMass(this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS));
-    const objectTotalMass = Math.max(0, massToInternalSolarMass(this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS));
+    const centralMass = Math.max(0, this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS);
+    const objectTotalMass = Math.max(0, this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS);
     const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
 
     for (let i = 0; i < count; i += 1) {
@@ -243,7 +333,11 @@ export class GalaxySimulation extends BaseSimulation {
 
   ensureMesh() {
     const nextCapacity = Math.max(1, this.particles.length);
-    if (!this.mesh || this.capacity < nextCapacity || this.capacity > nextCapacity * 2) {
+    if (
+      !this.mesh
+      || this.capacity < nextCapacity
+      || this.capacity > nextCapacity * GALAXY_INSTANCE_CAPACITY_SHRINK_FACTOR
+    ) {
       if (this.mesh) {
         this.scene.remove(this.mesh);
       }
@@ -280,7 +374,7 @@ export class GalaxySimulation extends BaseSimulation {
         this.tempColor.copy(this.solidColorValue);
       } else {
         const speed = p.velocity.length();
-        const span = Math.max(this.speedBounds.max - this.speedBounds.min, 1e-6);
+        const span = Math.max(this.speedBounds.max - this.speedBounds.min, GALAXY_COLORMAP_SPAN_EPSILON);
         const t = THREE.MathUtils.clamp((speed - this.speedBounds.min) / span, 0, 1);
         this.applyColormap(t, this.tempColor);
       }
@@ -311,7 +405,9 @@ export class GalaxySimulation extends BaseSimulation {
     const spreadX = this.getInitialSpreadForAxis(this.params.worldSizeX);
     const spreadY = this.getInitialSpreadForAxis(this.params.worldSizeY);
     const spreadZ = this.getInitialSpreadForAxis(this.params.worldSizeZ);
-    const initialShape = String(this.params.initialShape || this.params.initPreset || "disk").toLowerCase();
+    const initialShape = String(
+      this.params.initialShape || this.params.initPreset || GALAXY_DEFAULT_INITIAL_SHAPE,
+    ).toLowerCase();
     const position = sampleInitialPosition({
       preset: initialShape,
       spreadX,
@@ -333,22 +429,25 @@ export class GalaxySimulation extends BaseSimulation {
       return;
     }
 
-    const initialShape = String(this.params.initialShape || this.params.initPreset || "disk").toLowerCase();
-    const spin = Math.max(0, this.params.spin ?? 1);
+    const initialShape = String(
+      this.params.initialShape || this.params.initPreset || GALAXY_DEFAULT_INITIAL_SHAPE,
+    ).toLowerCase();
+    const spin = Math.max(0, this.params.spin ?? GALAXY_DEFAULT_SPIN);
     const gravityInternal = GALAXY_GRAVITY_INTERNAL;
-    const centralMassInternal = Math.max(1e8, massToInternalSolarMass(this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS));
-    const objectTotalMass = Math.max(0, massToInternalSolarMass(this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS));
+    const softening = Math.max(GALAXY_MIN_SOFTENING, this.params.softening ?? GALAXY_DEFAULT_SOFTENING);
+    const centralMassInternal = Math.max(GALAXY_MIN_CENTRAL_MASS, this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS);
+    const objectTotalMass = Math.max(0, this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS);
     const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
 
     const indexedByRadius = this.particles
-      .map((particle, index) => ({ index, radius: Math.max(0.2, particle.position.length()) }))
+      .map((particle, index) => ({ index, radius: Math.max(GALAXY_MIN_PARTICLE_RADIUS, particle.position.length()) }))
       .sort((a, b) => a.radius - b.radius);
 
     for (let rank = 0; rank < indexedByRadius.length; rank += 1) {
       const { index, radius } = indexedByRadius[rank];
       const particle = this.particles[index];
       const radial = particle.position.clone().normalize();
-      if (radial.lengthSq() < 1e-8) {
+      if (radial.lengthSq() < GALAXY_LENGTH_SQ_EPSILON) {
         radial.set(1, 0, 0);
       }
       const tangential = sampleInitialVelocityDirection({
@@ -359,25 +458,28 @@ export class GalaxySimulation extends BaseSimulation {
 
       const enclosedObjectMass = particleMass * (rank + 1);
       const enclosedMass = centralMassInternal + enclosedObjectMass;
-      const baseSpeed = spin * Math.sqrt(
-        Math.max(1e-12, gravityInternal) * enclosedMass / radius,
+      const baseSpeed = spin * computeSoftenedCircularSpeed(
+        Math.max(GALAXY_GRAVITY_EPSILON, gravityInternal),
+        enclosedMass,
+        radius,
+        softening,
       );
 
       tangential.multiplyScalar(baseSpeed);
-      tangential.x += THREE.MathUtils.randFloatSpread(baseSpeed * 0.12);
-      tangential.y += THREE.MathUtils.randFloatSpread(baseSpeed * 0.12);
-      tangential.z += THREE.MathUtils.randFloatSpread(baseSpeed * 0.12);
+      tangential.x += THREE.MathUtils.randFloatSpread(baseSpeed * GALAXY_SEED_VELOCITY_NOISE_FRACTION);
+      tangential.y += THREE.MathUtils.randFloatSpread(baseSpeed * GALAXY_SEED_VELOCITY_NOISE_FRACTION);
+      tangential.z += THREE.MathUtils.randFloatSpread(baseSpeed * GALAXY_SEED_VELOCITY_NOISE_FRACTION);
       particle.velocity.copy(tangential);
     }
   }
 
   getInitialSpreadForAxis(worldSize) {
-    const worldLimit = Math.max(2, Number(worldSize) * 0.49);
-    const requested = Number(this.params.initialRadius ?? Math.max(2, Number(worldSize) * 0.45));
+    const worldLimit = Math.max(GALAXY_MIN_WORLD_SPREAD, Number(worldSize) * GALAXY_WORLD_SPREAD_LIMIT_FRACTION);
+    const requested = Number(this.params.initialRadius ?? GALAXY_DEFAULT_INITIAL_RADIUS);
     if (!Number.isFinite(requested)) {
       return worldLimit;
     }
-    return THREE.MathUtils.clamp(requested, 2, worldLimit);
+    return THREE.MathUtils.clamp(requested, GALAXY_MIN_WORLD_SPREAD, worldLimit);
   }
 
   getSpeedBounds() {
@@ -399,8 +501,8 @@ export class GalaxySimulation extends BaseSimulation {
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       return { min: 0, max: 1 };
     }
-    if (max - min < 1e-6) {
-      return { min: min - 0.5, max: max + 0.5 };
+    if (max - min < GALAXY_COLORMAP_SPAN_EPSILON) {
+      return { min: min - GALAXY_SPEED_RANGE_PADDING, max: max + GALAXY_SPEED_RANGE_PADDING };
     }
     return { min, max };
   }
@@ -519,14 +621,18 @@ function getGalaxySolidColorDefault() {
     ? GALAXY_APPLET_CONFIG.visual.color
     : [];
   const entry = colorEntries.find((item) => String(item?.key || "").trim() === "galaxy");
-  const fallbackEntry = colorEntries[0] || null;
-  const fallback = "#c9ddff";
-  return normalizeHexColor(entry?.default ?? fallbackEntry?.default ?? fallback, fallback);
+  if (!entry) {
+    throw new Error('[galaxy] visual.color must include key "galaxy" with a valid hex default.');
+  }
+  const normalized = normalizeHexColor(entry.default, "");
+  if (!normalized) {
+    throw new Error('[galaxy] visual.color "galaxy" default must be a hex color like #RRGGBB.');
+  }
+  return normalized;
 }
 
 function getGalaxySolidColor(params) {
-  const fallback = getGalaxySolidColorDefault();
-  return normalizeHexColor(params?.solidColorGalaxy ?? fallback, fallback);
+  return normalizeHexColor(params?.solidColorGalaxy, getGalaxySolidColorDefault());
 }
 
 function getGalaxyVisualSizeDefault() {
@@ -534,19 +640,23 @@ function getGalaxyVisualSizeDefault() {
     ? GALAXY_APPLET_CONFIG.visual.size
     : [];
   const entry = sizeEntries.find((item) => String(item?.key || "").trim() === "star");
-  const fallbackEntry = sizeEntries[0] || null;
-  const fallback = 0.75;
-  const value = Number(entry?.default ?? fallbackEntry?.default ?? fallback);
-  return Number.isFinite(value) ? value : fallback;
+  if (!entry) {
+    throw new Error('[galaxy] visual.size must include key "star" with a finite numeric default.');
+  }
+  const value = Number(entry.default);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('[galaxy] visual.size "star" default must be a positive finite number.');
+  }
+  return value;
 }
 
 function getGalaxyVisualSize(params) {
   const defaultDiameter = getGalaxyVisualSizeDefault();
   const configuredDiameter = Number(params?.visualSizeStar);
   if (Number.isFinite(configuredDiameter) && configuredDiameter > 0) {
-    return Math.max(0.05, configuredDiameter / (2 * 0.42));
+    return Math.max(GALAXY_INSTANCE_SCALE_MIN, configuredDiameter / (2 * GALAXY_INSTANCE_BASE_RADIUS));
   }
-  return Math.max(0.05, defaultDiameter / (2 * 0.42));
+  return Math.max(GALAXY_INSTANCE_SCALE_MIN, defaultDiameter / (2 * GALAXY_INSTANCE_BASE_RADIUS));
 }
 
 function hasAnyLostBoundaryAxis(params) {
@@ -557,27 +667,27 @@ function hasAnyLostBoundaryAxis(params) {
 
 function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   if (preset === "disk") {
-    const maxR = Math.max(0.2, Math.min(spreadX, spreadY));
+    const maxR = Math.max(GALAXY_MIN_PARTICLE_RADIUS, Math.min(spreadX, spreadY));
     const r = Math.sqrt(Math.random()) * maxR;
     const angle = Math.random() * Math.PI * 2;
-    const thickness = Math.max(0.08, spreadZ * 0.08);
+    const thickness = Math.max(GALAXY_DISK_MIN_THICKNESS, spreadZ * GALAXY_DISK_THICKNESS_FACTOR);
     return new THREE.Vector3(
       r * Math.cos(angle),
       r * Math.sin(angle),
-      THREE.MathUtils.randFloatSpread(thickness * 2),
+      THREE.MathUtils.randFloatSpread(thickness * GALAXY_RANDOM_VECTOR_SPREAD),
     );
   }
 
   if (preset === "sphere") {
-    const maxR = Math.max(0.2, Math.min(spreadX, spreadY, spreadZ));
+    const maxR = Math.max(GALAXY_MIN_PARTICLE_RADIUS, Math.min(spreadX, spreadY, spreadZ));
     const radius = maxR * Math.cbrt(Math.random());
     return randomDirection3D().multiplyScalar(radius);
   }
 
   if (preset === "ellipsoid") {
-    const xScale = Math.max(0.2, spreadX);
-    const yScale = Math.max(0.2, spreadY);
-    const zScale = Math.max(0.2, spreadZ * 0.5);
+    const xScale = Math.max(GALAXY_MIN_PARTICLE_RADIUS, spreadX);
+    const yScale = Math.max(GALAXY_MIN_PARTICLE_RADIUS, spreadY);
+    const zScale = Math.max(GALAXY_MIN_PARTICLE_RADIUS, spreadZ * GALAXY_ELLIPSOID_Z_SCALE);
     const spherePoint = randomPointInUnitSphere();
     return new THREE.Vector3(
       spherePoint.x * xScale,
@@ -587,22 +697,22 @@ function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   }
 
   return new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(spreadX * 2),
-    THREE.MathUtils.randFloatSpread(spreadY * 2),
-    THREE.MathUtils.randFloatSpread(spreadZ * 2),
+    THREE.MathUtils.randFloatSpread(spreadX * GALAXY_RANDOM_VECTOR_SPREAD),
+    THREE.MathUtils.randFloatSpread(spreadY * GALAXY_RANDOM_VECTOR_SPREAD),
+    THREE.MathUtils.randFloatSpread(spreadZ * GALAXY_RANDOM_VECTOR_SPREAD),
   );
 }
 
 function sampleInitialVelocityDirection({ preset, position, radial }) {
   if (preset === "disk") {
     const diskTangent = new THREE.Vector3(-position.y, position.x, 0);
-    if (diskTangent.lengthSq() > 1e-8) {
+    if (diskTangent.lengthSq() > GALAXY_LENGTH_SQ_EPSILON) {
       return diskTangent.normalize();
     }
   }
 
   const reference = randomDirection3D();
-  if (Math.abs(reference.dot(radial)) > 0.95) {
+  if (Math.abs(reference.dot(radial)) > GALAXY_PARALLEL_ALIGNMENT_LIMIT) {
     reference.set(0, 1, 0);
   }
   const tangentA = new THREE.Vector3().crossVectors(radial, reference).normalize();
@@ -628,26 +738,37 @@ function buildColormapLUT(colormapEntries) {
 
 function randomDirection3D() {
   const vector = new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
+    THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
+    THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
+    THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
   );
-  if (vector.lengthSq() < 1e-8) {
+  if (vector.lengthSq() < GALAXY_LENGTH_SQ_EPSILON) {
     vector.set(0, 0, 1);
   }
   return vector.normalize();
 }
 
 function randomPointInUnitSphere() {
-  for (let i = 0; i < 16; i += 1) {
+  for (let i = 0; i < GALAXY_RANDOM_SPHERE_ATTEMPTS; i += 1) {
     const candidate = new THREE.Vector3(
-      THREE.MathUtils.randFloatSpread(2),
-      THREE.MathUtils.randFloatSpread(2),
-      THREE.MathUtils.randFloatSpread(2),
+      THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
+      THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
+      THREE.MathUtils.randFloatSpread(GALAXY_RANDOM_VECTOR_SPREAD),
     );
     if (candidate.lengthSq() <= 1) {
       return candidate;
     }
   }
   return randomDirection3D().multiplyScalar(Math.cbrt(Math.random()));
+}
+
+function computeSoftenedCircularSpeed(gravityConstant, mass, radius, softening) {
+  const g = Math.max(0, Number(gravityConstant) || 0);
+  const m = Math.max(0, Number(mass) || 0);
+  const r = Math.max(GALAXY_COLORMAP_SPAN_EPSILON, Number(radius) || 0);
+  const eps = Math.max(GALAXY_COLORMAP_SPAN_EPSILON, Number(softening) || 0);
+  const rSq = r * r;
+  const denom = Math.max(GALAXY_GRAVITY_EPSILON, Math.pow(rSq + eps * eps, 1.5));
+  const vSq = g * m * rSq / denom;
+  return Math.sqrt(Math.max(0, vSq));
 }

@@ -141,7 +141,7 @@
           "type": "slider",
           "icon": "bi-people-fill",
           "step": 10,
-          "resetTrendCharts": true
+          "simulationAction": "reset"
         }
       },
       {

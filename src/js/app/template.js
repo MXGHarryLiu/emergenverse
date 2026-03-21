@@ -30,7 +30,7 @@ const TEMPLATE_APPLET_RUNTIME = {
     ui.updateChartMetrics(TemplateSimulation.APPLET_ID, [count], [String(count)]);
   },
   // Optional hook called from app.js after a slider changes.
-  // Prefer slider config options first (simulationSetter/simulationAction/resetTrendCharts).
+  // Prefer slider config options first (simulationSetter/simulationAction).
   onSliderChange() {},
   // Optional hook for extra interactions (e.g., click-to-place objects).
   bindInteractionControls() {},

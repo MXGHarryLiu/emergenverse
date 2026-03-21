@@ -224,8 +224,7 @@
           "type": "slider",
           "icon": "bi-box-fill",
           "step": 0.05,
-          "simulationAction": "reset",
-          "resetTrendCharts": true
+          "simulationAction": "reset"
         }
       },
       {
@@ -240,8 +239,7 @@
           "type": "slider",
           "icon": "bi-stars",
           "step": 0.05,
-          "simulationAction": "reset",
-          "resetTrendCharts": true
+          "simulationAction": "reset"
         }
       }
     ]

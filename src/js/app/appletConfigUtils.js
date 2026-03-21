@@ -225,6 +225,25 @@ function normalizeParamControlConfig(paramConfig, index) {
       normalized.valueText = `${numericText}${unit}`;
     }
   } else if (type === "select") {
+    const optionEntries = Array.isArray(paramConfig.options)
+      ? paramConfig.options
+      : Array.isArray(normalized.options)
+      ? normalized.options
+      : [];
+    const options = optionEntries
+      .filter((entry) => entry && typeof entry === "object")
+      .map((entry) => {
+        const rawKey = entry.key ?? entry.value;
+        const key = String(rawKey ?? "").trim();
+        const label = String(entry.label ?? entry.value ?? key).trim();
+        return {
+          ...entry,
+          key,
+          label: label || key,
+        };
+      })
+      .filter((entry) => entry.key.length > 0);
+    normalized.options = options;
     if (paramConfig.default !== undefined && normalized.value === undefined) {
       normalized.value = String(paramConfig.default);
     }
@@ -237,13 +256,61 @@ function normalizeParamControlConfig(paramConfig, index) {
   return normalized;
 }
 
+function normalizeSectionSelectControlConfig(selectConfig, index) {
+  if (!selectConfig || typeof selectConfig !== "object") {
+    return null;
+  }
+
+  const id = String(
+    selectConfig.id ??
+    selectConfig.paramKey ??
+    selectConfig.key ??
+    `select-${index + 1}`,
+  ).trim();
+  if (!id) {
+    return null;
+  }
+
+  const options = (Array.isArray(selectConfig.options) ? selectConfig.options : [])
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const rawKey = entry.key ?? entry.value;
+      const key = String(rawKey ?? "").trim();
+      const label = String(entry.label ?? entry.value ?? key).trim();
+      return {
+        ...entry,
+        key,
+        label: label || key,
+      };
+    })
+    .filter((entry) => entry.key.length > 0);
+
+  const value = selectConfig.value ?? selectConfig.default;
+  const normalized = {
+    ...selectConfig,
+    type: "select",
+    id,
+    options,
+    value: value === undefined ? undefined : String(value),
+  };
+
+  const paramKey = String(selectConfig.paramKey ?? selectConfig.key ?? "").trim();
+  if (paramKey && !normalized.paramKey) {
+    normalized.paramKey = paramKey;
+  }
+
+  return normalized;
+}
+
 export function getSectionInputControls(sectionConfig) {
   const params = Array.isArray(sectionConfig?.params) ? sectionConfig.params : [];
+  const selectConfigs = Array.isArray(sectionConfig?.selects) ? sectionConfig.selects : [];
   const controls = {
     sliders: [],
     selects: [],
     switches: [],
   };
+  const seenSelectIds = new Set();
 
   if (params.length > 0) {
     params.forEach((paramConfig, index) => {
@@ -253,6 +320,7 @@ export function getSectionInputControls(sectionConfig) {
       }
       if (control.type === "select") {
         controls.selects.push(control);
+        seenSelectIds.add(control.id);
         return;
       }
       if (control.type === "switch") {
@@ -260,6 +328,17 @@ export function getSectionInputControls(sectionConfig) {
         return;
       }
       controls.sliders.push(control);
+    });
+  }
+
+  if (selectConfigs.length > 0) {
+    selectConfigs.forEach((selectConfig, index) => {
+      const normalized = normalizeSectionSelectControlConfig(selectConfig, index);
+      if (!normalized || seenSelectIds.has(normalized.id)) {
+        return;
+      }
+      controls.selects.push(normalized);
+      seenSelectIds.add(normalized.id);
     });
   }
 

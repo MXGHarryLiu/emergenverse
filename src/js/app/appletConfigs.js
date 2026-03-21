@@ -5,6 +5,7 @@ import * as preyApplet from "./prey.js";
 import * as fireflyApplet from "./firefly.js";
 import * as galaxyApplet from "./galaxy.js";
 import * as duneApplet from "./dune.js";
+import * as spaceApplet from "./space.js";
 
 // New applet registration guide:
 // 1) Import the applet module above (e.g., `import * as fooApplet from "./foo.js";`).
@@ -19,6 +20,7 @@ const APPLET_MODULES = [
   fireflyApplet,
   galaxyApplet,
   duneApplet,
+  spaceApplet,
 ];
 
 function deriveSimulationActionButtonIds(appletId, simulationConfig = {}) {
@@ -96,6 +98,7 @@ function resolveAppletDescriptors() {
 function collectSectionParamDefaults(sectionConfig) {
   const defaults = {};
   const params = Array.isArray(sectionConfig?.params) ? sectionConfig.params : [];
+  const selects = Array.isArray(sectionConfig?.selects) ? sectionConfig.selects : [];
   params.forEach((entry) => {
     if (!entry || typeof entry !== "object") {
       return;
@@ -108,6 +111,20 @@ function collectSectionParamDefaults(sectionConfig) {
       return;
     }
     defaults[key] = entry.default;
+  });
+  selects.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const key = String(entry.paramKey ?? entry.key ?? "").trim();
+    if (!key) {
+      return;
+    }
+    const value = entry.value ?? entry.default;
+    if (value === undefined) {
+      return;
+    }
+    defaults[key] = value;
   });
   return defaults;
 }
