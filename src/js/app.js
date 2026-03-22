@@ -37,6 +37,7 @@ import {
 import { renderAppletSectionsFromConfig } from "./uiTemplates.js";
 import { SITE_VERSION } from "./version.js";
 import defaultConfig from "./app/default_config.json" with { type: "json" };
+import commonConfig from "./app/common_config.json" with { type: "json" };
 import {
   getAngularUnitDisplayTransform,
   getFrequencyUnitDisplayTransform,
@@ -53,6 +54,13 @@ import {
 
 // App Bootstrapping: Core Params + Initial UI Template Rendering
 const DEFAULT_APPLET_ID = APPLET_ORDER[0] || "boid";
+const DEFAULT_TARGET_FRAME_RATE = (() => {
+  const raw = Number(
+    (Array.isArray(commonConfig?.visual?.params) ? commonConfig.visual.params : [])
+      .find((entry) => String(entry?.key || "").trim() === "targetFrameRate")?.default ?? 30,
+  );
+  return Number.isFinite(raw) ? raw : 30;
+})();
 const WORLD_DEFAULTS = defaultConfig?.world ?? {};
 const CAMERA_DEFAULTS = defaultConfig?.camera ?? {};
 const UNIT_DEFAULTS = defaultConfig?.unit ?? {};
@@ -534,6 +542,11 @@ function getAppletLengthUnit(appletId = activeApplet) {
   return label || DEFAULT_WORLD_LENGTH_UNIT_LABEL;
 }
 
+function getAppletTimeUnit(appletId = activeApplet) {
+  const label = String(APPLET_CONFIGS[appletId]?.unit?.time?.label || "").trim();
+  return label || "s";
+}
+
 function getWorldParamLengthUnit(appletId, key) {
   const param = getWorldParamDefinition(appletId, key);
   const configured = String(param?.unit || "").trim();
@@ -809,6 +822,16 @@ const chartState = Object.fromEntries(
 );
 let fpsSmoothed = 0;
 let fpsUiAccumulator = 0;
+let fpsWindowSeconds = 0;
+let fpsWindowSteps = 0;
+let fpsWarmupFrames = 20;
+const simulationRuntimeState = Object.fromEntries(
+  APPLET_ORDER.map((id) => [id, {
+    stepAccumulator: 0,
+    wallAccumulator: 0,
+    simTimeAccumulator: 0,
+  }]),
+);
 const middleLayoutThresholdPx = 1180;
 const mobileLayoutThresholdPx = 760;
 const orientationIndicatorAxes = [
@@ -909,6 +932,7 @@ window.addEventListener("keydown", onGlobalKeyDown);
 window.addEventListener("keyup", onKeyUp);
 
 const frameTimer = new THREE.Timer();
+const SIMULATION_MAX_STEPS_PER_FRAME = 8;
 animate();
 
 // Main Loop + Frame Updates
@@ -916,20 +940,39 @@ function animate() {
   requestAnimationFrame(animate);
 
   frameTimer.update();
-  const dt = Math.min(frameTimer.getDelta(), 0.05);
+  const rawDt = frameTimer.getDelta();
   if (simulationManager.activeId !== activeApplet) {
     simulationManager.setActive(activeApplet);
   }
-  updateFpsMetric(dt);
+  const runtimeState = simulationRuntimeState[activeApplet];
+  const timing = getAppletSimulationTiming(activeApplet);
+  const dt = Math.min(rawDt, 0.05);
+  let stepsThisFrame = 0;
   if (!params.paused) {
-    let remaining = dt * getActiveSimulationSpeed();
-    const maxSubstep = 0.05;
-    while (remaining > 0) {
-      const stepDt = Math.min(maxSubstep, remaining);
-      simulationManager.step(stepDt, activeApplet);
-      remaining -= stepDt;
+    const simulationDt = Math.min(rawDt, 0.25);
+    runtimeState.stepAccumulator += simulationDt;
+
+    while (
+      runtimeState.stepAccumulator + 1e-9 >= timing.stepInterval
+      && stepsThisFrame < SIMULATION_MAX_STEPS_PER_FRAME
+    ) {
+      simulationManager.step(timing.timeStep, activeApplet);
+      runtimeState.stepAccumulator -= timing.stepInterval;
+      stepsThisFrame += 1;
     }
+
+    if (stepsThisFrame >= SIMULATION_MAX_STEPS_PER_FRAME) {
+      runtimeState.stepAccumulator = Math.min(
+        runtimeState.stepAccumulator,
+        timing.stepInterval * SIMULATION_MAX_STEPS_PER_FRAME,
+      );
+    }
+
+    runtimeState.wallAccumulator += simulationDt;
+    runtimeState.simTimeAccumulator += stepsThisFrame * timing.timeStep;
+    updateEffectiveSimulationSpeedMetric(activeApplet);
   }
+  updateFpsMetric(rawDt, stepsThisFrame);
 
   cameraController.updateKeyboardTranslation(dt);
 
@@ -941,7 +984,7 @@ function animate() {
   renderer.render(scene, cameraController.getActiveCamera());
 }
 
-function updateFpsMetric(dt) {
+function updateFpsMetric(dt, stepsThisFrame = 0) {
   if (dt <= 0) {
     return;
   }
@@ -949,21 +992,65 @@ function updateFpsMetric(dt) {
   if (params.paused) {
     // Freeze FPS text while simulation is paused instead of reporting render-loop cadence.
     fpsUiAccumulator = 0;
+    fpsWindowSeconds = 0;
+    fpsWindowSteps = 0;
     return;
   }
 
-  const fps = 1 / dt;
-  fpsSmoothed = fpsSmoothed === 0 ? fps : fpsSmoothed * 0.9 + fps * 0.1;
+  if (fpsWarmupFrames > 0) {
+    fpsWarmupFrames -= 1;
+    return;
+  }
+
+  // Ignore pathological frame gaps from tab backgrounding or debugger pauses.
+  if (dt > 0.5) {
+    return;
+  }
+
+  fpsWindowSeconds += dt;
+  fpsWindowSteps += Math.max(0, Number(stepsThisFrame) || 0);
   fpsUiAccumulator += dt;
-  if (fpsUiAccumulator < 0.2) {
+  if (fpsUiAccumulator < 0.2 || fpsWindowSeconds <= 0) {
     return;
   }
 
+  const windowFps = fpsWindowSteps / fpsWindowSeconds;
+  fpsSmoothed = fpsSmoothed === 0 ? windowFps : fpsSmoothed * 0.78 + windowFps * 0.22;
   fpsUiAccumulator = 0;
-  const fpsText = fpsSmoothed.toFixed(1);
+  fpsWindowSeconds = 0;
+  fpsWindowSteps = 0;
+
   APPLET_ORDER.forEach((appletId) => {
+    const targetFps = getAppletSimulationTiming(appletId).targetFrameRate;
+    const warningTolerance = Math.max(0.5, targetFps * 0.05);
+    const isBelowTarget = fpsSmoothed < targetFps - warningTolerance;
+    const fpsText = `${isBelowTarget ? "\u26A0 " : ""}${fpsSmoothed.toFixed(1)}`;
     setElementText(APPLET_META[appletId]?.fpsValueId, fpsText);
+    const element = getElement(APPLET_META[appletId]?.fpsValueId);
+    if (element) {
+      element.classList.toggle("is-warning", isBelowTarget);
+      element.title = isBelowTarget
+        ? `Below target frame rate (${targetFps.toFixed(0)} Hz)`
+        : `Target frame rate ${targetFps.toFixed(0)} Hz`;
+    }
   });
+}
+
+function updateEffectiveSimulationSpeedMetric(appletId = activeApplet) {
+  const state = simulationRuntimeState[appletId];
+  if (!state || state.wallAccumulator < 0.2) {
+    return;
+  }
+
+  const effectiveSpeed = state.simTimeAccumulator / Math.max(state.wallAccumulator, 1e-6);
+  const valueId = APPLET_META[appletId]?.effectiveSpeedValueId;
+  if (valueId) {
+    const timeUnit = getAppletTimeUnit(appletId);
+    setElementText(valueId, `${effectiveSpeed.toFixed(2)} ${timeUnit}/s`);
+  }
+
+  state.wallAccumulator = 0;
+  state.simTimeAccumulator = 0;
 }
 
 
@@ -975,6 +1062,7 @@ function rebuildBoundsAndGrid() {
 // Controls: Binding, Simulation Sliders, Defaults
 function setupControls() {
   bindAppletSimulationControls();
+  bindAppletVisualTimingControls();
   applyCameraControlConfig(activeApplet, { resetToDefaults: true });
   setControlValue("camera-fov", params.cameraFov, "camera-fov-value", (value) => `${Math.round(value)}°`);
   setControlValue(
@@ -1237,6 +1325,13 @@ function setupControls() {
     getActiveApplet: () => activeApplet,
   });
   visualControls.bind();
+  document.addEventListener("visual-compact-select-activate", (event) => {
+    const appletId = String(event?.detail?.appletId || "");
+    if (appletId !== activeApplet) {
+      return;
+    }
+    clearActiveCompactRangeControls();
+  });
   visualControls.syncFromParams();
 
   updateSimulationStateUI();
@@ -1244,6 +1339,49 @@ function setupControls() {
 
   cameraController.switchToPerspective();
   setupCameraTelemetryEditors();
+}
+
+function bindAppletVisualTimingControls() {
+  APPLET_ORDER.forEach((appletId) => {
+    const slider = getAppletTargetFrameRateSlider(appletId);
+    if (!slider) {
+      return;
+    }
+    const inputId = getSimulationSliderInputId(appletId, slider);
+    const valueId = getSimulationSliderValueId(appletId, slider);
+    const input = document.getElementById(inputId);
+    const output = document.getElementById(valueId);
+    if (!input || !output) {
+      return;
+    }
+    const appletParams = params[appletId] || {};
+    const initialValue = THREE.MathUtils.clamp(
+      Number.isFinite(Number(appletParams.targetFrameRate))
+        ? Number(appletParams.targetFrameRate)
+        : getAppletTargetFrameRateDefault(appletId),
+      1,
+      60,
+    );
+    appletParams.targetFrameRate = initialValue;
+    input.value = String(getSliderDisplayValue(appletId, slider, initialValue));
+
+    bindRange(inputId, valueId, (value) => {
+      const displayValue = handleAppletSliderInput(appletId, slider, value);
+      return formatAppletSliderDisplayValue(appletId, slider, displayValue);
+    });
+  });
+}
+
+function getAppletTargetFrameRateSlider(appletId) {
+  const visualConfig = APPLET_CONFIGS[appletId]?.visual;
+  const { sliders } = getSectionInputControls(visualConfig);
+  return sliders.find((entry) => inferSliderParamKey(appletId, entry) === "targetFrameRate") || null;
+}
+
+function getAppletTargetFrameRateDefault(appletId) {
+  const slider = getAppletTargetFrameRateSlider(appletId);
+  const value = Number(slider?.value ?? slider?.default ?? DEFAULT_TARGET_FRAME_RATE);
+  return Number.isFinite(value) ? value : DEFAULT_TARGET_FRAME_RATE;
 }
 
 function bindAppletSimulationControls() {
@@ -2039,6 +2177,7 @@ function getNumericPrecision(value) {
 function applySimulationDefaultsForApplet(appletId) {
   const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
   const { sliders, selects } = getSectionInputControls(simulationConfig);
+  const appletParams = params[appletId] || {};
 
   if (Array.isArray(sliders) && sliders.length > 0) {
     sliders.forEach((slider) => {
@@ -2047,7 +2186,6 @@ function applySimulationDefaultsForApplet(appletId) {
         return;
       }
       const paramKey = inferSliderParamKey(appletId, slider);
-      const appletParams = params[appletId] || {};
       const sourceValue = paramKey && Object.prototype.hasOwnProperty.call(appletParams, paramKey)
         ? appletParams[paramKey]
         : slider.value;
@@ -2066,6 +2204,17 @@ function applySimulationDefaultsForApplet(appletId) {
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
   }
+
+  const targetFrameRateDefault = getAppletTargetFrameRateDefault(appletId);
+  appletParams.targetFrameRate = targetFrameRateDefault;
+  const targetSlider = getAppletTargetFrameRateSlider(appletId);
+  const targetInput = targetSlider
+    ? document.getElementById(getSimulationSliderInputId(appletId, targetSlider))
+    : null;
+  if (targetInput) {
+    targetInput.value = String(targetFrameRateDefault);
+  }
+  targetInput?.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 // App Routing + Applet Switching + Persisted Per-Applet State
@@ -3740,6 +3889,7 @@ function registerCompactSelectControl(selectRef, outputRef) {
 }
 
 function activateCompactSelectControl(selectId) {
+  visualControls?.deactivateCompactColorMode?.();
   const binding = compactSelectRegistry.get(selectId);
   if (!binding) {
     return;
@@ -3904,6 +4054,7 @@ function registerCompactRangeControl(inputRef, outputRef) {
 }
 
 function activateCompactRangeControl(inputId) {
+  visualControls?.deactivateCompactColorMode?.();
   const binding = compactRangeRegistry.get(inputId);
   if (!binding) {
     return;
@@ -4033,7 +4184,8 @@ function setCompactValueEditable(binding, editable) {
     sectionKey === "world" ||
     sectionKey === "camera" ||
     sectionKey.includes("simulation") ||
-    sectionKey.includes("interaction");
+    sectionKey.includes("interaction") ||
+    sectionKey.includes("visual");
   const canEdit = editable && supportsInlineNumericEdit;
   output.setAttribute("contenteditable", canEdit ? "true" : "false");
   output.setAttribute("role", canEdit ? "textbox" : "button");
@@ -4298,8 +4450,22 @@ function updateViewportLabel() {
   dom.frameSize.textContent = `Grid size: ${gridText} ${unitLabel} | ${appLabel} | ${projectionLabel}`;
 }
 
-function getActiveSimulationSpeed() {
-  return THREE.MathUtils.clamp(Number(params[activeApplet]?.simSpeed) || 1, 0.1, 10);
+function getAppletSimulationTiming(appletId = activeApplet) {
+  const appletParams = params[appletId] || {};
+  const timeStepRaw = Number(appletParams.timeStep);
+  const targetFrameRateRaw = Number(appletParams.targetFrameRate);
+  const timeStep = Number.isFinite(timeStepRaw) && timeStepRaw > 0 ? timeStepRaw : 1 / 60;
+  const targetFrameRateDefault = getAppletTargetFrameRateDefault(appletId);
+  const targetFrameRate = THREE.MathUtils.clamp(
+    Number.isFinite(targetFrameRateRaw) ? targetFrameRateRaw : targetFrameRateDefault,
+    1,
+    60,
+  );
+  return {
+    timeStep,
+    targetFrameRate,
+    stepInterval: 1 / targetFrameRate,
+  };
 }
 
 // Math Rendering Bootstrap

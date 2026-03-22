@@ -51,8 +51,9 @@
     "params": [
       {
         "type": "stat",
-        "key": "templateFps",
-        "label": "FPS"
+        "key": "effectiveSpeed",
+        "label": "Effective Sim Speed",
+        "initial": "--"
       },
       {
         "type": "chart",
@@ -64,16 +65,18 @@
   "simulation": {
     "params": [
       {
-        "key": "simSpeed",
-        "label": "Simulation Speed",
-        "default": 1.0,
+        "key": "timeStep",
+        "label": "Time Step (\\(\\Delta t\\))",
+        "default": 0.0333,
+        "unit": "s",
         "group": "dynamic",
-        "uiMin": 0.1,
-        "uiMax": 10,
+        "uiMin": 0.001,
+        "uiMax": 1.0,
         "control": {
           "type": "slider",
           "icon": "bi-stopwatch",
-          "step": 0.1
+          "step": 0.001,
+          "simulationAction": "none"
         }
       },
       {
@@ -180,14 +183,6 @@
         "key": "locked",
         "default": false,
         "unit": ""
-      },
-      {
-        "key": "fov",
-        "default": 50,
-        "unit": "deg",
-        "uiMin": 1,
-        "uiMax": 90,
-        "step": 1
       },
       {
         "key": "moveSpeed",

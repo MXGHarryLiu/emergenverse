@@ -250,6 +250,11 @@ export const APPLET_META = Object.fromEntries(
       const key = String(entry?.key || "").toLowerCase();
       return label.includes("fps") || key.includes("fps");
     }) || statEntries[0] || null;
+    const effectiveSpeedStat = statEntries.find((entry) => {
+      const label = String(entry?.label || "").toLowerCase();
+      const key = String(entry?.key || "").toLowerCase();
+      return key === "effectivespeed" || label.includes("effective sim speed");
+    }) || null;
     return [
       id,
       {
@@ -261,6 +266,7 @@ export const APPLET_META = Object.fromEntries(
         key: String(config?.key ?? id).trim() || id,
         introSummary,
         fpsValueId: deriveStatValueId(fpsStat, id),
+        effectiveSpeedValueId: deriveStatValueId(effectiveSpeedStat, id),
         ...deriveSimulationActionButtonIds(id, simulation),
       },
     ];

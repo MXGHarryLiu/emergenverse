@@ -174,6 +174,11 @@ export function createVisualControls({
       getAppletControls(appletId).colorMode?.focus();
       return;
     }
+    document.dispatchEvent(
+      new CustomEvent("visual-compact-select-activate", {
+        detail: { appletId },
+      }),
+    );
     deactivateCompactColorMode();
     activeCompactColorModeAppletId = appletId;
     setCompactColorModeActive(appletId, true);
@@ -859,6 +864,7 @@ export function createVisualControls({
     syncFromParams,
     syncColormapPanel,
     refreshLegend,
+    deactivateCompactColorMode,
   };
 }
 

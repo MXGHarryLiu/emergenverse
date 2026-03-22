@@ -1,6 +1,7 @@
 // Shared applet config helpers used inside individual applet modules.
 import { getLengthUnitDisplayTransform } from "../units.js";
 import defaultConfig from "./default_config.json" with { type: "json" };
+import commonConfig from "./common_config.json" with { type: "json" };
 
 const WORLD_DEFAULTS = defaultConfig?.world ?? {};
 const CAMERA_DEFAULTS = defaultConfig?.camera ?? {};
@@ -16,6 +17,57 @@ const DEFAULT_CAMERA_MOVE_SPEED_PARAM = getDefaultCameraParam("moveSpeed");
 const DEFAULT_CAMERA_ROTATION_SPEED_PARAM = getDefaultCameraParam("rotationSpeed");
 const DEFAULT_CAMERA_PROJECTION_PARAM = getDefaultCameraParam("projection");
 const DEFAULT_CAMERA_LOCKED_PARAM = getDefaultCameraParam("locked");
+const COMMON_CAMERA_PARAMS = Array.isArray(commonConfig?.camera?.params) ? commonConfig.camera.params : [];
+const COMMON_STATS_PARAMS = Array.isArray(commonConfig?.stats?.params) ? commonConfig.stats.params : [];
+const COMMON_VISUAL_PARAMS = Array.isArray(commonConfig?.visual?.params) ? commonConfig.visual.params : [];
+
+function mergeCommonParams(sectionParams, commonParams) {
+  const common = Array.isArray(commonParams) ? commonParams : [];
+  const section = Array.isArray(sectionParams) ? sectionParams : [];
+  if (common.length === 0) {
+    return section.slice();
+  }
+
+  const seenKeys = new Set();
+  const result = [];
+  section.forEach((entry) => {
+    const key = String(entry?.key || "").trim();
+    if (key) {
+      seenKeys.add(key);
+    }
+  });
+
+  common.forEach((entry) => {
+    const key = String(entry?.key || "").trim();
+    if (!key || seenKeys.has(key)) {
+      return;
+    }
+    result.push(entry);
+    seenKeys.add(key);
+  });
+
+  section.forEach((entry) => result.push(entry));
+  return result;
+}
+
+function mergeCommonConfig(config) {
+  const source = (config && typeof config === "object") ? config : {};
+  return {
+    ...source,
+    camera: {
+      ...(source.camera && typeof source.camera === "object" ? source.camera : {}),
+      params: mergeCommonParams(source?.camera?.params, COMMON_CAMERA_PARAMS),
+    },
+    stats: {
+      ...(source.stats && typeof source.stats === "object" ? source.stats : {}),
+      params: mergeCommonParams(source?.stats?.params, COMMON_STATS_PARAMS),
+    },
+    visual: {
+      ...(source.visual && typeof source.visual === "object" ? source.visual : {}),
+      params: mergeCommonParams(source?.visual?.params, COMMON_VISUAL_PARAMS),
+    },
+  };
+}
 
 export function selectControl(id, label, icon, optionsList, value, options = {}) {
   // Common options:
@@ -771,44 +823,45 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
 }
 
 export function validateAppletConfig(config) {
+  const mergedConfig = mergeCommonConfig(config);
   const normalizedUnit = normalizeUnitConfig(config?.unit ?? null);
-  const meta = (config?.meta && typeof config.meta === "object") ? config.meta : {};
+  const meta = (mergedConfig?.meta && typeof mergedConfig.meta === "object") ? mergedConfig.meta : {};
   const dominantLengthUnit = String(normalizedUnit?.length?.label || UNIT_DEFAULTS?.length?.label || "m").trim() || "m";
   const label = meta?.label ?? "Applet";
   const group = String(meta?.group || "").trim();
   const shortLabel = String(meta?.shortLabel || "").trim();
   const thumbnail = String(meta?.thumbnail || "").trim();
-  const appletKey = typeof config?.key === "string" && config.key.trim().length > 0
-    ? assertValidIdentifierKey(config.key.trim(), "root")
+  const appletKey = typeof mergedConfig?.key === "string" && mergedConfig.key.trim().length > 0
+    ? assertValidIdentifierKey(mergedConfig.key.trim(), "root")
     : "";
-  const worldParams = normalizeWorldParams(config.world ?? {}, dominantLengthUnit);
+  const worldParams = normalizeWorldParams(mergedConfig.world ?? {}, dominantLengthUnit);
   const legacyWorld = buildLegacyWorldShapeFromParams(worldParams);
-  const configuredCameraLocked = Array.isArray(config.camera?.params)
-    ? config.camera.params.find((entry) => String(entry?.key || "").trim() === "locked")?.default
+  const configuredCameraLocked = Array.isArray(mergedConfig.camera?.params)
+    ? mergedConfig.camera.params.find((entry) => String(entry?.key || "").trim() === "locked")?.default
     : undefined;
-  const cameraParams = normalizeCameraParams(config.camera ?? {}, {
+  const cameraParams = normalizeCameraParams(mergedConfig.camera ?? {}, {
     length: dominantLengthUnit,
     time: String(normalizedUnit?.time?.label || UNIT_DEFAULTS?.time?.label || "s").trim() || "s",
   });
   const legacyCameraControls = buildLegacyCameraControlsFromParams(cameraParams);
   const cameraFovParam = cameraParams.find((entry) => entry.key === "fov");
   const cameraMoveSpeedParam = cameraParams.find((entry) => entry.key === "moveSpeed");
-  const worldBoundaryConfig = (config?.world?.boundary && typeof config.world.boundary === "object")
-    ? config.world.boundary
+  const worldBoundaryConfig = (mergedConfig?.world?.boundary && typeof mergedConfig.world.boundary === "object")
+    ? mergedConfig.world.boundary
     : {};
   const normalizedBoundaryAxes = {
     x: normalizeBoundaryAxisMode(worldBoundaryConfig?.x?.default),
     y: normalizeBoundaryAxisMode(worldBoundaryConfig?.y?.default),
     z: normalizeBoundaryAxisMode(worldBoundaryConfig?.z?.default),
   };
-  const normalizedVisual = normalizeVisualConfig(config.visual ?? null);
+  const normalizedVisual = normalizeVisualConfig(mergedConfig.visual ?? null);
 
-  validateKeyedParams(config?.simulation?.params, "simulation.params");
-  validateKeyedParams(config?.camera?.params, "camera.params");
-  validateKeyedParams(config?.world?.params, "world.params");
-  validateWorldBoundaryConfig(config?.world?.boundary);
-  validateKeyedParams(config?.interaction?.params, "interaction.params");
-  validateKeyedParams(config?.stats?.params, "stats.params");
+  validateKeyedParams(mergedConfig?.simulation?.params, "simulation.params");
+  validateKeyedParams(mergedConfig?.camera?.params, "camera.params");
+  validateKeyedParams(mergedConfig?.world?.params, "world.params");
+  validateWorldBoundaryConfig(mergedConfig?.world?.boundary);
+  validateKeyedParams(mergedConfig?.interaction?.params, "interaction.params");
+  validateKeyedParams(mergedConfig?.stats?.params, "stats.params");
   validateKeyedParams(normalizedVisual?.params, "visual.params");
   validateKeyedParams(normalizedVisual?.color, "visual.color");
   validateKeyedParams(normalizedVisual?.size, "visual.size");
@@ -828,12 +881,12 @@ export function validateAppletConfig(config) {
     },
     key: appletKey || undefined,
     camera: {
-      distance: config.camera?.distance ?? toFiniteNumber(CAMERA_DEFAULTS?.distance, 185),
-      height: config.camera?.height ?? toFiniteNumber(CAMERA_DEFAULTS?.height, 80),
+      distance: mergedConfig.camera?.distance ?? toFiniteNumber(CAMERA_DEFAULTS?.distance, 185),
+      height: mergedConfig.camera?.height ?? toFiniteNumber(CAMERA_DEFAULTS?.height, 80),
       fov: toFiniteNumber(cameraFovParam?.default, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
       locked: normalizeBoolean(
         configuredCameraLocked,
-        config.camera?.locked ?? normalizeBoolean(DEFAULT_CAMERA_LOCKED_PARAM?.default, false),
+        mergedConfig.camera?.locked ?? normalizeBoolean(DEFAULT_CAMERA_LOCKED_PARAM?.default, false),
       ),
       params: cameraParams,
       keyboardMoveSpeedDefault: toFiniteNumber(
@@ -850,11 +903,11 @@ export function validateAppletConfig(config) {
       gridSize: legacyWorld.gridSize,
     },
     unit: normalizedUnit,
-    intro: config.intro ?? null,
-    model: config.model ?? null,
-    stats: config.stats ?? null,
-    simulation: config.simulation ?? null,
-    interaction: config.interaction ?? null,
+    intro: mergedConfig.intro ?? null,
+    model: mergedConfig.model ?? null,
+    stats: mergedConfig.stats ?? null,
+    simulation: mergedConfig.simulation ?? null,
+    interaction: mergedConfig.interaction ?? null,
     visual: normalizedVisual,
   };
 }

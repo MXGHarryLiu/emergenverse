@@ -31,14 +31,6 @@
         "unit": ""
       },
       {
-        "key": "fov",
-        "default": 50,
-        "unit": "deg",
-        "uiMin": 1,
-        "uiMax": 90,
-        "step": 1
-      },
-      {
         "key": "moveSpeed",
         "default": 30000,
         "unit": "m/s",

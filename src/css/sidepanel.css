@@ -1,5 +1,6 @@
 :root {
   --control-value-radius: 0.45rem;
+  --sidepanel-entry-row-gap: 0.25rem;
 }
 
 /* Information panel container */
@@ -82,7 +83,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--sidepanel-entry-row-gap);
   color: var(--title-color);
   font-size: 0.79rem;
   letter-spacing: 0.015em;
@@ -141,7 +142,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 0.58rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--sidepanel-entry-row-gap);
 }
 
 .section-slider-title {
@@ -225,7 +226,7 @@
 .visual-size-list {
   display: flex;
   flex-direction: column;
-  gap: 0.08rem;
+  gap: var(--sidepanel-entry-row-gap);
 }
 
 .visual-size-row {
@@ -236,7 +237,7 @@
 }
 
 .visual-size-row .form-label {
-  margin-bottom: 0.08rem;
+  margin-bottom: var(--sidepanel-entry-row-gap);
 }
 
 .visual-size-toggle {
@@ -314,7 +315,11 @@
 .state-colors-list {
   display: flex;
   flex-direction: column;
-  gap: 0.04rem;
+  gap: var(--sidepanel-entry-row-gap);
+}
+
+.controls-panel .simulation-slider-row > .compact-source-select.is-active-select {
+  margin-bottom: var(--sidepanel-entry-row-gap);
 }
 
 .state-color-row {

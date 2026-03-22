@@ -851,12 +851,21 @@ body {
   text-transform: uppercase;
 }
 
+.stat-inline-label.stat-inline-label-title {
+  text-transform: none;
+  letter-spacing: 0.03em;
+}
+
 .stat-inline-value {
   font-family: "Syne", "Space Grotesk", sans-serif;
   font-size: 0.95rem;
   line-height: 1;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+
+.stat-inline-value.is-warning {
+  color: #f4b168;
 }
 
 .tips-box {

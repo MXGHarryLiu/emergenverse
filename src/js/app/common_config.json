@@ -1,0 +1,44 @@
+{
+  "key": "common",
+  "camera": {
+    "params": [
+      {
+        "key": "fov",
+        "default": 50,
+        "unit": "deg",
+        "uiMin": 1,
+        "uiMax": 90,
+        "step": 1
+      }
+    ]
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "fps",
+        "label": "FPS",
+        "initial": "--"
+      }
+    ]
+  },
+  "visual": {
+    "params": [
+      {
+        "key": "targetFrameRate",
+        "label": "Target Frame Rate",
+        "default": 30,
+        "unit": "Hz",
+        "uiMin": 1,
+        "uiMax": 60,
+        "control": {
+          "type": "slider",
+          "id": "target-frame-rate",
+          "icon": "bi-speedometer2",
+          "step": 1,
+          "simulationAction": "none"
+        }
+      }
+    ]
+  }
+}

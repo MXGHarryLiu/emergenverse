@@ -160,12 +160,16 @@ function buildStatsSection(statsConfig, appletId, templates) {
   const body = getSectionBody(section);
 
   const statGrid = document.createElement("div");
-  statGrid.className = "stat-grid mb-3";
+  statGrid.className = "stat-grid";
   const { statEntries, chartEntries } = getStatsEntries(statsConfig);
   statEntries.forEach((stat) => {
     const card = templates.statCard.content.firstElementChild.cloneNode(true);
     const label = card.querySelector(".stat-inline-label");
     label.textContent = stat.label;
+    const statKey = String(stat?.key || "").trim();
+    if (statKey === "effectiveSpeed" || statKey === "fps") {
+      label.classList.add("stat-inline-label-title");
+    }
     if (stat.labelClass) {
       label.classList.add(stat.labelClass);
     }
@@ -177,7 +181,7 @@ function buildStatsSection(statsConfig, appletId, templates) {
   body.appendChild(statGrid);
 
   const chartStack = document.createElement("div");
-  chartStack.className = "chart-stack mt-3";
+  chartStack.className = "chart-stack mt-2";
   chartEntries.forEach((chart, index) => {
     const chartLabel = String(chart?.label ?? "").trim();
     const chartKey = String(chart?.key ?? "").trim();
@@ -716,10 +720,29 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   const visualParams = Array.isArray(appletConfig.visual?.params)
     ? appletConfig.visual.params
     : [];
+  const { sliders: visualSliders } = getSectionInputControls(appletConfig.visual);
+  const targetFrameRateSlider = visualSliders.find((entry) => String(entry?.key || entry?.paramKey || "").trim() === "targetFrameRate");
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const solidColorParam = visualParams.find((entry) => entry?.key === "solidColor");
   const controlIds = deriveVisualControlIds(appletId);
   const colorModeId = controlIds.colorModeId;
+
+  const visualSliderHubConfig = targetFrameRateSlider
+    ? deriveSliderHubConfigFromSlider(targetFrameRateSlider)
+    : null;
+  if (visualSliderHubConfig) {
+    body.appendChild(
+      createSliderHub(
+        visualSliderHubConfig,
+        getScopedSectionKey(appletId, "visual"),
+        `Active ${appletId} visual slider`,
+      ),
+    );
+  }
+
+  if (targetFrameRateSlider) {
+    body.appendChild(createSliderRow(templates, appletId, targetFrameRateSlider));
+  }
 
   const colorModeLabel = "Color Mode";
   const colorModeOptions = Array.isArray(colorModeParam?.options)
