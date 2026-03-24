@@ -45,6 +45,7 @@ function getThumbnailIconClass(thumbnail) {
 
 function getGroups(appletOrder, appletMeta, sortMode) {
   const cards = appletOrder
+    .filter((id) => !Boolean(appletMeta?.[id]?.disable))
     .map((id) => ({
       id,
       label: String(appletMeta?.[id]?.label || id),

@@ -6,10 +6,10 @@
     "thumbnail": "bi-stars"
   },
   "intro": {
-    "summary": "Galaxy-style dynamics with a particle-mesh gravity field",
+    "summary": "N-body gravity shaping orbital structure",
     "paragraphs": [
-      "This app keeps the familiar galaxy control surface while switching the core dynamics to a gravity field solved on a grid.",
-      "You still shape initial structure and orbital behavior with galaxy-like parameters, but the field solve supports denser visual populations efficiently."
+      "A rotating cloud of matter can self-organize into striking structures under gravity alone.",
+      "Softened gravity, central mass, object total mass, and orbital spin sculpt acceleration and binding into arcs and clusters that slowly reveal a cosmic architecture."
     ]
   },
   "model": {

@@ -3,7 +3,8 @@
   "meta": {
     "label": "Galaxy Gravity",
     "group": "physical",
-    "thumbnail": "bi-globe2"
+    "thumbnail": "bi-globe2",
+    "disable": true
   },
   "intro": {
     "summary": "N-body gravity shaping orbital structure",

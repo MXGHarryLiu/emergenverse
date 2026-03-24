@@ -831,6 +831,7 @@ export function validateAppletConfig(config) {
   const group = String(meta?.group || "").trim();
   const shortLabel = String(meta?.shortLabel || "").trim();
   const thumbnail = String(meta?.thumbnail || "").trim();
+  const disable = normalizeBoolean(meta?.disable, false);
   const appletKey = typeof mergedConfig?.key === "string" && mergedConfig.key.trim().length > 0
     ? assertValidIdentifierKey(mergedConfig.key.trim(), "root")
     : "";
@@ -878,6 +879,7 @@ export function validateAppletConfig(config) {
       ...(shortLabel ? { shortLabel } : {}),
       ...(group ? { group } : {}),
       ...(thumbnail ? { thumbnail } : {}),
+      ...(disable ? { disable: true } : {}),
     },
     key: appletKey || undefined,
     camera: {

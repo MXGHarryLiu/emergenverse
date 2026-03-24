@@ -263,6 +263,7 @@ export const APPLET_META = Object.fromEntries(
         shortLabel: String(metaConfig?.shortLabel || "").trim() || undefined,
         group: String(metaConfig?.group || "").trim() || "physical",
         thumbnail: String(metaConfig?.thumbnail || "").trim() || "",
+        disable: Boolean(metaConfig?.disable),
         key: String(config?.key ?? id).trim() || id,
         introSummary,
         fpsValueId: deriveStatValueId(fpsStat, id),
