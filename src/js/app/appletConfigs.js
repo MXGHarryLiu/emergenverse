@@ -161,8 +161,8 @@ function buildAppletDefinition(id, module, SimulationClass) {
     defaultParams,
     runtime,
     visual,
-    createSimulation: ({ scene, params, world, onStats }) =>
-      new SimulationClass({ scene, params, world, onStats }),
+    createSimulation: ({ scene, params, world, renderer, onStats }) =>
+      new SimulationClass({ scene, params, world, renderer, onStats }),
   };
 }
 

@@ -38,6 +38,18 @@
           "step": 1,
           "simulationAction": "none"
         }
+      },
+      {
+        "key": "hardwareAcceleration",
+        "label": "Hardware Acceleration",
+        "default": true,
+        "control": {
+          "type": "switch",
+          "id": "hardware-acceleration",
+          "icon": "bi-gpu-card",
+          "simulationSetter": "setHardwareAcceleration",
+          "simulationAction": "auto"
+        }
       }
     ]
   }

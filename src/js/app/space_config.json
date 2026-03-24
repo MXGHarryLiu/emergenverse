@@ -1,0 +1,497 @@
+{
+  "key": "space",
+  "meta": {
+    "label": "Space Field",
+    "group": "physical",
+    "thumbnail": "bi-stars"
+  },
+  "intro": {
+    "summary": "Galaxy-style dynamics with a particle-mesh gravity field",
+    "paragraphs": [
+      "This app keeps the familiar galaxy control surface while switching the core dynamics to a gravity field solved on a grid.",
+      "You still shape initial structure and orbital behavior with galaxy-like parameters, but the field solve supports denser visual populations efficiently."
+    ]
+  },
+  "model": {
+    "references": [
+      {
+        "label": "Wikipedia: Particle-mesh method",
+        "url": "https://en.wikipedia.org/wiki/Particle_mesh"
+      },
+      {
+        "label": "Wikipedia: N-body simulation",
+        "url": "https://en.wikipedia.org/wiki/N-body_simulation"
+      },
+      {
+        "label": "Wikipedia: Galaxy formation and evolution",
+        "url": "https://en.wikipedia.org/wiki/Galaxy_formation_and_evolution"
+      }
+    ],
+    "journalArticles": [
+      {
+        "title": "A Hierarchical O(N log N) Force-Calculation Algorithm",
+        "url": "https://doi.org/10.1038/324446a0"
+      }
+    ],
+    "items": [
+      {
+        "title": "Position (\\(x\\))",
+        "equation": "$$\\mathbf{x}_i(t+\\Delta t)=\\mathbf{x}_i(t)+\\mathbf{v}_i(t)\\,\\Delta t$$",
+        "explanation": "Each particle advances according to its current orbital velocity."
+      },
+      {
+        "title": "Velocity (\\(v\\))",
+        "equation": "$$\\mathbf{v}_i(t+\\Delta t)=\\mathbf{v}_i(t)+\\mathbf{a}_i(t)\\,\\Delta t$$",
+        "explanation": "Velocity changes in response to acceleration from the solved gravity field."
+      },
+      {
+        "title": "Field Gravity (Particle-Mesh)",
+        "equation": "$$\\nabla^2\\phi=4\\pi G_f\\left(\\rho-\\bar{\\rho}\\right),\\quad \\mathbf{a}_i=-\\beta\\,\\nabla\\phi(\\mathbf{x}_i)+G_f\\,M_c\\,\\frac{-\\mathbf{x}_i}{\\left(\\|\\mathbf{x}_i\\|^2+\\epsilon^2\\right)^{3/2}},\\quad m_p=\\frac{M_{\\mathrm{obj}}}{N}$$",
+        "explanation": "Mass is deposited to a mesh, potential is solved, and acceleration is sampled back to particles. The blend factor \\(\\beta\\) scales self-field strength relative to central attraction, while softening prevents singular center forces.",
+        "parameters": [
+          "<strong>Central Mass</strong> (\\(M_c\\)) controls binding toward the center.",
+          "<strong>Object Total Mass</strong> (\\(M_{\\mathrm{obj}}\\)) sets the total self-gravitating tracer mass.",
+          "<strong>Count</strong> (\\(N\\)) sets tracer population; per-tracer mass is \\(m_p=M_{\\mathrm{obj}}/N\\).",
+          "<strong>Field Resolution</strong> (\\(r_g\\)) sets mesh density; effective grid size scales with world span.",
+          "<strong>Softening</strong> (\\(\\epsilon\\)) sets short-range smoothing."
+        ]
+      },
+      {
+        "title": "Initialization",
+        "equation": "$$\\begin{aligned}\\mathbf{x}_i(0)&\\sim p_{\\mathrm{shape}}\\!\\left(R_0,\\,L_x,\\,L_y,\\,L_z\\right)\\\\\\left\\|\\mathbf{v}_i(0)\\right\\|&\\approx s\\,\\sqrt{\\frac{G_f\\,M_{\\mathrm{eff}}(r_i)}{r_i}},\\quad M_{\\mathrm{eff}}(r)=M_c+\\beta\\,M_{\\mathrm{enc}}(r)\\end{aligned}$$",
+        "explanation": "Tracers are seeded from the selected initial shape within the configured initial radius, then assigned near-tangential orbital speeds scaled by spin and local effective enclosed mass.",
+        "parameters": [
+          "<strong>Initial Shape</strong> selects sampling geometry (disk, cloud, sphere, ellipsoid).",
+          "<strong>Initial Radius</strong> (\\(R_0\\)) sets spawn extent before clamping to world bounds.",
+          "<strong>Initial Orbital Speed</strong> (\\(s\\)) scales the circular-speed baseline used for seeded velocities.",
+          "<strong>World Sizes</strong> (\\(L_x,L_y,L_z\\)) define the initialization domain extents."
+        ]
+      }
+    ]
+  },
+  "unit": {
+    "length": {
+      "label": "kly",
+      "description": "kilo-light-year",
+      "toSI": 9.4607304725808E+18
+    },
+    "mass": {
+      "label": "M_sun",
+      "description": "solar mass",
+      "toSI": 1.98847E+30
+    },
+    "time": {
+      "label": "Myr",
+      "description": "million years",
+      "toSI": 31557600000000
+    }
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "effectiveSpeed",
+        "label": "Effective Sim Speed",
+        "initial": "--"
+      },
+      {
+        "type": "chart",
+        "key": "count",
+        "label": "Count",
+        "liveInitial": "0"
+      },
+      {
+        "type": "chart",
+        "key": "radius",
+        "label": "Radius",
+        "liveInitial": "0 kly",
+        "supportsDistribution": true
+      },
+      {
+        "type": "chart",
+        "key": "speed",
+        "label": "Mean Speed",
+        "liveInitial": "0 kly/Myr"
+      }
+    ]
+  },
+  "simulation": {
+    "selects": [
+      {
+        "id": "initial-shape",
+        "label": "Initial Shape",
+        "icon": "bi-stars",
+        "options": [
+          {
+            "value": "disk",
+            "label": "Disk"
+          },
+          {
+            "value": "cloud",
+            "label": "Cloud"
+          },
+          {
+            "value": "sphere",
+            "label": "Sphere"
+          },
+          {
+            "value": "ellipsoid",
+            "label": "Ellipsoid"
+          }
+        ],
+        "value": "disk",
+        "group": "initial",
+        "simulationAction": "reset",
+        "paramKey": "initialShape"
+      }
+    ],
+    "params": [
+      {
+        "key": "timeStep",
+        "label": "Time Step (\\(\\Delta t\\))",
+        "default": 0.0333,
+        "unit": "Myr",
+        "group": "dynamic",
+        "uiMin": 0.001,
+        "uiMax": 1.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stopwatch",
+          "step": 0.001,
+          "simulationAction": "none"
+        }
+      },
+      {
+        "key": "count",
+        "label": "Count",
+        "default": 5000,
+        "group": "initial",
+        "uiMin": 50,
+        "uiMax": 15000,
+        "control": {
+          "type": "slider",
+          "icon": "bi-people-fill",
+          "step": 10,
+          "simulationAction": "reset"
+        }
+      },
+      {
+        "key": "fieldResolution",
+        "label": "Field Resolution (\\(r_g\\))",
+        "default": 0.1,
+        "unit": "1/kly",
+        "group": "dynamic",
+        "uiMin": 0.03,
+        "uiMax": 0.5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-grid-3x3-gap-fill",
+          "step": 0.005
+        }
+      },
+      {
+        "key": "initialRadius",
+        "label": "Initial Radius (\\(R_0\\))",
+        "default": 120,
+        "unit": "kly",
+        "group": "initial",
+        "uiMin": 2,
+        "uiMax": 350,
+        "control": {
+          "type": "slider",
+          "icon": "bi-bounding-box",
+          "step": 1,
+          "simulationAction": "reset"
+        }
+      },
+      {
+        "key": "spin",
+        "label": "Initial Orbital Speed (\\(s\\))",
+        "default": 1.0,
+        "group": "initial",
+        "uiMin": 0.2,
+        "uiMax": 2.5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-arrow-clockwise",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "centralMass",
+        "label": "Central Mass (\\(M_c\\))",
+        "default": 220000000000.0,
+        "unit": "M_sun",
+        "group": "dynamic",
+        "uiMin": 1000000000.0,
+        "uiMax": 2000000000000.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-bullseye",
+          "step": 1000000000.0
+        }
+      },
+      {
+        "key": "objectTotalMass",
+        "label": "Object Total Mass (\\(M_{\\mathrm{obj}}\\))",
+        "default": 44000000000.0,
+        "unit": "M_sun",
+        "group": "dynamic",
+        "uiMin": 100000000.0,
+        "uiMax": 1000000000000.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-boxes",
+          "step": 1000000000.0
+        }
+      },
+      {
+        "key": "softening",
+        "label": "Softening (\\(\\epsilon\\))",
+        "default": 0.18,
+        "unit": "kly",
+        "group": "dynamic",
+        "uiMin": 0.02,
+        "uiMax": 4,
+        "control": {
+          "type": "slider",
+          "icon": "bi-dot",
+          "step": 0.01
+        }
+      }
+    ]
+  },
+  "visual": {
+    "colormap": [
+      {
+        "key": "turbo",
+        "value": [
+          "#30123b",
+          "#4145ab",
+          "#4685f4",
+          "#39c6c5",
+          "#77df6e",
+          "#b8de29",
+          "#f9ba38",
+          "#ee6a24",
+          "#c91f16"
+        ]
+      },
+      {
+        "key": "viridis",
+        "value": [
+          "#440154",
+          "#482878",
+          "#3e4a89",
+          "#31688e",
+          "#26828e",
+          "#1f9e89",
+          "#35b779",
+          "#6ece58",
+          "#b5de2b",
+          "#fee825"
+        ]
+      },
+      {
+        "key": "plasma",
+        "value": [
+          "#0d0887",
+          "#5b02a3",
+          "#9a179b",
+          "#cb4679",
+          "#ed7953",
+          "#fb9f3a",
+          "#fdca26",
+          "#f0f921"
+        ]
+      },
+      {
+        "key": "magma",
+        "value": [
+          "#000004",
+          "#180f3d",
+          "#440f76",
+          "#721f81",
+          "#9f2f7f",
+          "#cd4071",
+          "#f1605d",
+          "#fd9668",
+          "#fec98d",
+          "#fcfdbf"
+        ]
+      },
+      {
+        "key": "inferno",
+        "value": [
+          "#000004",
+          "#1b0c41",
+          "#4a0c6b",
+          "#781c6d",
+          "#a52c60",
+          "#cf4446",
+          "#ed6925",
+          "#fb9b06",
+          "#f7d13d",
+          "#fcffa4"
+        ]
+      },
+      {
+        "key": "cividis",
+        "value": [
+          "#00204d",
+          "#213f6f",
+          "#3f5f7f",
+          "#5d7f87",
+          "#7a9f8a",
+          "#99bf88",
+          "#b9dd7f",
+          "#dbf06a",
+          "#fff44f"
+        ]
+      },
+      {
+        "key": "coolwarm",
+        "value": [
+          "#3b4cc0",
+          "#688aef",
+          "#98b9ff",
+          "#c9d7f0",
+          "#ece5dc",
+          "#f7c7a6",
+          "#ee8468",
+          "#d34b44",
+          "#b40426"
+        ]
+      },
+      {
+        "key": "greys",
+        "value": [
+          "#111111",
+          "#3a3a3a",
+          "#5f5f5f",
+          "#878787",
+          "#afafaf",
+          "#d3d3d3",
+          "#f2f2f2"
+        ]
+      }
+    ],
+    "params": [
+      {
+        "key": "colorMode",
+        "default": "speed",
+        "options": [
+          {
+            "key": "solid",
+            "label": "Single color",
+            "unit": "",
+            "type": "single"
+          },
+          {
+            "key": "speed",
+            "label": "Orbital Speed",
+            "unit": "kly/Myr",
+            "type": "continuous"
+          }
+        ]
+      },
+      {
+        "key": "colormap",
+        "default": "magma"
+      },
+      {
+        "key": "colormapInverted",
+        "default": false
+      }
+    ],
+    "color": [
+      {
+        "key": "space",
+        "default": "#c9ddff"
+      }
+    ],
+    "size": [
+      {
+        "key": "star",
+        "default": 0.75,
+        "unit": "kly",
+        "uiMin": 0.08,
+        "uiMax": 10,
+        "step": 0.02
+      }
+    ]
+  },
+  "camera": {
+    "distance": 777,
+    "height": 336,
+    "params": [
+      {
+        "key": "projection",
+        "default": "perspective",
+        "unit": ""
+      },
+      {
+        "key": "locked",
+        "default": false,
+        "unit": ""
+      },
+      {
+        "key": "moveSpeed",
+        "default": 30,
+        "unit": "kly/Myr",
+        "uiMin": 1,
+        "uiMax": 1000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "unit": "deg/s",
+        "uiMin": 10,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "boundary": {
+      "x": { "default": "lost" },
+      "y": { "default": "lost" },
+      "z": { "default": "lost" }
+    },
+    "params": [
+      {
+        "key": "x",
+        "default": 350,
+        "unit": "kly",
+        "uiMin": 50,
+        "uiMax": 800,
+        "step": 5
+      },
+      {
+        "key": "y",
+        "default": 350,
+        "unit": "kly",
+        "uiMin": 50,
+        "uiMax": 800,
+        "step": 5
+      },
+      {
+        "key": "z",
+        "default": 350,
+        "unit": "kly",
+        "uiMin": 50,
+        "uiMax": 800,
+        "step": 5
+      },
+      {
+        "key": "gridSize",
+        "default": 20,
+        "unit": "kly",
+        "uiMin": 5,
+        "uiMax": 800,
+        "step": 5
+      }
+    ]
+  }
+}

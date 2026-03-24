@@ -58,6 +58,7 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
       z: -params.worldSizeZ * 0.5,
       step: gridSize,
     });
+    floorGrid.visible = params.showBounds;
 
     scene.add(floorGrid);
 
@@ -69,6 +70,9 @@ export function createWorldManager({ params, onWorldGeometryChanged } = {}) {
   function setBoundsVisibility(visible) {
     if (boundsLines) {
       boundsLines.visible = visible;
+    }
+    if (floorGrid) {
+      floorGrid.visible = visible;
     }
   }
 

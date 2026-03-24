@@ -4,13 +4,14 @@ import { createAppletParams } from "./appletConfigUtils.js";
 export class BaseSimulation {
   static APPLET_ID = "applet";
 
-  constructor({ scene, params, world, onStats, appletId }) {
+  constructor({ scene, params, world, onStats, appletId, renderer = null }) {
     BaseSimulation.assertSubclassAppletId(this.constructor);
     const resolvedAppletId = BaseSimulation.resolveAppletId(this.constructor, appletId);
     this.scene = scene;
     this.params = createAppletParams(params, resolvedAppletId);
     this.world = world;
     this.onStats = onStats;
+    this.renderer = renderer;
   }
 
   static resolveAppletId(simClass, explicitAppletId) {

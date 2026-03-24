@@ -706,6 +706,36 @@ function createInteractionSwitchRow(switchConfig, index) {
   return row;
 }
 
+function createVisualSwitchRow(appletId, switchConfig, index) {
+  const row = document.createElement("div");
+  row.className = `form-label${index > 0 ? " mt-2" : ""}`;
+
+  const labelName = document.createElement("span");
+  labelName.className = "label-name";
+  labelName.innerHTML = `
+    <i class="${switchConfig.icon || "bi bi-toggle-on"}" aria-hidden="true"></i>
+    <span>${switchConfig.label || ""}</span>
+  `;
+
+  const switchWrap = document.createElement("div");
+  switchWrap.className = "form-check form-switch m-0";
+
+  const input = document.createElement("input");
+  input.className = "form-check-input";
+  input.type = "checkbox";
+  input.setAttribute("role", "switch");
+  input.id = `${appletId}-${switchConfig.id}`;
+  input.checked = Boolean(switchConfig.checked);
+  if (switchConfig.label) {
+    input.setAttribute("aria-label", switchConfig.label);
+  }
+
+  switchWrap.appendChild(input);
+  row.appendChild(labelName);
+  row.appendChild(switchWrap);
+  return row;
+}
+
 // Visual section
 function buildVisualSection(appletId, visualAdapter, templates) {
   const sectionConfig = {
@@ -720,7 +750,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   const visualParams = Array.isArray(appletConfig.visual?.params)
     ? appletConfig.visual.params
     : [];
-  const { sliders: visualSliders } = getSectionInputControls(appletConfig.visual);
+  const { sliders: visualSliders, switches: visualSwitches } = getSectionInputControls(appletConfig.visual);
   const targetFrameRateSlider = visualSliders.find((entry) => String(entry?.key || entry?.paramKey || "").trim() === "targetFrameRate");
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const solidColorParam = visualParams.find((entry) => entry?.key === "solidColor");
@@ -743,6 +773,10 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   if (targetFrameRateSlider) {
     body.appendChild(createSliderRow(templates, appletId, targetFrameRateSlider));
   }
+
+  visualSwitches.forEach((switchConfig, index) => {
+    body.appendChild(createVisualSwitchRow(appletId, switchConfig, index));
+  });
 
   const colorModeLabel = "Color Mode";
   const colorModeOptions = Array.isArray(colorModeParam?.options)

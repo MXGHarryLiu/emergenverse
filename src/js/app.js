@@ -719,15 +719,30 @@ const appletProjectionInitialized = Object.fromEntries(APPLET_ORDER.map((id) => 
 const appletSimulationPrimed = Object.fromEntries(APPLET_ORDER.map((id) => [id, false]));
 
 // Runtime Construction: Renderer, Camera, World, Simulations, Charts
-const renderer = new THREE.WebGLRenderer({
-  antialias: true,
-  alpha: true,
-  preserveDrawingBuffer: true,
-});
+function createRendererWithPreferredWebGL2() {
+  const baseOptions = {
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: false,
+  };
+  const canvas = document.createElement("canvas");
+  const webgl2 = canvas.getContext("webgl2", baseOptions);
+  if (webgl2) {
+    return new THREE.WebGLRenderer({
+      ...baseOptions,
+      canvas,
+      context: webgl2,
+    });
+  }
+  return new THREE.WebGLRenderer(baseOptions);
+}
+
+const renderer = createRendererWithPreferredWebGL2();
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.domElement.setAttribute("aria-label", "3D simulation canvas");
 dom.sceneHost.appendChild(renderer.domElement);
+console.log(`[renderer] Using ${renderer.capabilities.isWebGL2 ? "WebGL2" : "WebGL1"}.`);
 
 const cameraController = createCameraController({
   sceneHost: renderer.domElement,
@@ -790,6 +805,7 @@ const simulations = Object.fromEntries(
       scene,
       params,
       world,
+      renderer,
       onStats: (stats) => {
         lastAppletStats[id] = stats;
         APPLET_DEFINITIONS[id].runtime?.applyStats?.(stats, appletStatsApis[id]);
@@ -821,8 +837,11 @@ const chartState = Object.fromEntries(
   ]),
 );
 let fpsSmoothed = 0;
+let fpsRenderSmoothed = 0;
+let fpsSimSmoothed = 0;
 let fpsUiAccumulator = 0;
 let fpsWindowSeconds = 0;
+let fpsWindowFrames = 0;
 let fpsWindowSteps = 0;
 let fpsWarmupFrames = 20;
 const simulationRuntimeState = Object.fromEntries(
@@ -830,6 +849,8 @@ const simulationRuntimeState = Object.fromEntries(
     stepAccumulator: 0,
     wallAccumulator: 0,
     simTimeAccumulator: 0,
+    simStepsAccumulator: 0,
+    effectiveSpeedSmoothed: null,
   }]),
 );
 const middleLayoutThresholdPx = 1180;
@@ -970,6 +991,7 @@ function animate() {
 
     runtimeState.wallAccumulator += simulationDt;
     runtimeState.simTimeAccumulator += stepsThisFrame * timing.timeStep;
+    runtimeState.simStepsAccumulator += stepsThisFrame;
     updateEffectiveSimulationSpeedMetric(activeApplet);
   }
   updateFpsMetric(rawDt, stepsThisFrame);
@@ -993,6 +1015,7 @@ function updateFpsMetric(dt, stepsThisFrame = 0) {
     // Freeze FPS text while simulation is paused instead of reporting render-loop cadence.
     fpsUiAccumulator = 0;
     fpsWindowSeconds = 0;
+    fpsWindowFrames = 0;
     fpsWindowSteps = 0;
     return;
   }
@@ -1008,16 +1031,23 @@ function updateFpsMetric(dt, stepsThisFrame = 0) {
   }
 
   fpsWindowSeconds += dt;
+  fpsWindowFrames += 1;
   fpsWindowSteps += Math.max(0, Number(stepsThisFrame) || 0);
   fpsUiAccumulator += dt;
-  if (fpsUiAccumulator < 0.2 || fpsWindowSeconds <= 0) {
+  const activeTargetFps = getAppletSimulationTiming(activeApplet).targetFrameRate;
+  const fpsUiIntervalSeconds = Math.max(0.2, 1 / Math.max(1, activeTargetFps));
+  if (fpsUiAccumulator < fpsUiIntervalSeconds || fpsWindowSeconds <= 0) {
     return;
   }
 
-  const windowFps = fpsWindowSteps / fpsWindowSeconds;
-  fpsSmoothed = fpsSmoothed === 0 ? windowFps : fpsSmoothed * 0.78 + windowFps * 0.22;
+  const renderWindowHz = fpsWindowFrames / fpsWindowSeconds;
+  const simWindowHz = fpsWindowSteps / fpsWindowSeconds;
+  fpsRenderSmoothed = fpsRenderSmoothed === 0 ? renderWindowHz : fpsRenderSmoothed * 0.78 + renderWindowHz * 0.22;
+  fpsSimSmoothed = fpsSimSmoothed === 0 ? simWindowHz : fpsSimSmoothed * 0.78 + simWindowHz * 0.22;
+  fpsSmoothed = Math.min(fpsRenderSmoothed, fpsSimSmoothed);
   fpsUiAccumulator = 0;
   fpsWindowSeconds = 0;
+  fpsWindowFrames = 0;
   fpsWindowSteps = 0;
 
   APPLET_ORDER.forEach((appletId) => {
@@ -1030,19 +1060,36 @@ function updateFpsMetric(dt, stepsThisFrame = 0) {
     if (element) {
       element.classList.toggle("is-warning", isBelowTarget);
       element.title = isBelowTarget
-        ? `Below target frame rate (${targetFps.toFixed(0)} Hz)`
-        : `Target frame rate ${targetFps.toFixed(0)} Hz`;
+        ? `Below target frame rate (${targetFps.toFixed(0)} Hz). Render: ${fpsRenderSmoothed.toFixed(1)} Hz, Sim: ${fpsSimSmoothed.toFixed(1)} Hz`
+        : `Target frame rate ${targetFps.toFixed(0)} Hz. Render: ${fpsRenderSmoothed.toFixed(1)} Hz, Sim: ${fpsSimSmoothed.toFixed(1)} Hz`;
     }
   });
 }
 
 function updateEffectiveSimulationSpeedMetric(appletId = activeApplet) {
   const state = simulationRuntimeState[appletId];
-  if (!state || state.wallAccumulator < 0.2) {
+  if (!state) {
     return;
   }
 
-  const effectiveSpeed = state.simTimeAccumulator / Math.max(state.wallAccumulator, 1e-6);
+  const targetFps = getAppletSimulationTiming(appletId).targetFrameRate;
+  const minWindowSeconds = Math.max(0.2, 1 / Math.max(1, targetFps));
+  const maxIdleWindowSeconds = Math.max(0.6, minWindowSeconds * 3);
+  if (state.wallAccumulator < minWindowSeconds) {
+    return;
+  }
+
+  // Avoid flicker at low frame/step rates: if no simulation step landed in this short window,
+  // wait longer before publishing 0-speed.
+  if (state.simStepsAccumulator <= 0 && state.wallAccumulator < maxIdleWindowSeconds) {
+    return;
+  }
+
+  const effectiveSpeedRaw = state.simTimeAccumulator / Math.max(state.wallAccumulator, 1e-6);
+  const effectiveSpeed = state.effectiveSpeedSmoothed === null
+    ? effectiveSpeedRaw
+    : state.effectiveSpeedSmoothed * 0.72 + effectiveSpeedRaw * 0.28;
+  state.effectiveSpeedSmoothed = effectiveSpeed;
   const valueId = APPLET_META[appletId]?.effectiveSpeedValueId;
   if (valueId) {
     const timeUnit = getAppletTimeUnit(appletId);
@@ -1051,6 +1098,7 @@ function updateEffectiveSimulationSpeedMetric(appletId = activeApplet) {
 
   state.wallAccumulator = 0;
   state.simTimeAccumulator = 0;
+  state.simStepsAccumulator = 0;
 }
 
 
@@ -1343,6 +1391,52 @@ function setupControls() {
 
 function bindAppletVisualTimingControls() {
   APPLET_ORDER.forEach((appletId) => {
+    const appletParams = params[appletId] || {};
+    const simulation = simulations[appletId];
+    const visualConfig = APPLET_CONFIGS[appletId]?.visual;
+    const { switches } = getSectionInputControls(visualConfig);
+
+    switches.forEach((switchConfig) => {
+      const inputId = `${appletId}-${switchConfig.id}`;
+      const input = document.getElementById(inputId);
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const paramKey = inferSliderParamKey(appletId, switchConfig);
+      if (!paramKey) {
+        return;
+      }
+
+      const initialChecked = Object.prototype.hasOwnProperty.call(appletParams, paramKey)
+        ? Boolean(appletParams[paramKey])
+        : Boolean(switchConfig.checked);
+      appletParams[paramKey] = initialChecked;
+      input.checked = initialChecked;
+
+      input.addEventListener("change", () => {
+        const value = Boolean(input.checked);
+        appletParams[paramKey] = value;
+        applySliderChangeToSimulation({ slider: switchConfig, paramKey, value, simulation });
+
+        APPLET_DEFINITIONS[appletId].runtime?.onSliderChange?.({
+          appletId,
+          slider: switchConfig,
+          paramKey,
+          value,
+          params: appletParams,
+          simulation,
+          resetTrendCharts: () => resetTrendCharts(appletId),
+          refreshLegend: () => refreshAppletLegend(appletId),
+        });
+
+        if (String(switchConfig?.simulationAction || "").trim().toLowerCase() === "reset") {
+          resetTrendCharts(appletId);
+        }
+        refreshAppletLegend(appletId);
+      });
+    });
+
     const slider = getAppletTargetFrameRateSlider(appletId);
     if (!slider) {
       return;
@@ -1354,7 +1448,6 @@ function bindAppletVisualTimingControls() {
     if (!input || !output) {
       return;
     }
-    const appletParams = params[appletId] || {};
     const initialValue = THREE.MathUtils.clamp(
       Number.isFinite(Number(appletParams.targetFrameRate))
         ? Number(appletParams.targetFrameRate)
@@ -1812,6 +1905,11 @@ function handleAppletSliderInput(appletId, slider, rawValue) {
   }
 
   const value = normalizeSliderInputValue(appletId, slider, rawValue);
+  const previousValue = appletParams[paramKey];
+  const valueChanged = !areParamValuesEquivalent(previousValue, value);
+  if (!valueChanged) {
+    return previousValue;
+  }
 
   appletParams[paramKey] = value;
   applySliderChangeToSimulation({ slider, paramKey, value, simulation });
@@ -1847,6 +1945,10 @@ function handleAppletSelectInput(appletId, selectConfig, rawValue) {
   }
 
   const normalized = String(rawValue ?? "");
+  const previousValue = String(appletParams[paramKey] ?? "");
+  if (previousValue === normalized) {
+    return appletParams[paramKey];
+  }
   appletParams[paramKey] = normalized;
 
   applySliderChangeToSimulation({
@@ -1872,6 +1974,15 @@ function handleAppletSelectInput(appletId, selectConfig, rawValue) {
   }
   refreshAppletLegend(appletId);
   return appletParams[paramKey];
+}
+
+function areParamValuesEquivalent(a, b) {
+  const numA = Number(a);
+  const numB = Number(b);
+  if (Number.isFinite(numA) && Number.isFinite(numB)) {
+    return Math.abs(numA - numB) <= 1e-12;
+  }
+  return a === b;
 }
 
 function inferSliderParamKey(appletId, sliderConfigOrId) {
@@ -2066,6 +2177,9 @@ function applySliderChangeToSimulation({ slider, paramKey, value, simulation }) 
     setter.call(simulation, value);
     return;
   }
+  if (explicitSetter) {
+    return;
+  }
 
   simulation.syncInstances?.();
 }
@@ -2215,6 +2329,25 @@ function applySimulationDefaultsForApplet(appletId) {
     targetInput.value = String(targetFrameRateDefault);
   }
   targetInput?.dispatchEvent(new Event("input", { bubbles: true }));
+
+  const visualConfig = APPLET_CONFIGS[appletId]?.visual;
+  const { switches: visualSwitches } = getSectionInputControls(visualConfig);
+  if (Array.isArray(visualSwitches) && visualSwitches.length > 0) {
+    visualSwitches.forEach((switchConfig) => {
+      const input = document.getElementById(`${appletId}-${switchConfig.id}`);
+      if (!(input instanceof HTMLInputElement)) {
+        return;
+      }
+      const paramKey = inferSliderParamKey(appletId, switchConfig);
+      if (!paramKey) {
+        return;
+      }
+      const nextValue = Boolean(switchConfig.checked);
+      appletParams[paramKey] = nextValue;
+      input.checked = nextValue;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
 }
 
 // App Routing + Applet Switching + Persisted Per-Applet State

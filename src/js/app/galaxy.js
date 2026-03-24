@@ -272,7 +272,8 @@ export class GalaxySimulation extends BaseSimulation {
     const G = GALAXY_GRAVITY_INTERNAL;
     const centralMass = Math.max(0, this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS);
     const objectTotalMass = Math.max(0, this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS);
-    const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
+    const configuredCount = Math.max(1, Number(this.params.count ?? count));
+    const particleMass = Math.max(0, objectTotalMass / configuredCount);
 
     for (let i = 0; i < count; i += 1) {
       const p = this.particles[i];
@@ -437,7 +438,8 @@ export class GalaxySimulation extends BaseSimulation {
     const softening = Math.max(GALAXY_MIN_SOFTENING, this.params.softening ?? GALAXY_DEFAULT_SOFTENING);
     const centralMassInternal = Math.max(GALAXY_MIN_CENTRAL_MASS, this.params.centralMass ?? GALAXY_DEFAULT_CENTRAL_MASS);
     const objectTotalMass = Math.max(0, this.params.objectTotalMass ?? GALAXY_DEFAULT_OBJECT_TOTAL_MASS);
-    const particleMass = Math.max(0, objectTotalMass / Math.max(count, 1));
+    const configuredCount = Math.max(1, Number(this.params.count ?? count));
+    const particleMass = Math.max(0, objectTotalMass / configuredCount);
 
     const indexedByRadius = this.particles
       .map((particle, index) => ({ index, radius: Math.max(GALAXY_MIN_PARTICLE_RADIUS, particle.position.length()) }))
