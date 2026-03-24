@@ -314,6 +314,11 @@ export class FireflySimulation extends BaseSimulation {
       if (this.params.colorMode === "solid") {
         this.solidColorValue.set(getFireflySolidColor(this.params));
         this.tempColor.copy(this.solidColorValue);
+      } else if (this.params.colorMode === "phase") {
+        const phaseNorm = THREE.MathUtils.euclideanModulo(firefly.phase, TWO_PI) / TWO_PI;
+        const colorT = this.params.colormapInverted ? 1 - phaseNorm : phaseNorm;
+        sampleColormap(this.params.colormap, colorT, this.tempColor);
+        this.tempColor.multiplyScalar(0.95);
       } else if (this.params.colorMode === "frequency") {
         const span = Math.max(frequencyRange.max - frequencyRange.min, 1e-6);
         const t = THREE.MathUtils.clamp((firefly.omegaHz - frequencyRange.min) / span, 0, 1);
@@ -421,6 +426,9 @@ function buildFireflyColormapConfig({
     min: Math.max(0, (params?.frequency ?? 1.8) - (params?.freqJitter ?? 0.2)),
     max: (params?.frequency ?? 1.8) + (params?.freqJitter ?? 0.2),
   };
+  const legendRange = colorMode === "phase"
+    ? { min: 0, max: 360 }
+    : range;
   return {
     visible: true,
     value: colormap,
@@ -431,8 +439,8 @@ function buildFireflyColormapConfig({
     },
     legend: {
       gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: `min: ${Number(range.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
-      maxText: `max: ${Number(range.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+      minText: `min: ${Number(legendRange.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
+      maxText: `max: ${Number(legendRange.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
     },
   };
 }

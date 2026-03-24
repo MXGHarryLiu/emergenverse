@@ -708,7 +708,7 @@ function createInteractionSwitchRow(switchConfig, index) {
 
 function createVisualSwitchRow(appletId, switchConfig, index) {
   const row = document.createElement("div");
-  row.className = `form-label${index > 0 ? " mt-2" : ""}`;
+  row.className = `form-label visual-toggle-row${index > 0 ? " mt-2" : ""}`;
 
   const labelName = document.createElement("span");
   labelName.className = "label-name";

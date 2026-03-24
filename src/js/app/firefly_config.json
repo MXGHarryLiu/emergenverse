@@ -225,6 +225,7 @@
     ]
   },
   "visual": {
+    "gpu": false,
     "colormap": [
       {
         "key": "turbo",
@@ -372,6 +373,12 @@
             "key": "frequency",
             "label": "Frequency",
             "unit": "Hz",
+            "type": "continuous"
+          },
+          {
+            "key": "phase",
+            "label": "Phase",
+            "unit": "deg",
             "type": "continuous"
           }
         ]

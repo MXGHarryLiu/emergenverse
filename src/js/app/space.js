@@ -636,6 +636,10 @@ export class SpaceSimulation extends BaseSimulation {
     this.syncPointCloud();
   }
 
+  isHardwareAccelerationActive() {
+    return this.hardwareAccelerationEnabled && this.fieldSolverBackend === "gpu";
+  }
+
   onWorldGeometryChanged() {
     this.applyBoundaryToAll();
     if (SPACE_ENABLE_GPU_PARTICLE_INTEGRATION && this.fieldSolverBackend === "gpu") {

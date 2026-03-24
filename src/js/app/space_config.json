@@ -262,6 +262,7 @@
     ]
   },
   "visual": {
+    "gpu": true,
     "colormap": [
       {
         "key": "turbo",

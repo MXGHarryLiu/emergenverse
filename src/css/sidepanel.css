@@ -222,6 +222,21 @@
   margin-top: 0;
 }
 
+/* Visual switch rows should match the shared colormap invert toggle sizing. */
+.controls-panel .visual-toggle-row .form-check {
+  display: inline-flex;
+  align-items: center;
+  min-height: 0;
+  padding-left: 0;
+  font-size: 1rem;
+}
+
+.controls-panel .visual-toggle-row .form-switch .form-check-input {
+  float: none;
+  margin-left: 0;
+  margin-top: 0;
+}
+
 /* Visual size list */
 .visual-size-list {
   display: flex;

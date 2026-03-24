@@ -1007,6 +1007,10 @@ function animate() {
 }
 
 function updateFpsMetric(dt, stepsThisFrame = 0) {
+  APPLET_ORDER.forEach((appletId) => {
+    updateFpsHardwareIndicator(appletId);
+  });
+
   if (dt <= 0) {
     return;
   }
@@ -1064,6 +1068,51 @@ function updateFpsMetric(dt, stepsThisFrame = 0) {
         : `Target frame rate ${targetFps.toFixed(0)} Hz. Render: ${fpsRenderSmoothed.toFixed(1)} Hz, Sim: ${fpsSimSmoothed.toFixed(1)} Hz`;
     }
   });
+}
+
+function appletSupportsHardwareAccelerationIndicator(appletId) {
+  return Boolean(APPLET_CONFIGS[appletId]?.visual?.gpu);
+}
+
+function isAppletHardwareAccelerationActive(appletId) {
+  if (!appletSupportsHardwareAccelerationIndicator(appletId)) {
+    return false;
+  }
+  const simulation = simulations[appletId];
+  if (typeof simulation?.isHardwareAccelerationActive === "function") {
+    return Boolean(simulation.isHardwareAccelerationActive());
+  }
+  return false;
+}
+
+function updateFpsHardwareIndicator(appletId) {
+  const fpsValueElement = getElement(APPLET_META[appletId]?.fpsValueId);
+  const labelElement = fpsValueElement?.closest(".stat-inline")?.querySelector(".stat-inline-label");
+  if (!labelElement) {
+    return;
+  }
+  if (!labelElement.dataset.baseLabel) {
+    labelElement.dataset.baseLabel = labelElement.textContent?.trim() || "Fps";
+  }
+
+  const baseLabel = labelElement.dataset.baseLabel;
+  const active = isAppletHardwareAccelerationActive(appletId);
+  const nextState = active ? "on" : "off";
+  if (labelElement.dataset.gpuIndicatorState === nextState) {
+    return;
+  }
+  labelElement.dataset.gpuIndicatorState = nextState;
+  labelElement.textContent = baseLabel;
+
+  if (!active) {
+    return;
+  }
+
+  const icon = document.createElement("i");
+  icon.className = "bi bi-gpu-card ms-1";
+  icon.title = "hardware acceleration on";
+  icon.setAttribute("aria-label", "hardware acceleration on");
+  labelElement.appendChild(icon);
 }
 
 function updateEffectiveSimulationSpeedMetric(appletId = activeApplet) {
@@ -1394,6 +1443,7 @@ function bindAppletVisualTimingControls() {
     const appletParams = params[appletId] || {};
     const simulation = simulations[appletId];
     const visualConfig = APPLET_CONFIGS[appletId]?.visual;
+    const gpuSupported = Boolean(visualConfig?.gpu);
     const { switches } = getSectionInputControls(visualConfig);
 
     switches.forEach((switchConfig) => {
@@ -1408,13 +1458,29 @@ function bindAppletVisualTimingControls() {
         return;
       }
 
-      const initialChecked = Object.prototype.hasOwnProperty.call(appletParams, paramKey)
-        ? Boolean(appletParams[paramKey])
-        : Boolean(switchConfig.checked);
+      const isHardwareAccelerationSwitch = paramKey === "hardwareAcceleration";
+      const initialChecked = isHardwareAccelerationSwitch && !gpuSupported
+        ? false
+        : (Object.prototype.hasOwnProperty.call(appletParams, paramKey)
+          ? Boolean(appletParams[paramKey])
+          : Boolean(switchConfig.checked));
       appletParams[paramKey] = initialChecked;
       input.checked = initialChecked;
+      if (isHardwareAccelerationSwitch) {
+        input.disabled = !gpuSupported;
+        if (!gpuSupported) {
+          applySliderChangeToSimulation({ slider: switchConfig, paramKey, value: false, simulation });
+        }
+      }
 
       input.addEventListener("change", () => {
+        if (isHardwareAccelerationSwitch && !gpuSupported) {
+          input.checked = false;
+          appletParams[paramKey] = false;
+          applySliderChangeToSimulation({ slider: switchConfig, paramKey, value: false, simulation });
+          refreshAppletLegend(appletId);
+          return;
+        }
         const value = Boolean(input.checked);
         appletParams[paramKey] = value;
         applySliderChangeToSimulation({ slider: switchConfig, paramKey, value, simulation });
@@ -2331,6 +2397,7 @@ function applySimulationDefaultsForApplet(appletId) {
   targetInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
   const visualConfig = APPLET_CONFIGS[appletId]?.visual;
+  const gpuSupported = Boolean(visualConfig?.gpu);
   const { switches: visualSwitches } = getSectionInputControls(visualConfig);
   if (Array.isArray(visualSwitches) && visualSwitches.length > 0) {
     visualSwitches.forEach((switchConfig) => {
@@ -2342,9 +2409,15 @@ function applySimulationDefaultsForApplet(appletId) {
       if (!paramKey) {
         return;
       }
-      const nextValue = Boolean(switchConfig.checked);
+      const isHardwareAccelerationSwitch = paramKey === "hardwareAcceleration";
+      const nextValue = isHardwareAccelerationSwitch && !gpuSupported
+        ? false
+        : Boolean(switchConfig.checked);
       appletParams[paramKey] = nextValue;
       input.checked = nextValue;
+      if (isHardwareAccelerationSwitch) {
+        input.disabled = !gpuSupported;
+      }
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
   }
