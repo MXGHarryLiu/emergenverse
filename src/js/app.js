@@ -1445,6 +1445,7 @@ function bindAppletVisualTimingControls() {
     const visualConfig = APPLET_CONFIGS[appletId]?.visual;
     const gpuSupported = Boolean(visualConfig?.gpu);
     const { switches } = getSectionInputControls(visualConfig);
+    const realismSliders = getSectionInputControls(visualConfig?.realism).sliders || [];
 
     switches.forEach((switchConfig) => {
       const inputId = `${appletId}-${switchConfig.id}`;
@@ -1504,29 +1505,54 @@ function bindAppletVisualTimingControls() {
     });
 
     const slider = getAppletTargetFrameRateSlider(appletId);
-    if (!slider) {
-      return;
-    }
-    const inputId = getSimulationSliderInputId(appletId, slider);
-    const valueId = getSimulationSliderValueId(appletId, slider);
-    const input = document.getElementById(inputId);
-    const output = document.getElementById(valueId);
-    if (!input || !output) {
-      return;
-    }
-    const initialValue = THREE.MathUtils.clamp(
-      Number.isFinite(Number(appletParams.targetFrameRate))
-        ? Number(appletParams.targetFrameRate)
-        : getAppletTargetFrameRateDefault(appletId),
-      1,
-      60,
-    );
-    appletParams.targetFrameRate = initialValue;
-    input.value = String(getSliderDisplayValue(appletId, slider, initialValue));
+    if (slider) {
+      const inputId = getSimulationSliderInputId(appletId, slider);
+      const valueId = getSimulationSliderValueId(appletId, slider);
+      const input = document.getElementById(inputId);
+      const output = document.getElementById(valueId);
+      if (input && output) {
+        const initialValue = THREE.MathUtils.clamp(
+          Number.isFinite(Number(appletParams.targetFrameRate))
+            ? Number(appletParams.targetFrameRate)
+            : getAppletTargetFrameRateDefault(appletId),
+          1,
+          60,
+        );
+        appletParams.targetFrameRate = initialValue;
+        input.value = String(getSliderDisplayValue(appletId, slider, initialValue));
 
-    bindRange(inputId, valueId, (value) => {
-      const displayValue = handleAppletSliderInput(appletId, slider, value);
-      return formatAppletSliderDisplayValue(appletId, slider, displayValue);
+        bindRange(inputId, valueId, (value) => {
+          const displayValue = handleAppletSliderInput(appletId, slider, value);
+          return formatAppletSliderDisplayValue(appletId, slider, displayValue);
+        });
+      }
+    }
+
+    realismSliders.forEach((realismSlider) => {
+      const realismInputId = getSimulationSliderInputId(appletId, realismSlider);
+      const realismValueId = getSimulationSliderValueId(appletId, realismSlider);
+      const realismInput = document.getElementById(realismInputId);
+      const realismOutput = document.getElementById(realismValueId);
+      if (!realismInput || !realismOutput) {
+        return;
+      }
+
+      const raw = Number(appletParams[realismSlider.paramKey]);
+      const min = Number(realismSlider.uiMin);
+      const max = Number(realismSlider.uiMax);
+      const defaultValue = Number(realismSlider.value ?? realismSlider.default ?? min ?? 0);
+      const initialValue = THREE.MathUtils.clamp(
+        Number.isFinite(raw) ? raw : defaultValue,
+        Number.isFinite(min) ? min : defaultValue,
+        Number.isFinite(max) ? max : defaultValue,
+      );
+      appletParams[realismSlider.paramKey] = initialValue;
+      realismInput.value = String(getSliderDisplayValue(appletId, realismSlider, initialValue));
+
+      bindRange(realismInputId, realismValueId, (value) => {
+        const displayValue = handleAppletSliderInput(appletId, realismSlider, value);
+        return formatAppletSliderDisplayValue(appletId, realismSlider, displayValue);
+      });
     });
   });
 }

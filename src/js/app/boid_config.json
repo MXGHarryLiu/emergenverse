@@ -366,13 +366,19 @@
     "params": [
       {
         "key": "colorMode",
-        "default": "speed",
+        "default": "realism",
         "options": [
           {
             "key": "solid",
             "label": "Single color",
             "unit": "",
             "type": "single"
+          },
+          {
+            "key": "realism",
+            "label": "Realism",
+            "unit": "",
+            "type": "fixed"
           },
           {
             "key": "speed",
@@ -424,7 +430,41 @@
         "uiMax": 1.0,
         "step": 0.1
       }
-    ]
+    ],
+    "realism": {
+      "params": [
+        {
+          "key": "sunAzimuth",
+          "label": "Sun Azimuth",
+          "default": 36,
+          "unit": "deg",
+          "group": "dynamic",
+          "uiMin": 0,
+          "uiMax": 360,
+          "control": {
+            "type": "slider",
+            "icon": "bi-compass",
+            "step": 1,
+            "simulationAction": "sync"
+          }
+        },
+        {
+          "key": "sunElevation",
+          "label": "Sun Elevation",
+          "default": 42,
+          "unit": "deg",
+          "group": "dynamic",
+          "uiMin": -90,
+          "uiMax": 90,
+          "control": {
+            "type": "slider",
+            "icon": "bi-brightness-high-fill",
+            "step": 1,
+            "simulationAction": "sync"
+          }
+        }
+      ]
+    }
   },
   "camera": {
     "params": [

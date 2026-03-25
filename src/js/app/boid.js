@@ -7,6 +7,21 @@ import { BaseSimulation } from "./baseSimulation.js";
 // Applet UI and metadata configuration.
 export const BOID_APPLET_CONFIG = validateAppletConfig(boidConfigData);
 
+const BOID_REALISM_SUN_AZIMUTH_DEFAULT_DEG = 36;
+const BOID_REALISM_SUN_ELEVATION_DEFAULT_DEG = 42;
+const BOID_REALISM_SUN_INTENSITY = 1.15;
+const BOID_REALISM_SKY_INTENSITY = 0.8;
+const BOID_REALISM_SKY_COLOR = "#92b7e8";
+const BOID_REALISM_GROUND_COLOR = "#7d9169";
+const BOID_REALISM_HORIZON_COLOR = "#d5dcc9";
+const BOID_REALISM_SUN_COLOR = "#fff5d7";
+
+// Realism parameter resolver scaffold (kept local for now, reusable by other applets later).
+function resolveRealismAngleParam(params, key, fallbackDeg) {
+  const raw = Number(params?.[key]);
+  return Number.isFinite(raw) ? raw : fallbackDeg;
+}
+
 // Shell runtime hooks.
 const BOID_APPLET_RUNTIME = {
   createChartMetrics(createChartMetricsEntry) {
@@ -77,8 +92,8 @@ export class BoidSimulation extends BaseSimulation {
     });
   }
 
-  constructor({ scene, params, world, onStats }) {
-    super({ scene, params, world, onStats });
+  constructor({ scene, params, world, renderer, onStats }) {
+    super({ scene, params, world, renderer, onStats });
 
     this.geometry = new THREE.ConeGeometry(0.7, 2.6, 10);
     this.geometry.rotateX(Math.PI / 2);
@@ -106,22 +121,82 @@ export class BoidSimulation extends BaseSimulation {
     this.colormapLerpA = new THREE.Color();
     this.colormapLerpB = new THREE.Color();
     this.solidColorValue = new THREE.Color(getBoidSolidColor(this.params));
+    this.defaultSpecular = new THREE.Color(0x222222);
+    this.realismSpecular = new THREE.Color(0x2f2f2f);
 
     this.colormaps = buildColormapLUT(BOID_APPLET_CONFIG.visual?.colormap);
+
+    this.realismSkyColor = new THREE.Color(BOID_REALISM_SKY_COLOR);
+    this.realismGroundColor = new THREE.Color(BOID_REALISM_GROUND_COLOR);
+    this.realismHorizonColor = new THREE.Color(BOID_REALISM_HORIZON_COLOR);
+    this.realismSunColor = new THREE.Color(BOID_REALISM_SUN_COLOR);
+    this.realismSunDirection = new THREE.Vector3(0, 0, 1);
+    this.isRealismActive = false;
+    this.isVisible = true;
+
+    this.realismSunLight = new THREE.DirectionalLight(this.realismSunColor, BOID_REALISM_SUN_INTENSITY);
+    this.realismSunLight.visible = false;
+    this.realismSunLight.castShadow = false;
+    this.realismSunLight.shadow.mapSize.set(1024, 1024);
+    this.realismSunLight.shadow.bias = -0.00035;
+    this.realismSunLight.shadow.normalBias = 0.02;
+    this.scene.add(this.realismSunLight);
+    this.scene.add(this.realismSunLight.target);
+
+    this.realismSkyLight = new THREE.HemisphereLight(
+      this.realismSkyColor,
+      this.realismGroundColor,
+      BOID_REALISM_SKY_INTENSITY,
+    );
+    this.realismSkyLight.visible = false;
+    this.scene.add(this.realismSkyLight);
+
+    this.realismSkyDome = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 32, 20),
+      createBoidRealismSkyMaterial({
+        skyColor: this.realismSkyColor,
+        groundColor: this.realismGroundColor,
+        horizonColor: this.realismHorizonColor,
+        sunColor: this.realismSunColor,
+        sunDirection: this.realismSunDirection,
+      }),
+    );
+    this.realismSkyDome.visible = false;
+    this.realismSkyDome.renderOrder = -50;
+    this.realismSkyDome.frustumCulled = false;
+    this.scene.add(this.realismSkyDome);
+
+    this.realismShadowCatcher = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.ShadowMaterial({
+        color: 0x000000,
+        opacity: 0.26,
+      }),
+    );
+    this.realismShadowCatcher.visible = false;
+    this.realismShadowCatcher.receiveShadow = true;
+    this.realismShadowCatcher.renderOrder = -15;
+    this.scene.add(this.realismShadowCatcher);
   }
 
   init() {
     this.spawn(this.params.count);
+    this.updateRealismEnvironment();
   }
 
   setVisible(visible) {
+    this.isVisible = Boolean(visible);
     if (this.mesh) {
-      this.mesh.visible = visible;
+      this.mesh.visible = this.isVisible;
     }
+    this.updateRealismEnvironment();
   }
 
   onTheme(theme) {
-    this.material.specular.set(theme === "light" ? 0x2c2c2c : 0x1c1c1c);
+    const baseSpecular = theme === "light" ? 0x2c2c2c : 0x1c1c1c;
+    this.defaultSpecular.set(baseSpecular);
+    this.material.specular.copy(this.defaultSpecular);
+    this.updateRealismEnvironment();
   }
 
   reset() {
@@ -150,6 +225,7 @@ export class BoidSimulation extends BaseSimulation {
     }
     this.syncInstances();
     this.emitCurrentStats();
+    this.updateRealismEnvironmentGeometry();
   }
 
   onBoundaryChanged() {
@@ -170,9 +246,11 @@ export class BoidSimulation extends BaseSimulation {
       return;
     }
 
+    const colorMode = String(this.params.colorMode || "solid").trim();
+    const usesFixedSingleColor = colorMode === "solid" || colorMode === "realism";
     const halfZ = this.params.worldSizeZ * 0.5;
     const colorBounds =
-      this.params.colorMode === "solid" ? null : this.getColorScalarBounds(halfZ);
+      usesFixedSingleColor ? null : this.getColorScalarBounds(halfZ);
     const solidColor = getBoidSolidColor(this.params);
 
     for (let i = 0; i < this.boids.length; i += 1) {
@@ -191,7 +269,7 @@ export class BoidSimulation extends BaseSimulation {
       this.tempObject.updateMatrix();
       this.mesh.setMatrixAt(i, this.tempObject.matrix);
 
-      if (this.params.colorMode === "solid") {
+      if (usesFixedSingleColor) {
         this.solidColorValue.set(solidColor);
         this.instanceColor.copy(this.solidColorValue);
       } else {
@@ -211,6 +289,8 @@ export class BoidSimulation extends BaseSimulation {
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }
+
+    this.updateRealismEnvironment();
   }
 
   step(dt) {
@@ -349,6 +429,8 @@ export class BoidSimulation extends BaseSimulation {
     const capacity = Math.max(this.boids.length, 1);
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, capacity);
     this.mesh.count = this.boids.length;
+    this.mesh.visible = this.isVisible;
+    this.mesh.castShadow = this.isRealismActive;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
     this.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
@@ -357,6 +439,74 @@ export class BoidSimulation extends BaseSimulation {
     }
     this.material.needsUpdate = true;
     this.scene.add(this.mesh);
+    this.updateRealismEnvironment();
+  }
+
+  updateRealismEnvironment() {
+    const colorMode = String(this.params.colorMode || "solid").trim();
+    const realismEnabled = this.isVisible && colorMode === "realism";
+    this.isRealismActive = realismEnabled;
+    this.realismSunLight.visible = realismEnabled;
+    this.realismSkyLight.visible = realismEnabled;
+    this.realismSkyDome.visible = realismEnabled;
+    this.realismShadowCatcher.visible = realismEnabled;
+    this.realismSunLight.castShadow = realismEnabled;
+    if (this.mesh) {
+      this.mesh.castShadow = realismEnabled;
+    }
+    if (this.renderer?.shadowMap) {
+      this.renderer.shadowMap.enabled = this.renderer.shadowMap.enabled || realismEnabled;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    }
+    this.material.specular.copy(realismEnabled ? this.realismSpecular : this.defaultSpecular);
+    this.updateRealismEnvironmentGeometry();
+  }
+
+  updateRealismEnvironmentGeometry() {
+    if (!this.isVisible) {
+      return;
+    }
+    const halfX = Math.max(1, Number(this.params.worldSizeX) * 0.5);
+    const halfY = Math.max(1, Number(this.params.worldSizeY) * 0.5);
+    const halfZ = Math.max(1, Number(this.params.worldSizeZ) * 0.5);
+    const maxExtent = Math.max(halfX, halfY, halfZ);
+
+    const azimuthDeg = resolveRealismAngleParam(
+      this.params,
+      "sunAzimuth",
+      BOID_REALISM_SUN_AZIMUTH_DEFAULT_DEG,
+    );
+    const elevationDeg = resolveRealismAngleParam(
+      this.params,
+      "sunElevation",
+      BOID_REALISM_SUN_ELEVATION_DEFAULT_DEG,
+    );
+    const azimuth = THREE.MathUtils.degToRad(azimuthDeg);
+    const elevation = THREE.MathUtils.degToRad(elevationDeg);
+    const radius = Math.max(20, maxExtent * 3.2);
+    const sunDirX = Math.cos(elevation) * Math.cos(azimuth);
+    const sunDirY = Math.cos(elevation) * Math.sin(azimuth);
+    const sunDirZ = Math.sin(elevation);
+    this.realismSunDirection.set(sunDirX, sunDirY, sunDirZ).normalize();
+    this.realismSunLight.position.set(radius * sunDirX, radius * sunDirY, radius * sunDirZ);
+    this.realismSunLight.target.position.set(0, 0, 0);
+    this.realismSunLight.target.updateMatrixWorld();
+    const shadowFrustum = Math.max(40, maxExtent * 2.8);
+    const shadowCam = this.realismSunLight.shadow.camera;
+    shadowCam.left = -shadowFrustum;
+    shadowCam.right = shadowFrustum;
+    shadowCam.top = shadowFrustum;
+    shadowCam.bottom = -shadowFrustum;
+    shadowCam.near = 1;
+    shadowCam.far = Math.max(400, maxExtent * 10);
+    shadowCam.updateProjectionMatrix();
+
+    const skyRadius = Math.max(10, maxExtent * 6);
+    this.realismSkyDome.position.set(0, 0, 0);
+    this.realismSkyDome.scale.setScalar(skyRadius);
+    this.realismSkyDome.material.uniforms.uSunDir.value.copy(this.realismSunDirection);
+    this.realismShadowCatcher.position.set(0, 0, -halfZ + 0.02);
+    this.realismShadowCatcher.scale.set(maxExtent * 12, maxExtent * 12, 1);
   }
 
   removeLostBoids() {
@@ -487,6 +637,188 @@ export class BoidSimulation extends BaseSimulation {
 }
 
 // File-local helper functions.
+function createBoidRealismSkyMaterial({
+  skyColor,
+  groundColor,
+  horizonColor,
+  sunColor,
+  sunDirection,
+}) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uSkyColor: { value: skyColor.clone() },
+      uGroundColor: { value: groundColor.clone() },
+      uHorizonColor: { value: horizonColor.clone() },
+      uSunColor: { value: sunColor.clone() },
+      uSunDir: { value: sunDirection.clone() },
+    },
+    vertexShader: `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uSkyColor;
+      uniform vec3 uGroundColor;
+      uniform vec3 uHorizonColor;
+      uniform vec3 uSunColor;
+      uniform vec3 uSunDir;
+      varying vec3 vWorldPos;
+
+      float hash13(vec3 p) {
+        p = fract(p * 0.1031);
+        p += dot(p, p.yzx + 33.33);
+        return fract((p.x + p.y) * p.z);
+      }
+
+      void main() {
+        vec3 viewDir = normalize(vWorldPos - cameraPosition);
+        vec3 sunDir = normalize(uSunDir);
+        float upMix = clamp(viewDir.z * 0.5 + 0.5, 0.0, 1.0);
+        float rawSunAlt = clamp(sunDir.z, -1.0, 1.0);
+        float sunAlt = clamp(rawSunAlt, 0.0, 1.0);
+        float lowSun = 1.0 - sunAlt;
+        float dayFactor = smoothstep(0.06, 0.45, rawSunAlt);
+        float nightFactor = 1.0 - smoothstep(-0.28, -0.04, rawSunAlt);
+        float twilightFactor = clamp(1.0 - dayFactor - nightFactor, 0.0, 1.0);
+        float sunVisibility = step(0.0, rawSunAlt);
+        float sunFacing = max(dot(viewDir, sunDir), 0.0);
+        float antiSunFacing = max(dot(viewDir, -sunDir), 0.0);
+
+        // Multi-tone atmosphere palette (4-5 tones) for day and twilight.
+        vec3 dayZenith = mix(uSkyColor, vec3(0.28, 0.46, 0.82), 0.34);      // deep blue
+        vec3 dayMid = vec3(0.47, 0.66, 0.96);                                // middle blue
+        vec3 daySunside = vec3(0.93, 0.97, 1.00);                            // near-sun white-blue
+        vec3 dayHorizon = vec3(0.80, 0.89, 0.98);                            // bright pale horizon
+
+        vec3 twZenith = vec3(0.13, 0.12, 0.24);                              // dark purple-blue
+        vec3 twMid = vec3(0.24, 0.34, 0.58);                                 // middle twilight blue
+        vec3 twHorizonBlue = vec3(0.38, 0.52, 0.73);                         // cool band near horizon
+        vec3 twSunGlow = vec3(1.00, 0.60, 0.28);                             // orange-yellow
+        vec3 twSunCore = vec3(1.00, 0.44, 0.20);                             // red-orange core
+
+        vec3 nightZenith = vec3(0.015, 0.020, 0.045);
+        vec3 nightMid = vec3(0.028, 0.040, 0.080);
+        vec3 nightHorizon = vec3(0.050, 0.070, 0.115);
+
+        vec3 zenithColor = mix(twZenith, dayZenith, dayFactor);
+        vec3 midColor = mix(twMid, dayMid, dayFactor);
+        vec3 horizonBase = mix(twHorizonBlue, dayHorizon, dayFactor);
+        zenithColor = mix(zenithColor, nightZenith, nightFactor);
+        midColor = mix(midColor, nightMid, nightFactor);
+        horizonBase = mix(horizonBase, nightHorizon, nightFactor);
+
+        // Vertical gradient: zenith -> mid -> horizon.
+        float midBlend = smoothstep(0.40, 0.72, upMix);
+        vec3 verticalColor = mix(horizonBase, midColor, midBlend);
+        verticalColor = mix(verticalColor, zenithColor, smoothstep(0.72, 0.96, upMix));
+
+        // Sun-side whitening in day, warm glow in low-sun conditions.
+        float nearSun = pow(sunFacing, 2.2);
+        float nearSunCore = pow(sunFacing, 9.0);
+        vec3 sunSideDay = mix(verticalColor, daySunside, nearSun * 0.55 * dayFactor);
+        vec3 sunSideTwilight = mix(
+          verticalColor,
+          mix(twSunGlow, twSunCore, nearSunCore),
+          nearSun * (0.45 + 0.35 * lowSun)
+        );
+        vec3 skyColor = mix(sunSideTwilight, sunSideDay, dayFactor);
+
+        // Anti-solar twilight colors (Belt of Venus + Earth shadow band).
+        float beltBand = exp(-pow((upMix - 0.545) / 0.048, 2.0));
+        float earthShadowBand = exp(-pow((upMix - 0.455) / 0.040, 2.0));
+        float beltStrength = twilightFactor * pow(antiSunFacing, 1.7) * beltBand;
+        float earthShadowStrength = twilightFactor * pow(antiSunFacing, 1.35) * earthShadowBand;
+        vec3 beltColor = mix(vec3(0.72, 0.56, 0.76), vec3(0.96, 0.73, 0.79), smoothstep(-0.10, 0.08, rawSunAlt));
+        skyColor = mix(skyColor, beltColor, beltStrength * 0.55);
+        skyColor = mix(skyColor, vec3(0.10, 0.14, 0.24), earthShadowStrength * 0.62);
+
+        // Ground shading reacts to sun elevation + azimuth (directional realism).
+        vec2 sunPlanar = sunDir.xy;
+        vec2 viewPlanar = viewDir.xy;
+        float sunPlanarLen = max(length(sunPlanar), 1e-6);
+        float viewPlanarLen = length(viewPlanar);
+        float groundFacingRaw = max(dot(viewPlanar / max(viewPlanarLen, 1e-6), sunPlanar / sunPlanarLen), 0.0);
+        float planarStability = smoothstep(0.08, 0.22, viewPlanarLen);
+        float groundFacing = mix(0.5, groundFacingRaw, planarStability);
+        float groundSun = sunVisibility * (0.20 + 0.80 * sunAlt) * (0.35 + 0.65 * groundFacing);
+        float groundAmbient = mix(0.13, 0.40, dayFactor) + 0.10 * twilightFactor;
+        float groundShade = clamp(groundAmbient + groundSun, 0.05, 1.0);
+        vec3 groundLit = uGroundColor * groundShade;
+        vec3 groundWarm = mix(uGroundColor, vec3(0.86, 0.66, 0.38), 0.42 * (0.20 + 0.80 * lowSun));
+        groundLit = mix(groundLit, groundWarm, 0.35 * sunVisibility * groundFacing);
+
+        // Clear horizon split with a crisp horizon line.
+        float skyMix = smoothstep(0.498, 0.502, upMix);
+        vec3 skyGround = mix(groundLit, skyColor, skyMix);
+        float horizonBand = exp(-pow((upMix - 0.5) / 0.010, 2.0));
+        vec3 baseColor = mix(skyGround, horizonBase, horizonBand * (0.10 + 0.14 * lowSun));
+        float horizonLine = exp(-pow((upMix - 0.5) / 0.0028, 2.0));
+        vec3 horizonLineColor = mix(vec3(0.88, 0.86, 0.80), horizonBase, 0.55);
+        baseColor = mix(baseColor, horizonLineColor, horizonLine * 0.60);
+
+        // Small atmospheric veil only.
+        float aerialPerspective = pow(1.0 - upMix, 3.1);
+        baseColor = mix(baseColor, horizonBase, aerialPerspective * (0.010 + 0.030 * lowSun));
+
+        float sunDot = clamp(dot(viewDir, sunDir), -1.0, 1.0);
+        float sunHalfAngle = radians(0.53) * 0.5;
+        float sunSoftEdge = radians(0.08);
+        float sunCore = smoothstep(
+          cos(sunHalfAngle + sunSoftEdge),
+          cos(sunHalfAngle),
+          sunDot
+        );
+        float sunHalo = pow(max(sunDot, 0.0), 92.0);
+        float mieScatter = pow(max(sunDot, 0.0), 10.0);
+        float rayleighScatter = (1.0 + sunDot * sunDot) * 0.5;
+        float sunScatter = mix(rayleighScatter * 0.07, mieScatter * 0.30, 0.62 + 0.30 * lowSun)
+          * (0.12 + 0.88 * smoothstep(0.20, 1.0, upMix));
+
+        vec3 orthoA = normalize(abs(sunDir.z) < 0.999 ? cross(sunDir, vec3(0.0, 0.0, 1.0)) : vec3(1.0, 0.0, 0.0));
+        vec3 orthoB = normalize(cross(sunDir, orthoA));
+        float tx = dot(viewDir, orthoA);
+        float ty = dot(viewDir, orthoB);
+        float rayAngle = atan(ty, tx);
+        float angularFalloff = pow(max(sunDot, 0.0), 34.0);
+        float dayRayStrength = mix(0.05, 0.24, dayFactor);
+        float rays = pow(abs(cos(rayAngle * 8.0)), 26.0) * angularFalloff * dayRayStrength * sunVisibility;
+
+        vec3 lowSunWarm = vec3(1.00, 0.70, 0.42);
+        vec3 sunTint = mix(lowSunWarm, uSunColor, smoothstep(0.08, 0.65, sunAlt));
+        vec3 color = baseColor
+          + sunTint * (sunScatter + sunHalo * 0.72 + rays + sunCore * 3.0) * sunVisibility;
+
+        // Procedural random star field (night-weighted, upper sky only).
+        float starNight = nightFactor * smoothstep(0.50, 0.66, upMix);
+        if (starNight > 0.0001) {
+          // Use direction-space hashing to avoid atan seam artifacts in orthographic views.
+          vec3 dirSample = normalize(viewDir);
+          vec3 starGrid = vec3(220.0, 220.0, 220.0);
+          vec3 cell3 = floor((dirSample * 0.5 + 0.5) * starGrid);
+          vec3 local3 = fract((dirSample * 0.5 + 0.5) * starGrid) - 0.5;
+          float rnd = hash13(cell3);
+          float isStar = step(0.9925, rnd);
+          float shape = exp(-dot(local3, local3) * 360.0);
+          float twinkle = 0.78 + 0.22 * sin(rnd * 240.0 + (cell3.x + cell3.y + cell3.z) * 0.31);
+          float starLum = isStar * shape * twinkle;
+          float temp = hash13(cell3 + 19.31);
+          vec3 starColor = mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.95, 0.82), temp);
+          color += starColor * starLum * (0.65 * starNight);
+        }
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+    side: THREE.BackSide,
+    depthWrite: false,
+    toneMapped: false,
+  });
+}
+
 function buildBoidColormapConfig({
   params,
   simulation,
@@ -500,7 +832,7 @@ function buildBoidColormapConfig({
   const unit = String(colorModeOption?.unit || "");
 
   return {
-    visible: colorMode !== "solid",
+    visible: colorMode !== "solid" && colorMode !== "realism",
     value: colormap,
     options: continuousColormapOptions,
     setValue(value) {

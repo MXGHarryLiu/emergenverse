@@ -522,27 +522,50 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     const activeMoveCamera = perspectiveMode ? perspectiveCamera : orthographicCamera;
     moveDelta.set(0, 0, 0);
 
-    forwardMove.set(0, 0, -1).applyQuaternion(activeMoveCamera.quaternion).normalize();
-    rightMove.set(1, 0, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
-    upMove.set(0, 1, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
+    if (perspectiveMode) {
+      forwardMove.set(0, 0, -1).applyQuaternion(activeMoveCamera.quaternion).normalize();
+      rightMove.set(1, 0, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
+      upMove.set(0, 1, 0).applyQuaternion(activeMoveCamera.quaternion).normalize();
 
-    if (keyState.KeyW) {
-      moveDelta.add(forwardMove);
-    }
-    if (keyState.KeyS) {
-      moveDelta.sub(forwardMove);
-    }
-    if (keyState.KeyD) {
-      moveDelta.add(rightMove);
-    }
-    if (keyState.KeyA) {
-      moveDelta.sub(rightMove);
-    }
-    if (keyState.KeyE) {
-      moveDelta.add(upMove);
-    }
-    if (keyState.KeyQ) {
-      moveDelta.sub(upMove);
+      if (keyState.KeyW) {
+        moveDelta.add(forwardMove);
+      }
+      if (keyState.KeyS) {
+        moveDelta.sub(forwardMove);
+      }
+      if (keyState.KeyD) {
+        moveDelta.add(rightMove);
+      }
+      if (keyState.KeyA) {
+        moveDelta.sub(rightMove);
+      }
+      if (keyState.KeyE) {
+        moveDelta.add(upMove);
+      }
+      if (keyState.KeyQ) {
+        moveDelta.sub(upMove);
+      }
+    } else {
+      // Orthographic top view uses world axes for translation:
+      // A/D => X, W/S => Y. Q/E remains Z translation.
+      if (keyState.KeyW) {
+        moveDelta.y += 1;
+      }
+      if (keyState.KeyS) {
+        moveDelta.y -= 1;
+      }
+      if (keyState.KeyD) {
+        moveDelta.x += 1;
+      }
+      if (keyState.KeyA) {
+        moveDelta.x -= 1;
+      }
+      if (keyState.KeyE) {
+        moveDelta.z += 1;
+      }
+      if (keyState.KeyQ) {
+        moveDelta.z -= 1;
+      }
     }
 
     const speedFactor = keyState.ShiftLeft || keyState.ShiftRight ? 2.0 : 1.0;
@@ -556,7 +579,6 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
       if (!perspectiveMode) {
         // Keep orthographic camera locked to top-down view while translating.
-        orthographicCamera.up.set(0, 1, 0);
         controls.target.set(
           orthographicCamera.position.x,
           orthographicCamera.position.y,
@@ -567,6 +589,17 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     }
 
     if (!perspectiveMode) {
+      const rollInput = (keyState.BracketRight ? 1 : 0) - (keyState.BracketLeft ? 1 : 0);
+      if (rollInput !== 0) {
+        lookOffset.subVectors(controls.target, orthographicCamera.position);
+        if (lookOffset.lengthSq() < 0.000001) {
+          lookOffset.set(0, 0, -1);
+        }
+        forwardMove.copy(lookOffset).normalize();
+        rotationQuat.setFromAxisAngle(forwardMove, rollInput * getKeyboardRotationSpeedRad() * dt);
+        orthographicCamera.up.applyQuaternion(rotationQuat).normalize();
+        orthographicCamera.lookAt(controls.target);
+      }
       return;
     }
 

@@ -1,0 +1,424 @@
+{
+  "key": "wave",
+  "meta": {
+    "label": "Wave Field",
+    "group": "physical",
+    "thumbnail": "bi-water"
+  },
+  "intro": {
+    "summary": "Wind-driven surface waves over a dynamic water field",
+    "paragraphs": [
+      "This app models a wind-driven water surface as a sum of propagating wave components with deep-water dispersion.",
+      "Wind speed and direction shape the spectrum, while choppiness and damping control crest sharpness and energy roll-off."
+    ]
+  },
+  "model": {
+    "subtitle": "Spectral-style multi-component surface wave synthesis with wind-coupled parameters.",
+    "references": [
+      {
+        "label": "dli/waves (WebGL ocean)",
+        "url": "https://github.com/dli/waves"
+      },
+      {
+        "label": "Tessendorf: Simulating Ocean Water",
+        "url": "https://people.computing.clemson.edu/~jtessen/reports/papers_files/coursenotes2002.pdf"
+      }
+    ],
+    "items": [
+      {
+        "title": "Surface Height",
+        "equation": "$$\\eta(\\mathbf{x},t)=\\sum_{i=1}^{N}A_i\\sin(\\mathbf{k}_i\\cdot\\mathbf{x}+\\omega_i t+\\phi_i)$$",
+        "explanation": "The water surface is synthesized from multiple traveling wave components with different wavelengths, directions, and phases.",
+        "parameters": [
+          "<strong>Component Count</strong> (\\(N\\)) sets spectral richness.",
+          "<strong>Wave Amplitude Scale</strong> (\\(A_0\\)) scales vertical displacement energy."
+        ]
+      },
+      {
+        "title": "Dispersion",
+        "equation": "$$\\omega_i=\\sqrt{g\\,k_i},\\qquad k_i=\\frac{2\\pi}{\\lambda_i}$$",
+        "explanation": "Each component follows deep-water dispersion so shorter wavelengths propagate with different phase speed than longer waves.",
+        "parameters": [
+          "<strong>Base Wavelength</strong> (\\(\\lambda_0\\)) anchors the component wavelength band."
+        ]
+      },
+      {
+        "title": "Wind-Coupled Directional Spectrum",
+        "equation": "$$A_i=A_0\\,f(U,\\theta_w,\\Delta\\theta,\\lambda_i)\\,e^{-\\zeta k_i},\\quad \\mathbf{\\hat k}_i\\sim\\mathcal{D}(\\theta_w,\\Delta\\theta)$$",
+        "explanation": "Wind speed and direction bias component orientation and energy. Direction spread broadens or narrows the directional distribution, while damping attenuates higher-wave-number components.",
+        "parameters": [
+          "<strong>Wind Speed</strong> (\\(U\\)) increases energy input.",
+          "<strong>Wind Direction</strong> (\\(\\theta_w\\)) sets dominant propagation direction.",
+          "<strong>Direction Spread</strong> (\\(\\Delta\\theta\\)) controls angular spread around wind direction.",
+          "<strong>Damping</strong> (\\(\\zeta\\)) controls high-frequency energy attenuation."
+        ]
+      },
+      {
+        "title": "Choppy Horizontal Displacement",
+        "equation": "$$\\mathbf{x}'=\\mathbf{x}+\\chi\\sum_{i=1}^{N}A_i\\cos(\\mathbf{k}_i\\cdot\\mathbf{x}+\\omega_i t+\\phi_i)\\,\\hat{\\mathbf{k}}_i$$",
+        "explanation": "A choppiness factor adds horizontal crest skew to create sharper, more realistic wave profiles.",
+        "parameters": [
+          "<strong>Choppiness</strong> (\\(\\chi\\)) controls crest sharpening.",
+          "<strong>Damping</strong> attenuates high-frequency contribution."
+        ]
+      }
+    ]
+  },
+  "unit": {
+    "length": {
+      "label": "m",
+      "description": "meter",
+      "toSI": 1
+    },
+    "mass": {
+      "label": "a.u.",
+      "description": "arbitrary unit",
+      "toSI": 1
+    },
+    "time": {
+      "label": "s",
+      "description": "second",
+      "toSI": 1
+    }
+  },
+  "stats": {
+    "params": [
+      {
+        "type": "stat",
+        "key": "effectiveSpeed",
+        "label": "Effective Sim Speed",
+        "initial": "--"
+      },
+      {
+        "type": "chart",
+        "key": "grid",
+        "label": "Grid Nodes",
+        "liveInitial": "0"
+      },
+      {
+        "type": "chart",
+        "key": "height",
+        "label": "Height RMS",
+        "liveInitial": "0.00 m"
+      },
+      {
+        "type": "chart",
+        "key": "speed",
+        "label": "Surface Speed",
+        "liveInitial": "0.00 m/s"
+      }
+    ]
+  },
+  "simulation": {
+    "params": [
+      {
+        "key": "timeStep",
+        "label": "Time Step (\\(\\Delta t\\))",
+        "default": 0.0333,
+        "unit": "s",
+        "group": "dynamic",
+        "uiMin": 0.002,
+        "uiMax": 0.12,
+        "control": {
+          "type": "slider",
+          "icon": "bi-stopwatch",
+          "step": 0.001,
+          "simulationAction": "none"
+        }
+      },
+      {
+        "key": "gridResolution",
+        "label": "Grid Resolution",
+        "default": 224,
+        "group": "initial",
+        "uiMin": 32,
+        "uiMax": 320,
+        "control": {
+          "type": "slider",
+          "icon": "bi-grid-3x3-gap-fill",
+          "step": 8,
+          "simulationAction": "reset"
+        }
+      },
+      {
+        "key": "componentCount",
+        "label": "Component Count (\\(N\\))",
+        "default": 24,
+        "group": "initial",
+        "uiMin": 4,
+        "uiMax": 32,
+        "control": {
+          "type": "slider",
+          "icon": "bi-diagram-3-fill",
+          "step": 1,
+          "simulationAction": "reset"
+        }
+      },
+      {
+        "key": "windSpeed",
+        "label": "Wind Speed (\\(U\\))",
+        "default": 12.0,
+        "unit": "m/s",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 35,
+        "control": {
+          "type": "slider",
+          "icon": "bi-wind",
+          "step": 0.5
+        }
+      },
+      {
+        "key": "windDirection",
+        "label": "Wind Direction (\\(\\theta_w\\))",
+        "default": 35,
+        "unit": "deg",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 360,
+        "control": {
+          "type": "slider",
+          "icon": "bi-compass",
+          "step": 1
+        }
+      },
+      {
+        "key": "waveAmplitude",
+        "label": "Wave Amplitude Scale (\\(A_0\\))",
+        "default": 1.8,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 0.1,
+        "uiMax": 8,
+        "control": {
+          "type": "slider",
+          "icon": "bi-arrows-vertical",
+          "step": 0.05
+        }
+      },
+      {
+        "key": "baseWavelength",
+        "label": "Base Wavelength (\\(\\lambda_0\\))",
+        "default": 22.0,
+        "unit": "m",
+        "group": "dynamic",
+        "uiMin": 2,
+        "uiMax": 120,
+        "control": {
+          "type": "slider",
+          "icon": "bi-rulers",
+          "step": 0.5
+        }
+      },
+      {
+        "key": "directionSpread",
+        "label": "Direction Spread (\\(\\Delta\\theta\\))",
+        "default": 42,
+        "unit": "deg",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 180,
+        "control": {
+          "type": "slider",
+          "icon": "bi-bezier2",
+          "step": 1
+        }
+      },
+      {
+        "key": "choppiness",
+        "label": "Choppiness (\\(\\chi\\))",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 2.4,
+        "control": {
+          "type": "slider",
+          "icon": "bi-lightning-fill",
+          "step": 0.02
+        }
+      },
+      {
+        "key": "damping",
+        "label": "Damping (\\(\\zeta\\))",
+        "default": 0.12,
+        "unit": "1/s",
+        "group": "dynamic",
+        "uiMin": 0,
+        "uiMax": 1,
+        "control": {
+          "type": "slider",
+          "icon": "bi-slash-circle",
+          "step": 0.01
+        }
+      }
+    ]
+  },
+  "visual": {
+    "gpu": true,
+    "colormap": [
+      {
+        "key": "turbo",
+        "value": [
+          "#30123b",
+          "#4145ab",
+          "#4685f4",
+          "#39c6c5",
+          "#77df6e",
+          "#b8de29",
+          "#f9ba38",
+          "#ee6a24",
+          "#c91f16"
+        ]
+      },
+      {
+        "key": "viridis",
+        "value": [
+          "#440154",
+          "#3b528b",
+          "#21918c",
+          "#5ec962",
+          "#fde725"
+        ]
+      },
+      {
+        "key": "magma",
+        "value": [
+          "#000004",
+          "#3b0f70",
+          "#8c2981",
+          "#de4968",
+          "#fe9f6d",
+          "#fcfdbf"
+        ]
+      },
+      {
+        "key": "cividis",
+        "value": [
+          "#00204c",
+          "#424086",
+          "#6c6b8e",
+          "#9aa47a",
+          "#d5d66b",
+          "#ffffe0"
+        ]
+      }
+    ],
+    "params": [
+      {
+        "key": "colorMode",
+        "default": "height",
+        "options": [
+          {
+            "key": "solid",
+            "label": "Single color",
+            "unit": "",
+            "type": "single"
+          },
+          {
+            "key": "height",
+            "label": "Height",
+            "unit": "m",
+            "type": "continuous"
+          },
+          {
+            "key": "speed",
+            "label": "Surface Speed",
+            "unit": "m/s",
+            "type": "continuous"
+          },
+          {
+            "key": "direction",
+            "label": "Direction",
+            "unit": "deg",
+            "type": "continuous"
+          }
+        ]
+      },
+      {
+        "key": "colormap",
+        "default": "turbo"
+      },
+      {
+        "key": "colormapInverted",
+        "default": false
+      }
+    ],
+    "color": [
+      {
+        "key": "water",
+        "default": "#4da6ff"
+      }
+    ]
+  },
+  "camera": {
+    "params": [
+      {
+        "key": "projection",
+        "default": "orthographic",
+        "unit": ""
+      },
+      {
+        "key": "locked",
+        "default": false,
+        "unit": ""
+      },
+      {
+        "key": "moveSpeed",
+        "default": 160,
+        "unit": "m/s",
+        "uiMin": 1,
+        "uiMax": 100000,
+        "step": 1
+      },
+      {
+        "key": "rotationSpeed",
+        "default": 84,
+        "unit": "deg/s",
+        "uiMin": 1,
+        "uiMax": 720,
+        "step": 1
+      }
+    ]
+  },
+  "world": {
+    "boundary": {
+      "x": { "default": "cyclic" },
+      "y": { "default": "cyclic" },
+      "z": { "default": "cyclic" }
+    },
+    "params": [
+      {
+        "key": "x",
+        "default": 220,
+        "unit": "m",
+        "uiMin": 60,
+        "uiMax": 600,
+        "step": 2
+      },
+      {
+        "key": "y",
+        "default": 220,
+        "unit": "m",
+        "uiMin": 20,
+        "uiMax": 260,
+        "step": 2
+      },
+      {
+        "key": "z",
+        "default": 80,
+        "unit": "m",
+        "uiMin": 60,
+        "uiMax": 600,
+        "step": 2
+      },
+      {
+        "key": "gridSize",
+        "default": 10,
+        "unit": "m",
+        "uiMin": 2,
+        "uiMax": 80,
+        "step": 1
+      }
+    ]
+  }
+}

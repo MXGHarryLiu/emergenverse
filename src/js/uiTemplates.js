@@ -567,7 +567,10 @@ function createSliderRow(templates, appletId, slider, options = {}) {
   label.setAttribute("for", sliderInputId);
 
   const labelName = label.querySelector(".label-name");
-  labelName.innerHTML = `<i class="${slider.icon}" aria-hidden="true"></i><span data-slider-label-text></span>`;
+  const iconClass = String(slider.icon || "").trim();
+  labelName.innerHTML = iconClass
+    ? `<i class="${iconClass}" aria-hidden="true"></i><span data-slider-label-text></span>`
+    : `<span data-slider-label-text></span>`;
   const labelTextNode = labelName.querySelector("[data-slider-label-text]");
   if (labelTextNode) {
     labelTextNode.textContent = slider.label;
@@ -752,6 +755,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     : [];
   const { sliders: visualSliders, switches: visualSwitches } = getSectionInputControls(appletConfig.visual);
   const targetFrameRateSlider = visualSliders.find((entry) => String(entry?.key || entry?.paramKey || "").trim() === "targetFrameRate");
+  const realismSliders = getSectionInputControls(appletConfig.visual?.realism).sliders || [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const solidColorParam = visualParams.find((entry) => entry?.key === "solidColor");
   const controlIds = deriveVisualControlIds(appletId);
@@ -810,6 +814,17 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   const stateColorsHost = document.createElement("div");
   stateColorsHost.setAttribute("data-shared-state-colors-host", appletId);
   body.appendChild(stateColorsHost);
+
+  realismSliders.forEach((slider, index) => {
+    const row = createSliderRow(templates, appletId, {
+      ...slider,
+      icon: "",
+      label: String(slider.label || ""),
+    });
+    row.classList.add("is-hidden");
+    row.setAttribute("data-realism-row", appletId);
+    body.appendChild(row);
+  });
 
   const visualSizeHost = document.createElement("div");
   visualSizeHost.setAttribute("data-shared-visual-size-host", appletId);

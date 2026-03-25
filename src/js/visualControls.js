@@ -62,6 +62,7 @@ export function createVisualControls({
     }
   }
 
+
   function mountColormapPanel(appletId) {
     const panel = dom.colormapPanel.panel;
     const host = dom.colormapPanel.hosts[appletId];
@@ -88,6 +89,7 @@ export function createVisualControls({
     }
     host.appendChild(panel);
   }
+
 
   function rebuildColormapOptions(options, selectedValue) {
     const select = dom.colormapPanel.select;
@@ -314,6 +316,7 @@ export function createVisualControls({
       .filter(Boolean);
   }
 
+
   function syncVisualSizePanel(appletId) {
     const panel = dom.visualSizePanel.panel;
     const list = dom.visualSizePanel.list;
@@ -460,6 +463,7 @@ export function createVisualControls({
       list.appendChild(row);
     });
   }
+
 
   function getColormapConfig(appletId) {
     const visualAdapter = APPLET_VISUALS[appletId];
@@ -672,6 +676,8 @@ export function createVisualControls({
     const config = getColormapConfig(activeApplet);
     const colorModeOption = getColorModeOption(activeApplet);
     const colorModeType = String(colorModeOption?.type || "continuous").toLowerCase();
+    const realismVisible = String(colorModeOption?.key || "").trim() === "realism";
+    syncRealismRowVisibility(activeApplet, realismVisible);
     if (!config) {
       hideColormapPanel();
       hideStateColorsPanel();
@@ -682,6 +688,13 @@ export function createVisualControls({
     if (colorModeType === "states") {
       hideColormapPanel();
       syncStateColorsPanel(activeApplet, colorModeOption);
+      syncVisualSizePanel(activeApplet);
+      return;
+    }
+
+    if (colorModeType === "fixed") {
+      hideColormapPanel();
+      hideStateColorsPanel();
       syncVisualSizePanel(activeApplet);
       return;
     }
@@ -736,6 +749,13 @@ export function createVisualControls({
       "is-hidden",
       appletParams.colorMode !== "solid" || hasSolidEntries,
     );
+  }
+
+  function syncRealismRowVisibility(appletId, visible) {
+    const rows = document.querySelectorAll(`[data-realism-row="${appletId}"]`);
+    rows.forEach((row) => {
+      row.classList.toggle("is-hidden", !visible);
+    });
   }
 
   function bindColorModeControls() {
@@ -846,6 +866,11 @@ export function createVisualControls({
         );
       }
       syncSingleColorVisibility(appletId);
+      const colorModeOption = getColorModeOption(appletId);
+      syncRealismRowVisibility(
+        appletId,
+        String(colorModeOption?.key || "").trim() === "realism",
+      );
     });
 
     syncColormapPanel();

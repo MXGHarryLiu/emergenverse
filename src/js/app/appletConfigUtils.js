@@ -864,6 +864,7 @@ export function validateAppletConfig(config) {
   validateKeyedParams(mergedConfig?.interaction?.params, "interaction.params");
   validateKeyedParams(mergedConfig?.stats?.params, "stats.params");
   validateKeyedParams(normalizedVisual?.params, "visual.params");
+  validateKeyedParams(normalizedVisual?.realism?.params, "visual.realism.params");
   validateKeyedParams(normalizedVisual?.color, "visual.color");
   validateKeyedParams(normalizedVisual?.size, "visual.size");
   if (Array.isArray(normalizedVisual?.colormap)) {

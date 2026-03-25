@@ -6,6 +6,7 @@ import * as fireflyApplet from "./firefly.js";
 import * as galaxyApplet from "./galaxy.js";
 import * as duneApplet from "./dune.js";
 import * as spaceApplet from "./space.js";
+import * as waveApplet from "./wave.js";
 
 // New applet registration guide:
 // 1) Import the applet module above (e.g., `import * as fooApplet from "./foo.js";`).
@@ -21,6 +22,7 @@ const APPLET_MODULES = [
   galaxyApplet,
   duneApplet,
   spaceApplet,
+  waveApplet,
 ];
 
 function deriveSimulationActionButtonIds(appletId, simulationConfig = {}) {
@@ -135,10 +137,12 @@ function buildAppletDefinition(id, module, SimulationClass) {
   const simulationParamDefaults = collectSectionParamDefaults(config?.simulation);
   const interactionParamDefaults = collectSectionParamDefaults(config?.interaction);
   const visualParamDefaults = collectSectionParamDefaults(config?.visual);
+  const realismVisualParamDefaults = collectSectionParamDefaults(config?.visual?.realism);
   const defaultParams = {
     ...simulationParamDefaults,
     ...interactionParamDefaults,
     ...visualParamDefaults,
+    ...realismVisualParamDefaults,
   };
   const runtime = resolveRuntimeHooks(module, id, SimulationClass);
   const hasClassVisualHook = typeof SimulationClass?.getColormapConfig === "function";
