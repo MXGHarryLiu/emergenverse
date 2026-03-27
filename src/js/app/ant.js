@@ -114,6 +114,7 @@ export class AntSimulation extends BaseSimulation {
       fog: false,
       toneMapped: false,
     });
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.nestMarkerGeometry = new THREE.CircleGeometry(1, 28);
     this.nestMarkerMaterial = new THREE.MeshBasicMaterial({
       color: 0x5b9dff,
@@ -198,6 +199,7 @@ export class AntSimulation extends BaseSimulation {
   }
 
   reset() {
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.ants.length = 0;
     this.departureCredits = 0;
     this.stats.trips = 0;
@@ -216,7 +218,7 @@ export class AntSimulation extends BaseSimulation {
     for (let i = 0; i < this.params.count; i += 1) {
       this.ants.push({
         position: this.nest.clone(),
-        heading: Math.random() * Math.PI * 2,
+        heading: this.randAngle(),
         carrying: false,
         lost: false,
         waitingAtNest: true,
@@ -380,7 +382,7 @@ export class AntSimulation extends BaseSimulation {
         if (this.departureCredits >= 1) {
           this.departureCredits -= 1;
           ant.waitingAtNest = false;
-          ant.heading = Math.random() * Math.PI * 2;
+          ant.heading = this.randAngle();
         } else {
           continue;
         }
@@ -407,7 +409,7 @@ export class AntSimulation extends BaseSimulation {
         const desiredHeading = Math.atan2(target.y - ant.position.y, target.x - ant.position.x);
         headingError = shortestAngleDelta(desiredHeading - ant.heading);
       }
-      const stochastic = (Math.random() * 2 - 1) * this.params.noiseStrength;
+      const stochastic = this.randFloatSpread(2) * this.params.noiseStrength;
 
       if (ant.carrying) {
         // Returning ants do not "see" nest directly.
@@ -697,8 +699,8 @@ export class AntSimulation extends BaseSimulation {
     const minSafeRadius = nestRadius + pickupRadius + Math.max(0.02, worldMinAxis * 0.01);
     const minRadius = Math.max(minAxis * 0.12, 0.08, minSafeRadius);
     const maxRadius = Math.max(minRadius + 0.02, minAxis * 0.5);
-    const angle = Math.random() * Math.PI * 2;
-    const radius = THREE.MathUtils.randFloat(minRadius, maxRadius);
+    const angle = this.randAngle();
+    const radius = this.randFloat(minRadius, maxRadius);
     const edgeMargin = Math.min(0.2, minAxis * 0.2);
     const x = THREE.MathUtils.clamp(Math.cos(angle) * radius, -halfX + edgeMargin, halfX - edgeMargin);
     const y = THREE.MathUtils.clamp(Math.sin(angle) * radius, -halfY + edgeMargin, halfY - edgeMargin);
@@ -864,6 +866,23 @@ export class AntSimulation extends BaseSimulation {
     const numeric = Number(value);
     const baseMeters = Number.isFinite(numeric) ? numeric : Number(fallback) || 0;
     return baseMeters * this.getWorldUnitsPerMeter();
+  }
+
+  randFloat(min, max) {
+    const safeMin = Number.isFinite(min) ? min : 0;
+    const safeMax = Number.isFinite(max) ? max : safeMin;
+    const low = Math.min(safeMin, safeMax);
+    const high = Math.max(safeMin, safeMax);
+    return low + (high - low) * this.random();
+  }
+
+  randFloatSpread(range) {
+    const safeRange = Number.isFinite(range) ? range : 0;
+    return (this.random() - 0.5) * safeRange;
+  }
+
+  randAngle() {
+    return this.random() * Math.PI * 2;
   }
 
   applyBoundaryConditions(ant) {
@@ -1041,6 +1060,42 @@ function hasAnyLostBoundaryAxis(params) {
 
 function shortestAngleDelta(value) {
   return Math.atan2(Math.sin(value), Math.cos(value));
+}
+
+function clampAntSeed(seedValue) {
+  const { min, max } = getRandomSeedBounds(ANT_APPLET_CONFIG);
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, min, max);
+}
+
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampAntSeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRandomSeedBounds(appletConfig) {
+  const simulationParams = Array.isArray(appletConfig?.simulation?.params) ? appletConfig.simulation.params : [];
+  const randomSeedParam = simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed");
+  const min = Number(randomSeedParam?.uiMin);
+  const max = Number(randomSeedParam?.uiMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return {
+      min: Math.min(Math.round(min), Math.round(max)),
+      max: Math.max(Math.round(min), Math.round(max)),
+    };
+  }
+  const fallback = Math.round(Number(randomSeedParam?.default) || 0);
+  return { min: fallback, max: fallback };
 }
 
 function wrapAngle(value) {

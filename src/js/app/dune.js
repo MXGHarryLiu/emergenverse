@@ -98,6 +98,7 @@ export class DuneSimulation extends BaseSimulation {
     this.transportHeights = new Float32Array(0);
     this.nextHeights = new Float32Array(0);
     this.tempObject = new THREE.Object3D();
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
   }
 
   init() {
@@ -115,6 +116,7 @@ export class DuneSimulation extends BaseSimulation {
   }
 
   reset() {
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.rebuildField();
     this.ensureMesh();
     this.syncInstances();
@@ -222,7 +224,7 @@ export class DuneSimulation extends BaseSimulation {
 
     for (let y = 0; y < this.gridY; y += 1) {
       for (let x = 0; x < this.gridX; x += 1) {
-        const fluctuation = THREE.MathUtils.randFloatSpread(2);
+        const fluctuation = this.randFloatSpread(2);
         this.heights[y * this.gridX + x] = Math.max(
           0.05,
           baseHeight + noiseAmplitude * fluctuation,
@@ -378,6 +380,47 @@ export class DuneSimulation extends BaseSimulation {
       max: Number.isFinite(maxMass) ? maxMass : fallbackMass,
     };
   }
+
+  randFloatSpread(range) {
+    const safeRange = Number.isFinite(range) ? range : 0;
+    return (this.random() - 0.5) * safeRange;
+  }
+}
+
+function clampDuneSeed(seedValue) {
+  const { min, max } = getRandomSeedBounds(DUNE_APPLET_CONFIG);
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, min, max);
+}
+
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampDuneSeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRandomSeedBounds(appletConfig) {
+  const simulationParams = Array.isArray(appletConfig?.simulation?.params) ? appletConfig.simulation.params : [];
+  const randomSeedParam = simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed");
+  const min = Number(randomSeedParam?.uiMin);
+  const max = Number(randomSeedParam?.uiMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return {
+      min: Math.min(Math.round(min), Math.round(max)),
+      max: Math.max(Math.round(min), Math.round(max)),
+    };
+  }
+  const fallback = Math.round(Number(randomSeedParam?.default) || 0);
+  return { min: fallback, max: fallback };
 }
 
 // File-local helper functions.

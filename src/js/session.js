@@ -17,7 +17,7 @@ export function createAppletSession({
 
   const worldStateByApplet = new Map(Object.entries(initialWorldStateByApplet || {}));
   let activeApplet = normalizeId(defaultAppletId);
-  let loadedAppletIds = [activeApplet].filter(Boolean);
+  let loadedAppletIds = [];
   let loadedAppletIdSet = new Set(loadedAppletIds);
 
   function isValidAppletId(appletId) {
@@ -160,4 +160,3 @@ export function createAppletSession({
     isValidAppletId,
   };
 }
-

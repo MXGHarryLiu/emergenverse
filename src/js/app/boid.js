@@ -120,6 +120,7 @@ export class BoidSimulation extends BaseSimulation {
     this.instanceColor = new THREE.Color();
     this.colormapLerpA = new THREE.Color();
     this.colormapLerpB = new THREE.Color();
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.solidColorValue = new THREE.Color(getBoidSolidColor(this.params));
     this.defaultSpecular = new THREE.Color(0x222222);
     this.realismSpecular = new THREE.Color(0x2f2f2f);
@@ -370,7 +371,7 @@ export class BoidSimulation extends BaseSimulation {
 
       boid.velocity.addScaledVector(boid.acceleration, dt);
       const minSpeed = Math.min(this.params.minSpeed, this.params.maxSpeed * 0.85);
-      enforceSpeedBounds(boid.velocity, minSpeed, this.params.maxSpeed);
+      enforceSpeedBounds(boid.velocity, minSpeed, this.params.maxSpeed, () => this.randomDirection());
       boid.position.addScaledVector(boid.velocity, dt);
 
       const activeBoid = this.world.applyBoundaryConditions(boid);
@@ -392,21 +393,22 @@ export class BoidSimulation extends BaseSimulation {
 
   spawn(count) {
     this.boids.length = 0;
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
 
     const spawnRangeX = this.params.worldSizeX * 0.9;
     const spawnRangeY = this.params.worldSizeY * 0.9;
     const spawnRangeZ = this.params.worldSizeZ * 0.9;
 
     for (let i = 0; i < count; i += 1) {
-      const startVelocity = randomDirection().multiplyScalar(
-        THREE.MathUtils.randFloat(this.params.maxSpeed * 0.45, this.params.maxSpeed * 0.95),
+      const startVelocity = this.randomDirection().multiplyScalar(
+        this.randFloat(this.params.maxSpeed * 0.45, this.params.maxSpeed * 0.95),
       );
 
       this.boids.push({
         position: new THREE.Vector3(
-          THREE.MathUtils.randFloatSpread(spawnRangeX),
-          THREE.MathUtils.randFloatSpread(spawnRangeY),
-          THREE.MathUtils.randFloatSpread(spawnRangeZ),
+          this.randFloatSpread(spawnRangeX),
+          this.randFloatSpread(spawnRangeY),
+          this.randFloatSpread(spawnRangeZ),
         ),
         velocity: startVelocity,
         acceleration: new THREE.Vector3(),
@@ -418,6 +420,33 @@ export class BoidSimulation extends BaseSimulation {
     this.rebuildMesh();
     this.syncInstances();
     this.emitCurrentStats();
+  }
+
+  randFloat(min, max) {
+    const safeMin = Number.isFinite(min) ? min : 0;
+    const safeMax = Number.isFinite(max) ? max : safeMin;
+    const low = Math.min(safeMin, safeMax);
+    const high = Math.max(safeMin, safeMax);
+    return low + (high - low) * this.random();
+  }
+
+  randFloatSpread(range) {
+    const safeRange = Number.isFinite(range) ? range : 0;
+    return (this.random() - 0.5) * safeRange;
+  }
+
+  randomDirection() {
+    const direction = new THREE.Vector3(
+      this.randFloatSpread(2),
+      this.randFloatSpread(2),
+      this.randFloatSpread(2),
+    );
+
+    if (direction.lengthSq() < 0.000001) {
+      direction.set(0, 0, 1);
+    }
+
+    return direction.normalize();
   }
 
   rebuildMesh() {
@@ -792,22 +821,57 @@ function createBoidRealismSkyMaterial({
         vec3 color = baseColor
           + sunTint * (sunScatter + sunHalo * 0.72 + rays + sunCore * 3.0) * sunVisibility;
 
-        // Procedural random star field (night-weighted, upper sky only).
-        float starNight = nightFactor * smoothstep(0.50, 0.66, upMix);
+        // Procedural star field with approximate magnitude distribution:
+        // many dim stars + fewer bright stars, totaling roughly O(10^3) visible points at night.
+        float starNight = nightFactor * smoothstep(0.42, 0.62, upMix);
         if (starNight > 0.0001) {
-          // Use direction-space hashing to avoid atan seam artifacts in orthographic views.
           vec3 dirSample = normalize(viewDir);
-          vec3 starGrid = vec3(220.0, 220.0, 220.0);
-          vec3 cell3 = floor((dirSample * 0.5 + 0.5) * starGrid);
-          vec3 local3 = fract((dirSample * 0.5 + 0.5) * starGrid) - 0.5;
-          float rnd = hash13(cell3);
-          float isStar = step(0.9925, rnd);
-          float shape = exp(-dot(local3, local3) * 360.0);
-          float twinkle = 0.78 + 0.22 * sin(rnd * 240.0 + (cell3.x + cell3.y + cell3.z) * 0.31);
-          float starLum = isStar * shape * twinkle;
-          float temp = hash13(cell3 + 19.31);
-          vec3 starColor = mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.95, 0.82), temp);
-          color += starColor * starLum * (0.65 * starNight);
+          vec3 uvw = dirSample * 0.5 + 0.5;
+          vec3 starAccum = vec3(0.0);
+
+          // Layer 1: dense field, mostly dim stars.
+          vec3 grid1 = vec3(340.0, 340.0, 340.0);
+          vec3 cell1 = floor(uvw * grid1 + vec3(7.0, 13.0, 3.0));
+          vec3 local1 = fract(uvw * grid1 + vec3(7.0, 13.0, 3.0)) - 0.5;
+          float rnd1 = hash13(cell1 + 11.3);
+          float isStar1 = step(0.985, rnd1);
+          float mag1 = pow(1.0 - hash13(cell1 + 29.7), 5.4);
+          float shape1 = exp(-dot(local1, local1) * 220.0);
+          float twinkle1 = 0.76 + 0.24 * hash13(cell1 + 47.1);
+          float lum1 = isStar1 * shape1 * twinkle1 * (0.05 + 0.95 * mag1);
+          float temp1 = hash13(cell1 + 19.31);
+          vec3 color1 = mix(vec3(0.74, 0.82, 1.0), vec3(1.0, 0.95, 0.83), temp1);
+          starAccum += color1 * lum1 * 0.90;
+
+          // Layer 2: medium-bright stars.
+          vec3 grid2 = vec3(520.0, 520.0, 520.0);
+          vec3 cell2 = floor(uvw * grid2 + vec3(23.0, 5.0, 17.0));
+          vec3 local2 = fract(uvw * grid2 + vec3(23.0, 5.0, 17.0)) - 0.5;
+          float rnd2 = hash13(cell2 + 3.7);
+          float isStar2 = step(0.9935, rnd2);
+          float mag2 = pow(1.0 - hash13(cell2 + 61.2), 3.8);
+          float shape2 = exp(-dot(local2, local2) * 260.0);
+          float twinkle2 = 0.80 + 0.20 * hash13(cell2 + 91.4);
+          float lum2 = isStar2 * shape2 * twinkle2 * (0.10 + 0.90 * mag2);
+          float temp2 = hash13(cell2 + 44.6);
+          vec3 color2 = mix(vec3(0.78, 0.86, 1.0), vec3(1.0, 0.93, 0.80), temp2);
+          starAccum += color2 * lum2 * 1.15;
+
+          // Layer 3: sparse bright stars.
+          vec3 grid3 = vec3(760.0, 760.0, 760.0);
+          vec3 cell3 = floor(uvw * grid3 + vec3(31.0, 37.0, 41.0));
+          vec3 local3 = fract(uvw * grid3 + vec3(31.0, 37.0, 41.0)) - 0.5;
+          float rnd3 = hash13(cell3 + 72.9);
+          float isStar3 = step(0.9975, rnd3);
+          float mag3 = pow(1.0 - hash13(cell3 + 12.4), 2.2);
+          float shape3 = exp(-dot(local3, local3) * 300.0);
+          float twinkle3 = 0.82 + 0.18 * hash13(cell3 + 108.3);
+          float lum3 = isStar3 * shape3 * twinkle3 * (0.18 + 0.82 * mag3);
+          float temp3 = hash13(cell3 + 55.0);
+          vec3 color3 = mix(vec3(0.80, 0.88, 1.0), vec3(1.0, 0.92, 0.76), temp3);
+          starAccum += color3 * lum3 * 1.55;
+
+          color += starAccum * (0.95 * starNight);
         }
 
         gl_FragColor = vec4(color, 1.0);
@@ -974,13 +1038,16 @@ function limitVector(vector, maxLength) {
   return vector;
 }
 
-function enforceSpeedBounds(vector, minSpeed, maxSpeed) {
+function enforceSpeedBounds(vector, minSpeed, maxSpeed, randomDirectionFn = null) {
   const clampedMin = Math.max(0, minSpeed);
   const clampedMax = Math.max(clampedMin, maxSpeed);
   const speed = vector.length();
 
   if (speed < 0.000001) {
-    vector.copy(randomDirection()).multiplyScalar(Math.max(clampedMin, 0.0001));
+    const nextDirection = typeof randomDirectionFn === "function"
+      ? randomDirectionFn()
+      : new THREE.Vector3(0, 0, 1);
+    vector.copy(nextDirection).multiplyScalar(Math.max(clampedMin, 0.0001));
     return vector;
   }
 
@@ -989,16 +1056,38 @@ function enforceSpeedBounds(vector, minSpeed, maxSpeed) {
   return vector;
 }
 
-function randomDirection() {
-  const direction = new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-  );
-
-  if (direction.lengthSq() < 0.000001) {
-    direction.set(0, 0, 1);
+function clampBoidSeed(seedValue) {
+  const { min, max } = getRandomSeedBounds(BOID_APPLET_CONFIG);
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return min;
   }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, min, max);
+}
 
-  return direction.normalize();
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampBoidSeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRandomSeedBounds(appletConfig) {
+  const simulationParams = Array.isArray(appletConfig?.simulation?.params) ? appletConfig.simulation.params : [];
+  const randomSeedParam = simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed");
+  const min = Number(randomSeedParam?.uiMin);
+  const max = Number(randomSeedParam?.uiMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return {
+      min: Math.min(Math.round(min), Math.round(max)),
+      max: Math.max(Math.round(min), Math.round(max)),
+    };
+  }
+  const fallback = Math.round(Number(randomSeedParam?.default) || 0);
+  return { min: fallback, max: fallback };
 }

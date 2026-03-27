@@ -91,6 +91,7 @@ export class FireflySimulation extends BaseSimulation {
     this.phaseStepBuffer = [];
     this.blinkRateSmoothed = 0;
     this.steer = new THREE.Vector3();
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
   }
 
   init() {
@@ -106,6 +107,7 @@ export class FireflySimulation extends BaseSimulation {
   onTheme() {}
 
   reset() {
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.fireflies.length = 0;
     this.blinkRateSmoothed = 0;
 
@@ -196,9 +198,9 @@ export class FireflySimulation extends BaseSimulation {
 
       // Random walk in 3D with bounded speed.
       this.steer.set(
-        THREE.MathUtils.randFloatSpread(2),
-        THREE.MathUtils.randFloatSpread(2),
-        THREE.MathUtils.randFloatSpread(2),
+        this.randFloatSpread(2),
+        this.randFloatSpread(2),
+        this.randFloatSpread(2),
       );
       if (this.steer.lengthSq() > 1e-8) {
         this.steer.normalize().multiplyScalar(0.9 * dt);
@@ -206,7 +208,7 @@ export class FireflySimulation extends BaseSimulation {
       }
       const vLen = firefly.velocity.length();
       if (vLen < 1e-8) {
-        firefly.velocity.copy(randomDirection3D()).multiplyScalar(speed);
+        firefly.velocity.copy(this.randomDirection3D()).multiplyScalar(speed);
       } else {
         firefly.velocity.multiplyScalar(speed / vLen);
       }
@@ -238,7 +240,7 @@ export class FireflySimulation extends BaseSimulation {
       const omegaHz = Math.max(0.05, firefly.omegaHz);
       const intrinsic = TWO_PI * omegaHz;
       const couplingTerm = neighborCount > 0 ? coupling * (couplingSum / neighborCount) : 0;
-      const noiseTerm = THREE.MathUtils.randFloatSpread(2) * phaseNoise;
+      const noiseTerm = this.randFloatSpread(2) * phaseNoise;
       this.phaseStepBuffer[i] = (intrinsic + couplingTerm + noiseTerm) * dt;
     }
 
@@ -364,16 +366,40 @@ export class FireflySimulation extends BaseSimulation {
 
   createFirefly() {
     return {
-      position: randomWorldPosition(this.params),
-      velocity: randomDirection3D().multiplyScalar(Math.max(0.1, this.params.speed ?? 3)),
-      phase: Math.random() * TWO_PI,
+      position: this.randomWorldPosition(),
+      velocity: this.randomDirection3D().multiplyScalar(Math.max(0.1, this.params.speed ?? 3)),
+      phase: this.random() * TWO_PI,
       omegaHz: Math.max(
         0.05,
         (this.params.frequency ?? 1.8) +
-          THREE.MathUtils.randFloatSpread((this.params.freqJitter ?? 0.2) * 2),
+          this.randFloatSpread((this.params.freqJitter ?? 0.2) * 2),
       ),
       lost: false,
     };
+  }
+
+  randFloatSpread(range) {
+    const safeRange = Number.isFinite(range) ? range : 0;
+    return (this.random() - 0.5) * safeRange;
+  }
+
+  randomWorldPosition() {
+    const x = this.randFloatSpread(this.params.worldSizeX * 0.9);
+    const y = this.randFloatSpread(this.params.worldSizeY * 0.9);
+    const z = this.randFloatSpread(this.params.worldSizeZ * 0.9);
+    return new THREE.Vector3(x, y, z);
+  }
+
+  randomDirection3D() {
+    const direction = new THREE.Vector3(
+      this.randFloatSpread(2),
+      this.randFloatSpread(2),
+      this.randFloatSpread(2),
+    );
+    if (direction.lengthSq() < 1e-8) {
+      direction.set(0, 0, 1);
+    }
+    return direction.normalize();
   }
 
   applyBoundary(agent) {
@@ -497,23 +523,40 @@ function getFireflyVisualSize(params) {
   return Math.max(0.08, defaultDiameter / (2 * 0.45));
 }
 
-function randomWorldPosition(params) {
-  const x = THREE.MathUtils.randFloatSpread(params.worldSizeX * 0.9);
-  const y = THREE.MathUtils.randFloatSpread(params.worldSizeY * 0.9);
-  const z = THREE.MathUtils.randFloatSpread(params.worldSizeZ * 0.9);
-  return new THREE.Vector3(x, y, z);
+function clampFireflySeed(seedValue) {
+  const { min, max } = getRandomSeedBounds(FIREFLY_APPLET_CONFIG);
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, min, max);
 }
 
-function randomDirection3D() {
-  const direction = new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-    THREE.MathUtils.randFloatSpread(2),
-  );
-  if (direction.lengthSq() < 1e-8) {
-    direction.set(0, 0, 1);
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampFireflySeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRandomSeedBounds(appletConfig) {
+  const simulationParams = Array.isArray(appletConfig?.simulation?.params) ? appletConfig.simulation.params : [];
+  const randomSeedParam = simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed");
+  const min = Number(randomSeedParam?.uiMin);
+  const max = Number(randomSeedParam?.uiMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return {
+      min: Math.min(Math.round(min), Math.round(max)),
+      max: Math.max(Math.round(min), Math.round(max)),
+    };
   }
-  return direction.normalize();
+  const fallback = Math.round(Number(randomSeedParam?.default) || 0);
+  return { min: fallback, max: fallback };
 }
 
 function wrapAxis(value, halfExtent) {

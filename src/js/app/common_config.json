@@ -7,7 +7,7 @@
         "default": 50,
         "unit": "deg",
         "uiMin": 1,
-        "uiMax": 90,
+        "uiMax": 150,
         "step": 1
       }
     ]

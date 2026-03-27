@@ -147,6 +147,20 @@
         }
       },
       {
+        "key": "randomSeed",
+        "label": "Random Seed",
+        "default": 1,
+        "uiMin": 0,
+        "uiMax": 32768,
+        "group": "initial",
+        "control": {
+          "type": "slider",
+          "icon": "bi-shuffle",
+          "step": 1,
+          "simulationAction": "reset"
+        }
+      },
+      {
         "key": "perceptionRadius",
         "label": "Perception Radius (\\(r_p\\))",
         "default": 18,

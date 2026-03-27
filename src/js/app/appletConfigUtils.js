@@ -587,7 +587,7 @@ function normalizeCameraParams(cameraConfig = {}, fallbackUnits = {}) {
     fov: {
       default: toFiniteNumber(cameraConfig.fov, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
       uiMin: toFiniteNumber(controls.fov?.min, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMin, 1)),
-      uiMax: toFiniteNumber(controls.fov?.max, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 90)),
+      uiMax: toFiniteNumber(controls.fov?.max, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 150)),
       step: toFiniteNumber(controls.fov?.step, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.step, 1)),
     },
     moveSpeed: {
@@ -797,7 +797,7 @@ function buildLegacyCameraControlsFromParams(cameraParams) {
   return {
     fov: {
       min: toFiniteNumber(fov.uiMin, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMin, 1)),
-      max: toFiniteNumber(fov.uiMax, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 90)),
+      max: toFiniteNumber(fov.uiMax, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.uiMax, 150)),
       step: toFiniteNumber(fov.step, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.step, 1)),
       defaultValue: toFiniteNumber(fov.default, toFiniteNumber(DEFAULT_CAMERA_FOV_PARAM?.default, 50)),
     },

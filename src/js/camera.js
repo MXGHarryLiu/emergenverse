@@ -99,6 +99,15 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
     );
   }
 
+  function getFovBounds() {
+    const min = Number(params.cameraFovMin);
+    const max = Number(params.cameraFovMax);
+    return {
+      min,
+      max: max > min ? max : min,
+    };
+  }
+
   function syncCameraScaleLimits() {
     const worldSpan = getWorldSpan();
     const clipFar = Math.max(3000, worldSpan * 8);
@@ -160,7 +169,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
 
     const baseSpan = Math.max(params.worldSizeX, params.worldSizeY, params.worldSizeZ) * 0.62;
     // Match perspective-like zoom response while avoiding a low-FOV dead zone.
-    const fovDeg = THREE.MathUtils.clamp(Number(params.cameraFov) || 50, 1, 90);
+    const fovBounds = getFovBounds();
+    const fovDeg = THREE.MathUtils.clamp(Number(params.cameraFov) || 50, fovBounds.min, fovBounds.max);
     const referenceFovDeg = 50;
     const referenceTan = Math.tan(THREE.MathUtils.degToRad(referenceFovDeg * 0.5));
     const fovTan = Math.tan(THREE.MathUtils.degToRad(fovDeg * 0.5));
@@ -202,7 +212,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return;
     }
 
-    const nextFov = THREE.MathUtils.clamp(params.cameraFov + delta, 1, 90);
+    const fovBounds = getFovBounds();
+    const nextFov = THREE.MathUtils.clamp(params.cameraFov + delta, fovBounds.min, fovBounds.max);
     if (Math.abs(nextFov - params.cameraFov) < 1e-8) {
       return;
     }
@@ -1004,7 +1015,8 @@ export function createCameraController({ sceneHost, params, telemetry, onFovChan
       return false;
     }
 
-    params.cameraFov = THREE.MathUtils.clamp(Number(snapshot.cameraFov) || params.cameraFov, 1, 90);
+    const fovBounds = getFovBounds();
+    params.cameraFov = THREE.MathUtils.clamp(Number(snapshot.cameraFov) || params.cameraFov, fovBounds.min, fovBounds.max);
     perspectiveCamera.fov = params.cameraFov;
     perspectiveCamera.updateProjectionMatrix();
     updateOrthographicCamera(false);

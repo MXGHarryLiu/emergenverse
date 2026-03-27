@@ -125,6 +125,8 @@ const params = {
   cameraDistance: Number(CAMERA_DEFAULTS?.distance ?? 185),
   cameraHeight: Number(CAMERA_DEFAULTS?.height ?? 80),
   cameraFov: Number(DEFAULT_CAMERA_FOV_PARAM?.default ?? 50),
+  cameraFovMin: Number(DEFAULT_CAMERA_FOV_PARAM?.uiMin ?? 1),
+  cameraFovMax: Number(DEFAULT_CAMERA_FOV_PARAM?.uiMax ?? 150),
   spaceshipMode: false,
   spaceshipSas: true,
   showBounds: true,
@@ -137,6 +139,9 @@ const params = {
     APPLET_ORDER.map((id) => [id, { ...APPLET_DEFINITIONS[id].defaultParams }]),
   ),
 };
+APPLET_ORDER.forEach((appletId) => {
+  randomizeAppletSeedIfSupported(appletId);
+});
 
 renderAppletSectionsFromConfig();
 renderAppletNavigationFromConfig();
@@ -188,7 +193,7 @@ function pickAppletParamsBySection(appletId, sectionKey) {
 const cameraControlDefaults = Object.freeze({
   fov: Object.freeze({
     min: Number(DEFAULT_CAMERA_FOV_PARAM?.uiMin ?? 1),
-    max: Number(DEFAULT_CAMERA_FOV_PARAM?.uiMax ?? 90),
+    max: Number(DEFAULT_CAMERA_FOV_PARAM?.uiMax ?? 150),
     step: Number(DEFAULT_CAMERA_FOV_PARAM?.step ?? 1),
   }),
   moveSpeed: Object.freeze({
@@ -263,6 +268,8 @@ function resolveCameraControlConfig(customConfig, fallback) {
 function applyCameraControlConfig(appletId = activeApplet, options = {}) {
   const { resetToDefaults = false } = options;
   const config = getAppletCameraControlConfig(appletId);
+  params.cameraFovMin = config.fov.min;
+  params.cameraFovMax = config.fov.max;
 
   const applyRangeMeta = (id, meta) => {
     const input = document.getElementById(id);
@@ -962,14 +969,15 @@ function animate() {
 
   frameTimer.update();
   const rawDt = frameTimer.getDelta();
-  if (simulationManager.activeId !== activeApplet) {
-    simulationManager.setActive(activeApplet);
+  const hasActiveLoadedApplet = loadedAppletIdSet.has(activeApplet);
+  if (simulationManager.activeId !== (hasActiveLoadedApplet ? activeApplet : null)) {
+    simulationManager.setActive(hasActiveLoadedApplet ? activeApplet : null);
   }
   const runtimeState = simulationRuntimeState[activeApplet];
   const timing = getAppletSimulationTiming(activeApplet);
   const dt = Math.min(rawDt, 0.05);
   let stepsThisFrame = 0;
-  if (!params.paused) {
+  if (hasActiveLoadedApplet && !params.paused) {
     const simulationDt = Math.min(rawDt, 0.25);
     runtimeState.stepAccumulator += simulationDt;
 
@@ -1068,6 +1076,38 @@ function updateFpsMetric(dt, stepsThisFrame = 0) {
         : `Target frame rate ${targetFps.toFixed(0)} Hz. Render: ${fpsRenderSmoothed.toFixed(1)} Hz, Sim: ${fpsSimSmoothed.toFixed(1)} Hz`;
     }
   });
+}
+
+function randomIntInclusive(min, max) {
+  const safeMin = Number.isFinite(min) ? Math.floor(min) : 0;
+  const safeMax = Number.isFinite(max) ? Math.floor(max) : safeMin;
+  const lower = Math.min(safeMin, safeMax);
+  const upper = Math.max(safeMin, safeMax);
+  return lower + Math.floor(Math.random() * (upper - lower + 1));
+}
+
+function randomizeAppletSeedIfSupported(appletId) {
+  const appletParams = params?.[appletId];
+  if (!appletParams || typeof appletParams !== "object") {
+    return false;
+  }
+  const randomSeedParam = getAppletRandomSeedParamConfig(appletId);
+  if (!randomSeedParam) {
+    return false;
+  }
+  const min = Number(randomSeedParam.uiMin);
+  const max = Number(randomSeedParam.uiMax);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return false;
+  }
+  appletParams.randomSeed = randomIntInclusive(min, max);
+  return true;
+}
+
+function getAppletRandomSeedParamConfig(appletId) {
+  const simulationConfig = APPLET_CONFIGS[appletId]?.simulation;
+  const simulationParams = Array.isArray(simulationConfig?.params) ? simulationConfig.params : [];
+  return simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed") || null;
 }
 
 function appletSupportsHardwareAccelerationIndicator(appletId) {
@@ -2474,10 +2514,12 @@ function closeLoadedApplet(appletId, options = {}) {
   }
 
   const nextLoadedAppletIds = loadedAppletIds.filter((id) => id !== normalizedId);
+  appletSimulationPrimed[normalizedId] = false;
   if (nextLoadedAppletIds.length === 0) {
     appletSession.clearLoadedApplets();
     syncAppletSessionMirrors();
     applyLoadedAppletTabVisibility();
+    syncSceneHostVisibility();
     renderOpenedAppsMenu();
     closeOpenedAppsMenu();
 
@@ -2738,18 +2780,24 @@ function setupAppRouting() {
         routeState?.activeAppletId,
         ROUTING_OPTIONS,
       );
-      const routeLoadedAppletIds = appletSession.normalizeLoadedAppletIds(
-        routeState?.loadedAppletIds,
-        routeActiveApplet,
-      );
-      applyAppletMode(routeActiveApplet, {
-        ...options,
-        loadedAppletIds: routeLoadedAppletIds,
-      });
-
       if (hasAppletParam) {
+        const routeLoadedAppletIds = appletSession.normalizeLoadedAppletIds(
+          routeState?.loadedAppletIds,
+          routeActiveApplet,
+        );
+        applyAppletMode(routeActiveApplet, {
+          ...options,
+          loadedAppletIds: routeLoadedAppletIds,
+        });
         hideLauncherNavigator();
       } else {
+        appletSession.clearLoadedApplets();
+        syncAppletSessionMirrors();
+        applyLoadedAppletTabVisibility();
+        syncSceneHostVisibility();
+        renderOpenedAppsMenu();
+        closeOpenedAppsMenu();
+        applySceneObjectVisibility(null);
         showLauncherNavigator({ mode: "start" });
       }
     },
@@ -2951,6 +2999,14 @@ function applySceneObjectVisibility(appletId) {
   simulationManager.setActive(appletId);
 }
 
+function syncSceneHostVisibility() {
+  if (!dom.sceneHost || !renderer?.domElement) {
+    return;
+  }
+  const hasLoadedApplet = loadedAppletIds.length > 0;
+  renderer.domElement.style.visibility = hasLoadedApplet ? "visible" : "hidden";
+}
+
 function haveSameAppletIdOrder(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
     return false;
@@ -2981,6 +3037,7 @@ function applyAppletMode(appletId, options = {}) {
     applyLoadedAppletTabVisibility();
     renderOpenedAppsMenu();
     applyAppletVisibility(activeApplet);
+    syncSceneHostVisibility();
     updateMobileCurrentAppletLabel(activeApplet);
 
     if (updateUrl) {
@@ -2997,6 +3054,7 @@ function applyAppletMode(appletId, options = {}) {
   const sessionState = appletSession.applyMode(appletId, requestedLoadedAppletIds);
   syncAppletSessionMirrors();
   applyLoadedAppletTabVisibility();
+  syncSceneHostVisibility();
 
   const normalizedId = sessionState.activeApplet;
   const previousApplet = sessionState.previousApplet;
@@ -3013,6 +3071,7 @@ function applyAppletMode(appletId, options = {}) {
     forceBoundaryDefault: isFirstAppletActivation,
   });
   if (isFirstAppletActivation) {
+    randomizeAppletSeedIfSupported(normalizedId);
     simulations[normalizedId]?.reset?.();
     appletSimulationPrimed[normalizedId] = true;
   }

@@ -113,6 +113,7 @@ export class PreySimulation extends BaseSimulation {
       min: 0,
       max: Math.max(0.1, (this.params.predatorSpawnEnergy ?? 2.8) * 2.4),
     };
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
 
     this.stats = {
       eatenTotal: 0,
@@ -144,6 +145,7 @@ export class PreySimulation extends BaseSimulation {
   }
 
   reset() {
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.preys.length = 0;
     this.predators.length = 0;
     this.stats.eatenTotal = 0;
@@ -221,8 +223,8 @@ export class PreySimulation extends BaseSimulation {
       }
 
       this.tempVector2B.set(
-        THREE.MathUtils.randFloatSpread(2),
-        THREE.MathUtils.randFloatSpread(2),
+        this.randFloatSpread(2),
+        this.randFloatSpread(2),
       );
       if (this.tempVector2B.lengthSq() > 1e-8) {
         this.tempVector2B.normalize().multiplyScalar(0.75);
@@ -230,22 +232,22 @@ export class PreySimulation extends BaseSimulation {
 
       prey.velocity.addScaledVector(this.tempVector2, dt);
       prey.velocity.addScaledVector(this.tempVector2B, dt);
-      enforce2DSpeed(prey.velocity, preySpeed * 0.5, preySpeed);
+      enforce2DSpeed(prey.velocity, preySpeed * 0.5, preySpeed, () => this.random2DDirection());
       prey.position.addScaledVector(prey.velocity, dt);
 
       if (!this.applyBoundary(prey)) {
         continue;
       }
 
-      if (this.preys.length + newbornPreys.length < preyMaxCount && Math.random() < preyBirthRate * dt) {
+      if (this.preys.length + newbornPreys.length < preyMaxCount && this.random() < preyBirthRate * dt) {
         this.spawnOffset.set(
-          THREE.MathUtils.randFloatSpread(1.4),
-          THREE.MathUtils.randFloatSpread(1.4),
+          this.randFloatSpread(1.4),
+          this.randFloatSpread(1.4),
           0,
         );
         const offspring = {
           position: new THREE.Vector2(prey.position.x + this.spawnOffset.x, prey.position.y + this.spawnOffset.y),
-          velocity: random2DDirection().multiplyScalar(preySpeed),
+          velocity: this.random2DDirection().multiplyScalar(preySpeed),
           lost: false,
         };
         this.applyBoundary(offspring);
@@ -282,8 +284,8 @@ export class PreySimulation extends BaseSimulation {
         }
       } else {
         this.tempVector2.set(
-          THREE.MathUtils.randFloatSpread(2),
-          THREE.MathUtils.randFloatSpread(2),
+          this.randFloatSpread(2),
+          this.randFloatSpread(2),
         );
         if (this.tempVector2.lengthSq() > 1e-8) {
           this.tempVector2.normalize().multiplyScalar(1.1);
@@ -291,7 +293,7 @@ export class PreySimulation extends BaseSimulation {
         }
       }
 
-      enforce2DSpeed(predator.velocity, predatorSpeed * 0.55, predatorSpeed);
+      enforce2DSpeed(predator.velocity, predatorSpeed * 0.55, predatorSpeed, () => this.random2DDirection());
       predator.position.addScaledVector(predator.velocity, dt);
 
       if (!this.applyBoundary(predator)) {
@@ -471,19 +473,35 @@ export class PreySimulation extends BaseSimulation {
 
   createPreyAgent() {
     return {
-      position: randomWorldPosition(this.params),
-      velocity: random2DDirection().multiplyScalar(Math.max(0.5, this.params.speed ?? 4.5)),
+      position: this.randomWorldPosition(),
+      velocity: this.random2DDirection().multiplyScalar(Math.max(0.5, this.params.speed ?? 4.5)),
       lost: false,
     };
   }
 
   createPredatorAgent() {
     return {
-      position: randomWorldPosition(this.params),
-      velocity: random2DDirection().multiplyScalar(Math.max(0.5, this.params.predatorSpeed ?? 6.2)),
+      position: this.randomWorldPosition(),
+      velocity: this.random2DDirection().multiplyScalar(Math.max(0.5, this.params.predatorSpeed ?? 6.2)),
       energy: Math.max(0.1, this.params.predatorSpawnEnergy ?? 2.8),
       lost: false,
     };
+  }
+
+  randFloatSpread(range) {
+    const safeRange = Number.isFinite(range) ? range : 0;
+    return (this.random() - 0.5) * safeRange;
+  }
+
+  randomWorldPosition() {
+    const x = this.randFloatSpread(this.params.worldSizeX * 0.9);
+    const y = this.randFloatSpread(this.params.worldSizeY * 0.9);
+    return new THREE.Vector2(x, y);
+  }
+
+  random2DDirection() {
+    const angle = this.random() * Math.PI * 2;
+    return new THREE.Vector2(Math.cos(angle), Math.sin(angle));
   }
 
   applyBoundaryToAll() {
@@ -680,17 +698,6 @@ function getPreyVisualSize(params, type) {
   return Math.max(0.1, defaults.predator / (2 * 0.5));
 }
 
-function randomWorldPosition(params) {
-  const x = THREE.MathUtils.randFloatSpread(params.worldSizeX * 0.9);
-  const y = THREE.MathUtils.randFloatSpread(params.worldSizeY * 0.9);
-  return new THREE.Vector2(x, y);
-}
-
-function random2DDirection() {
-  const angle = Math.random() * Math.PI * 2;
-  return new THREE.Vector2(Math.cos(angle), Math.sin(angle));
-}
-
 function wrapAxis(value, halfExtent) {
   const span = halfExtent * 2;
   if (span <= 0) {
@@ -713,17 +720,56 @@ function getBoundaryAxes(params) {
   };
 }
 
-function enforce2DSpeed(vector, minSpeed, maxSpeed) {
+function enforce2DSpeed(vector, minSpeed, maxSpeed, randomDirectionFn = null) {
   const clampedMin = Math.max(0, minSpeed);
   const clampedMax = Math.max(clampedMin, maxSpeed);
   const speed = vector.length();
   if (speed < 1e-8) {
-    vector.copy(random2DDirection()).multiplyScalar(Math.max(clampedMin, 0.01));
+    const fallbackDirection = typeof randomDirectionFn === "function"
+      ? randomDirectionFn()
+      : new THREE.Vector2(1, 0);
+    vector.copy(fallbackDirection).multiplyScalar(Math.max(clampedMin, 0.01));
     return vector;
   }
   const bounded = THREE.MathUtils.clamp(speed, clampedMin, clampedMax);
   vector.multiplyScalar(bounded / speed);
   return vector;
+}
+
+function clampPreySeed(seedValue) {
+  const { min, max } = getRandomSeedBounds(PREY_APPLET_CONFIG);
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, min, max);
+}
+
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampPreySeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRandomSeedBounds(appletConfig) {
+  const simulationParams = Array.isArray(appletConfig?.simulation?.params) ? appletConfig.simulation.params : [];
+  const randomSeedParam = simulationParams.find((entry) => String(entry?.key || "").trim() === "randomSeed");
+  const min = Number(randomSeedParam?.uiMin);
+  const max = Number(randomSeedParam?.uiMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return {
+      min: Math.min(Math.round(min), Math.round(max)),
+      max: Math.max(Math.round(min), Math.round(max)),
+    };
+  }
+  const fallback = Math.round(Number(randomSeedParam?.default) || 0);
+  return { min: fallback, max: fallback };
 }
 
 function buildColormapLUT(colormapEntries) {

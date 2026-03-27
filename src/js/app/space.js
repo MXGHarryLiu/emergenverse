@@ -100,6 +100,16 @@ const SPACE_SEED_SPIRAL_MODE = 2;
 const SPACE_SEED_SPIRAL_SPEED_PERTURB_FRACTION = 0.08;
 const SPACE_SEED_SPIRAL_RADIAL_KICK_FRACTION = 0.035;
 const SPACE_TWO_PI = Math.PI * 2;
+const SPACE_RANDOM_SEED_MIN = requireSimulationParamNumberBound(
+  SPACE_APPLET_CONFIG,
+  "randomSeed",
+  "uiMin",
+);
+const SPACE_RANDOM_SEED_MAX = requireSimulationParamNumberBound(
+  SPACE_APPLET_CONFIG,
+  "randomSeed",
+  "uiMax",
+);
 const SPACE_GPU_GRID_MAX = 1024;
 const SPACE_GPU_READBACK_CHANNELS = 4;
 const SPACE_ENABLE_GPU_PARTICLE_INTEGRATION = false;
@@ -547,6 +557,7 @@ export class SpaceSimulation extends BaseSimulation {
     this.tempColor = new THREE.Color();
     this.viewportPixelSize = new THREE.Vector2();
     this.seedPhaseOffset = 0;
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.fieldSolverBackend = "cpu";
     this.gpuField = null;
     this.gpuParticles = null;
@@ -721,9 +732,10 @@ export class SpaceSimulation extends BaseSimulation {
   }
 
   rebuildStateFromParams() {
+    this.random = createSeededRandomGenerator(this.params?.randomSeed);
     this.count = this.resolveVisualCount();
     this.gridN = this.resolveGridResolution();
-    this.seedPhaseOffset = Math.random() * SPACE_TWO_PI;
+    this.seedPhaseOffset = this.random() * SPACE_TWO_PI;
     this.posX = new Float32Array(this.count);
     this.posY = new Float32Array(this.count);
     this.posZ = new Float32Array(this.count);
@@ -1201,6 +1213,7 @@ export class SpaceSimulation extends BaseSimulation {
         spreadX,
         spreadY,
         spreadZ,
+        random: this.random,
       });
       this.posX[i] = position.x;
       this.posY[i] = position.y;
@@ -1221,6 +1234,7 @@ export class SpaceSimulation extends BaseSimulation {
         preset: initialShape,
         position: tempPosition,
         radial,
+        random: this.random,
       });
       const enclosedObjectMass = particleMass * (rank + 1);
       const enclosedMass = centralMass + selfFieldBlend * enclosedObjectMass;
@@ -1238,9 +1252,9 @@ export class SpaceSimulation extends BaseSimulation {
         position: tempPosition,
         phaseOffset: this.seedPhaseOffset,
       });
-      tangential.x += THREE.MathUtils.randFloatSpread(seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
-      tangential.y += THREE.MathUtils.randFloatSpread(seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
-      tangential.z += THREE.MathUtils.randFloatSpread(seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
+      tangential.x += randomFloatSpread(this.random, seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
+      tangential.y += randomFloatSpread(this.random, seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
+      tangential.z += randomFloatSpread(this.random, seededSpeed * SPACE_SEED_VELOCITY_NOISE_FRACTION);
       this.velX[index] = tangential.x;
       this.velY[index] = tangential.y;
       this.velZ[index] = tangential.z;
@@ -1743,13 +1757,14 @@ export class SpaceSimulation extends BaseSimulation {
       spreadX,
       spreadY,
       spreadZ,
+      random: this.random,
     });
     this.posX[index] = position.x;
     this.posY[index] = position.y;
     this.posZ[index] = position.z;
-    this.velX[index] = THREE.MathUtils.randFloatSpread(SPACE_RESEED_VELOCITY_XY_SPREAD);
-    this.velY[index] = THREE.MathUtils.randFloatSpread(SPACE_RESEED_VELOCITY_XY_SPREAD);
-    this.velZ[index] = THREE.MathUtils.randFloatSpread(SPACE_RESEED_VELOCITY_Z_SPREAD);
+    this.velX[index] = randomFloatSpread(this.random, SPACE_RESEED_VELOCITY_XY_SPREAD);
+    this.velY[index] = randomFloatSpread(this.random, SPACE_RESEED_VELOCITY_XY_SPREAD);
+    this.velZ[index] = randomFloatSpread(this.random, SPACE_RESEED_VELOCITY_Z_SPREAD);
   }
 
   applyBoundaryToAll() {
@@ -2067,30 +2082,30 @@ function wrapAxis(value, halfExtent) {
   return value;
 }
 
-function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
+function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ, random = Math.random }) {
   if (preset === "disk") {
     const maxR = Math.max(SPACE_MIN_PARTICLE_RADIUS, Math.min(spreadX, spreadY));
-    const r = Math.sqrt(Math.random()) * maxR;
-    const angle = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(random()) * maxR;
+    const angle = random() * Math.PI * 2;
     const thickness = Math.max(SPACE_DISK_MIN_THICKNESS, spreadZ * SPACE_DISK_THICKNESS_FACTOR);
     return new THREE.Vector3(
       r * Math.cos(angle),
       r * Math.sin(angle),
-      THREE.MathUtils.randFloatSpread(thickness * 2),
+      randomFloatSpread(random, thickness * 2),
     );
   }
 
   if (preset === "sphere") {
     const maxR = Math.max(SPACE_MIN_PARTICLE_RADIUS, Math.min(spreadX, spreadY, spreadZ));
-    const radius = maxR * Math.cbrt(Math.random());
-    return randomDirection3D().multiplyScalar(radius);
+    const radius = maxR * Math.cbrt(random());
+    return randomDirection3D(random).multiplyScalar(radius);
   }
 
   if (preset === "ellipsoid") {
     const xScale = Math.max(SPACE_MIN_PARTICLE_RADIUS, spreadX);
     const yScale = Math.max(SPACE_MIN_PARTICLE_RADIUS, spreadY);
     const zScale = Math.max(SPACE_MIN_PARTICLE_RADIUS, spreadZ * SPACE_ELLIPSOID_Z_SCALE);
-    const spherePoint = randomPointInUnitSphere();
+    const spherePoint = randomPointInUnitSphere(random);
     return new THREE.Vector3(
       spherePoint.x * xScale,
       spherePoint.y * yScale,
@@ -2099,13 +2114,13 @@ function sampleInitialPosition({ preset, spreadX, spreadY, spreadZ }) {
   }
 
   return new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(spreadX * 2),
-    THREE.MathUtils.randFloatSpread(spreadY * 2),
-    THREE.MathUtils.randFloatSpread(spreadZ * 2),
+    randomFloatSpread(random, spreadX * 2),
+    randomFloatSpread(random, spreadY * 2),
+    randomFloatSpread(random, spreadZ * 2),
   );
 }
 
-function sampleInitialVelocityDirection({ preset, position, radial }) {
+function sampleInitialVelocityDirection({ preset, position, radial, random = Math.random }) {
   if (preset === "disk") {
     const diskTangent = new THREE.Vector3(-position.y, position.x, 0);
     if (diskTangent.lengthSq() > SPACE_LENGTH_SQ_EPSILON) {
@@ -2113,13 +2128,13 @@ function sampleInitialVelocityDirection({ preset, position, radial }) {
     }
   }
 
-  const reference = randomDirection3D();
+  const reference = randomDirection3D(random);
   if (Math.abs(reference.dot(radial)) > SPACE_PARALLEL_ALIGNMENT_LIMIT) {
     reference.set(0, 1, 0);
   }
   const tangentA = new THREE.Vector3().crossVectors(radial, reference).normalize();
   const tangentB = new THREE.Vector3().crossVectors(radial, tangentA).normalize();
-  const orbitAngle = Math.random() * Math.PI * 2;
+  const orbitAngle = random() * Math.PI * 2;
   return tangentA.multiplyScalar(Math.cos(orbitAngle)).addScaledVector(tangentB, Math.sin(orbitAngle));
 }
 
@@ -2154,11 +2169,11 @@ function applySeedVelocityProfile({
   return seededSpeed;
 }
 
-function randomDirection3D() {
+function randomDirection3D(random = Math.random) {
   const vector = new THREE.Vector3(
-    THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
-    THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
-    THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
+    randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
+    randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
+    randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
   );
   if (vector.lengthSq() < SPACE_LENGTH_SQ_EPSILON) {
     vector.set(0, 0, 1);
@@ -2166,18 +2181,44 @@ function randomDirection3D() {
   return vector.normalize();
 }
 
-function randomPointInUnitSphere() {
+function randomPointInUnitSphere(random = Math.random) {
   for (let i = 0; i < SPACE_RANDOM_SPHERE_ATTEMPTS; i += 1) {
     const candidate = new THREE.Vector3(
-      THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
-      THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
-      THREE.MathUtils.randFloatSpread(SPACE_RANDOM_VECTOR_SPREAD),
+      randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
+      randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
+      randomFloatSpread(random, SPACE_RANDOM_VECTOR_SPREAD),
     );
     if (candidate.lengthSq() <= 1) {
       return candidate;
     }
   }
-  return randomDirection3D().multiplyScalar(Math.cbrt(Math.random()));
+  return randomDirection3D(random).multiplyScalar(Math.cbrt(random()));
+}
+
+function randomFloatSpread(random, range) {
+  const generator = typeof random === "function" ? random : Math.random;
+  const safeRange = Number.isFinite(range) ? range : 0;
+  return (generator() - 0.5) * safeRange;
+}
+
+function clampSpaceSeed(seedValue) {
+  const numeric = Number(seedValue);
+  if (!Number.isFinite(numeric)) {
+    return SPACE_RANDOM_SEED_MIN;
+  }
+  const rounded = Math.round(numeric);
+  return THREE.MathUtils.clamp(rounded, SPACE_RANDOM_SEED_MIN, SPACE_RANDOM_SEED_MAX);
+}
+
+function createSeededRandomGenerator(seedValue) {
+  let seed = clampSpaceSeed(seedValue) >>> 0;
+  seed = (seed ^ 0xa5a5a5a5) >>> 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function computeSelfFieldBlendFactor({ centralMass, objectTotalMass }) {
