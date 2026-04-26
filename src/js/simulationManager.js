@@ -52,6 +52,12 @@ export class SimulationManager {
     active?.step?.(dt);
   }
 
+  beforeRender(context = {}) {
+    this.enforceVisibility();
+    const active = this.activeId ? this.simulations.get(this.activeId) : null;
+    active?.beforeRender?.(context);
+  }
+
   applyTheme(theme) {
     for (const simulation of this.simulations.values()) {
       simulation.onTheme?.(theme);

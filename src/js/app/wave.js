@@ -1,4 +1,4 @@
-// Wind-driven wave field applet inspired by GPU ocean wave synthesis techniques.
+// FFT ocean wave field applet with directional spectral synthesis.
 import * as THREE from "three";
 import { validateAppletConfig } from "./appletConfigUtils.js";
 import waveConfigData from "./wave_config.json" with { type: "json" };
@@ -50,150 +50,440 @@ const WAVE_APPLET_RUNTIME = {
 
 const WAVE_GRAVITY = 9.81;
 const WAVE_TWO_PI = Math.PI * 2;
-const WAVE_MAX_COMPONENTS = 32;
-const WAVE_MIN_GRID_RESOLUTION = 8;
-const WAVE_MAX_GRID_RESOLUTION = 512;
+const WAVE_MAX_STEP_SECONDS = 0.2;
 const WAVE_STATS_UPDATE_INTERVAL_SECONDS = 0.2;
-const WAVE_MIN_VALUE_SPAN = 1e-6;
-const WAVE_SAMPLE_GRID_SIZE = 12;
-const WAVE_MIN_SPEED_RANGE_MAX = 0.05;
-const WAVE_MIN_HEIGHT_RANGE = 0.02;
-const WAVE_DIRECTION_RANGE = Object.freeze({ min: 0, max: 360 });
+const WAVE_MIN_FFT_RESOLUTION = 32;
+const WAVE_MAX_FFT_RESOLUTION = 512;
+const WAVE_DEFAULT_FFT_RESOLUTION = 128;
+const WAVE_MIN_MESH_RESOLUTION = 32;
+const WAVE_MAX_MESH_RESOLUTION = 512;
+const WAVE_DEFAULT_MESH_RESOLUTION = 192;
 const WAVE_GPU_BACKEND_LOG_PREFIX = "[wave] Surface backend:";
-const WAVE_DEFAULT_GRID_RESOLUTION = 144;
-const WAVE_RANDOM_COMPONENT_BAND_EXPONENT = 2.6;
-const WAVE_COMPONENT_PHASE_SEED_SCALE = 10000;
-const WAVE_REFERENCE_WIND_SPEED = 12;
 
-const WAVE_COLORMAPS = buildColormapLUT(WAVE_APPLET_CONFIG.visual?.colormap);
-const waveLerpA = new THREE.Color();
-const waveLerpB = new THREE.Color();
 const glsl = String.raw;
 
-const WAVE_VERTEX_SHADER = glsl`
+const FULLSCREEN_VERTEX_SHADER = glsl`
 precision highp float;
 
-#define WAVE_MAX_COMPONENTS ${WAVE_MAX_COMPONENTS}
+varying vec2 vUv;
 
-uniform float uTime;
-uniform float uActiveComponents;
-uniform float uAmplitude[WAVE_MAX_COMPONENTS];
-uniform float uWaveNumber[WAVE_MAX_COMPONENTS];
-uniform float uOmega[WAVE_MAX_COMPONENTS];
-uniform float uPhase[WAVE_MAX_COMPONENTS];
-uniform float uDirX[WAVE_MAX_COMPONENTS];
-uniform float uDirY[WAVE_MAX_COMPONENTS];
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`;
+
+const INITIAL_SPECTRUM_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+const float PI = 3.141592653589793;
+const float G = 9.81;
+const float KM = 370.0;
+const float CM = 0.23;
+
+uniform float uResolution;
+uniform vec2 uDomainSize;
+uniform vec2 uWind;
+uniform float uAmplitude;
+uniform float uDirectionalSpread;
+uniform float uShortWaveDamping;
+
+float square(float x) {
+  return x * x;
+}
+
+float omega(float k) {
+  return sqrt(G * k * (1.0 + square(k / KM)));
+}
+
+float tanhApprox(float x) {
+  float e = exp(-2.0 * x);
+  return (1.0 - e) / (1.0 + e);
+}
+
+void main() {
+  vec2 coordinates = gl_FragCoord.xy - 0.5;
+  float n = (coordinates.x < uResolution * 0.5) ? coordinates.x : coordinates.x - uResolution;
+  float m = (coordinates.y < uResolution * 0.5) ? coordinates.y : coordinates.y - uResolution;
+
+  float domainX = max(1.0, uDomainSize.x);
+  float domainY = max(1.0, uDomainSize.y);
+  vec2 waveVector = vec2((2.0 * PI * n) / domainX, (2.0 * PI * m) / domainY);
+  float k = length(waveVector);
+
+  if (k < 1e-5) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
+
+  float windSpeed = max(0.1, length(uWind));
+  vec2 windDir = normalize(uWind);
+  float U10 = windSpeed;
+  float Omega = 0.84;
+  float kp = G * square(Omega / U10);
+
+  float c = omega(k) / k;
+  float cp = omega(kp) / kp;
+
+  float Lpm = exp(-1.25 * square(kp / k));
+  float gamma = 1.7;
+  float sigma = 0.08 * (1.0 + 4.0 * pow(Omega, -3.0));
+  float Gamma = exp(-square(sqrt(k / kp) - 1.0) / (2.0 * square(sigma)));
+  float Jp = pow(gamma, Gamma);
+  float Fp = Lpm * Jp * exp(-Omega / sqrt(10.0) * (sqrt(k / kp) - 1.0));
+  float alphap = 0.006 * sqrt(Omega);
+  float Bl = 0.5 * alphap * cp / c * Fp;
+
+  float z0 = 0.000037 * square(U10) / G * pow(U10 / cp, 0.9);
+  float uStar = 0.41 * U10 / log(10.0 / max(1e-6, z0));
+  float uStarRatio = max(1e-6, uStar / CM);
+  float alpham = 0.01 * ((uStar < CM) ? (1.0 + log(uStarRatio)) : (1.0 + 3.0 * log(uStarRatio)));
+  float Fm = exp(-0.25 * square(k / KM - 1.0));
+  float Bh = 0.5 * alpham * CM / c * Fm * Lpm;
+
+  float a0 = log(2.0) / 4.0;
+  float am = 0.13 * uStar / CM;
+  float Delta = tanhApprox(a0 + 4.0 * pow(c / cp, 2.5) + am * pow(CM / c, 2.5));
+
+  float cosPhi = dot(normalize(waveVector), windDir);
+  float directionalCore = max(0.0, 1.0 + Delta * (2.0 * cosPhi * cosPhi - 1.0));
+  float spreadExponent = max(0.35, uDirectionalSpread);
+  float forwardLobe = pow(max(0.0, cosPhi), spreadExponent);
+  float backwardLobe = 0.03 * pow(max(0.0, -cosPhi), spreadExponent);
+  float directional = directionalCore * (forwardLobe + backwardLobe + 0.01);
+
+  float S = (1.0 / (2.0 * PI)) * pow(k, -4.0) * (Bl + Bh) * directional;
+  float shortWaveSuppression = exp(-uShortWaveDamping * uShortWaveDamping * k * k);
+  float energyGain = pow(clamp(U10 / 12.0, 0.2, 4.0), 1.2);
+  float spectrum = max(0.0, uAmplitude) * energyGain * max(0.0, S) * shortWaveSuppression;
+
+  float dkx = 2.0 * PI / domainX;
+  float dky = 2.0 * PI / domainY;
+  float dk = sqrt(dkx * dky);
+  float h = sqrt(max(0.0, spectrum) * 0.5) * dk;
+
+  vec2 h0 = vec2(h, 0.0);
+
+  gl_FragColor = vec4(h0, 0.0, 0.0);
+}
+`;
+
+const PHASE_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+const float PI = 3.141592653589793;
+const float G = 9.81;
+const float KM = 370.0;
+
+varying vec2 vUv;
+
+uniform sampler2D uPhases;
+uniform float uDeltaTime;
+uniform float uResolution;
+uniform vec2 uDomainSize;
+
+float omega(float k) {
+  return sqrt(G * k * (1.0 + (k / KM) * (k / KM)));
+}
+
+void main() {
+  vec2 coordinates = gl_FragCoord.xy - 0.5;
+  float n = (coordinates.x < uResolution * 0.5) ? coordinates.x : coordinates.x - uResolution;
+  float m = (coordinates.y < uResolution * 0.5) ? coordinates.y : coordinates.y - uResolution;
+  vec2 waveVector = vec2(
+    (2.0 * PI * n) / max(1.0, uDomainSize.x),
+    (2.0 * PI * m) / max(1.0, uDomainSize.y)
+  );
+
+  float phase = texture2D(uPhases, vUv).r;
+  float deltaPhase = omega(length(waveVector)) * max(0.0, uDeltaTime);
+  phase = mod(phase + deltaPhase, 2.0 * PI);
+
+  gl_FragColor = vec4(phase, 0.0, 0.0, 0.0);
+}
+`;
+
+const SPECTRUM_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+const float PI = 3.141592653589793;
+
+varying vec2 vUv;
+
+uniform float uResolution;
+uniform vec2 uDomainSize;
+uniform sampler2D uPhases;
+uniform sampler2D uInitialSpectrum;
 uniform float uChoppiness;
-uniform float uVerticalScale;
-uniform float uColorMode;
+
+vec2 multiplyComplex(vec2 a, vec2 b) {
+  return vec2(a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y);
+}
+
+vec2 multiplyByI(vec2 z) {
+  return vec2(-z.y, z.x);
+}
+
+void main() {
+  vec2 coordinates = gl_FragCoord.xy - 0.5;
+  float n = (coordinates.x < uResolution * 0.5) ? coordinates.x : coordinates.x - uResolution;
+  float m = (coordinates.y < uResolution * 0.5) ? coordinates.y : coordinates.y - uResolution;
+  vec2 waveVector = vec2(
+    (2.0 * PI * n) / max(1.0, uDomainSize.x),
+    (2.0 * PI * m) / max(1.0, uDomainSize.y)
+  );
+
+  float phase = texture2D(uPhases, vUv).r;
+  vec2 phaseVector = vec2(cos(phase), sin(phase));
+
+  vec2 h0 = texture2D(uInitialSpectrum, vUv).rg;
+  vec2 mirroredUv = vec2(1.0 - vUv + 1.0 / uResolution);
+  vec2 h0Star = texture2D(uInitialSpectrum, mirroredUv).rg;
+  h0Star.y *= -1.0;
+
+  vec2 h = multiplyComplex(h0, phaseVector)
+    + multiplyComplex(h0Star, vec2(phaseVector.x, -phaseVector.y));
+
+  float kLength = length(waveVector);
+  vec2 hX = vec2(0.0);
+  vec2 hY = vec2(0.0);
+  if (kLength > 1e-5) {
+    vec2 dir = waveVector / kLength;
+    hX = -multiplyByI(h * dir.x) * max(0.0, uChoppiness);
+    hY = -multiplyByI(h * dir.y) * max(0.0, uChoppiness);
+  }
+
+  gl_FragColor = vec4(hX + multiplyByI(h), hY);
+}
+`;
+
+const SUBTRANSFORM_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+const float PI = 3.141592653589793;
+
+uniform sampler2D uInput;
+uniform float uTransformSize;
+uniform float uSubtransformSize;
+
+varying vec2 vUv;
+
+vec2 multiplyComplex(vec2 a, vec2 b) {
+  return vec2(a.x * b.x - a.y * b.y, a.y * b.x + a.x * b.y);
+}
+
+void main() {
+  #ifdef HORIZONTAL
+  float index = vUv.x * uTransformSize - 0.5;
+  #else
+  float index = vUv.y * uTransformSize - 0.5;
+  #endif
+
+  float evenIndex =
+    floor(index / uSubtransformSize) * (uSubtransformSize * 0.5)
+    + mod(index, uSubtransformSize * 0.5);
+
+  #ifdef HORIZONTAL
+  vec4 even = texture2D(uInput, vec2(evenIndex + 0.5, gl_FragCoord.y) / uTransformSize);
+  vec4 odd = texture2D(uInput, vec2(evenIndex + uTransformSize * 0.5 + 0.5, gl_FragCoord.y) / uTransformSize);
+  #else
+  vec4 even = texture2D(uInput, vec2(gl_FragCoord.x, evenIndex + 0.5) / uTransformSize);
+  vec4 odd = texture2D(uInput, vec2(gl_FragCoord.x, evenIndex + uTransformSize * 0.5 + 0.5) / uTransformSize);
+  #endif
+
+  float twiddleArgument = -2.0 * PI * (index / uSubtransformSize);
+  vec2 twiddle = vec2(cos(twiddleArgument), sin(twiddleArgument));
+
+  vec2 outputA = even.xy + multiplyComplex(twiddle, odd.xy);
+  vec2 outputB = even.zw + multiplyComplex(twiddle, odd.zw);
+
+  gl_FragColor = vec4(outputA, outputB);
+}
+`;
+
+const NORMAL_MAP_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+varying vec2 vUv;
+
+uniform sampler2D uDisplacementMap;
+uniform float uResolution;
+uniform vec2 uDomainSize;
+uniform float uDisplacementScale;
+
+vec3 decodeDisplacement(vec3 packed) {
+  return vec3(packed.r, packed.b, packed.g) * uDisplacementScale;
+}
+
+void main() {
+  float texel = 1.0 / uResolution;
+  vec2 texelSize = uDomainSize / uResolution;
+
+  vec3 center = decodeDisplacement(texture2D(uDisplacementMap, vUv).rgb);
+  vec3 right = vec3(texelSize.x, 0.0, 0.0)
+    + decodeDisplacement(texture2D(uDisplacementMap, vUv + vec2(texel, 0.0)).rgb)
+    - center;
+  vec3 left = vec3(-texelSize.x, 0.0, 0.0)
+    + decodeDisplacement(texture2D(uDisplacementMap, vUv + vec2(-texel, 0.0)).rgb)
+    - center;
+  vec3 up = vec3(0.0, texelSize.y, 0.0)
+    + decodeDisplacement(texture2D(uDisplacementMap, vUv + vec2(0.0, texel)).rgb)
+    - center;
+  vec3 down = vec3(0.0, -texelSize.y, 0.0)
+    + decodeDisplacement(texture2D(uDisplacementMap, vUv + vec2(0.0, -texel)).rgb)
+    - center;
+
+  vec3 normal = normalize(cross(right, up) + cross(up, left) + cross(left, down) + cross(down, right));
+  if (
+    dot(normal, normal) < 1e-6
+    || normal.x != normal.x
+    || normal.y != normal.y
+    || normal.z != normal.z
+  ) {
+    normal = vec3(0.0, 0.0, 1.0);
+  }
+
+  gl_FragColor = vec4(normal * 0.5 + 0.5, 1.0);
+}
+`;
+
+const OCEAN_VERTEX_SHADER = glsl`
+precision highp float;
+
+varying vec2 vUv;
+varying vec3 vWorldPosition;
+
+uniform sampler2D uDisplacementMap;
+uniform float uDisplacementScale;
+
+vec3 decodeDisplacement(vec3 packed) {
+  return vec3(packed.r, packed.b, packed.g);
+}
+
+void main() {
+  vUv = uv;
+  vec3 displacement = decodeDisplacement(texture2D(uDisplacementMap, uv).rgb) * uDisplacementScale;
+  vec3 displacedPosition = position + displacement;
+  vec4 worldPosition = modelMatrix * vec4(displacedPosition, 1.0);
+  vWorldPosition = worldPosition.xyz;
+  gl_Position = projectionMatrix * viewMatrix * worldPosition;
+}
+`;
+
+const OCEAN_FRAGMENT_SHADER = glsl`
+precision highp float;
+
+varying vec2 vUv;
+varying vec3 vWorldPosition;
+
+uniform sampler2D uNormalMap;
+uniform vec3 uOceanColor;
+uniform vec3 uSkyColor;
+uniform float uExposure;
+uniform vec3 uSunDirection;
+uniform float uNormalStrength;
+
+void main() {
+  vec3 normalTex = texture2D(uNormalMap, vUv).rgb * 2.0 - 1.0;
+  normalTex.xy *= max(0.01, uNormalStrength);
+  vec3 normal = normalize(normalTex);
+
+  vec3 view = normalize(cameraPosition - vWorldPosition);
+  float fresnel = 0.02 + 0.98 * pow(clamp(1.0 - dot(normal, view), 0.0, 1.0), 5.0);
+
+  float diffuse = clamp(dot(normal, normalize(uSunDirection)), 0.0, 1.0);
+  vec3 sky = fresnel * uSkyColor;
+  vec3 water = (1.0 - fresnel) * uOceanColor * uSkyColor * (0.35 + 0.65 * diffuse);
+
+  vec3 color = 1.0 - exp(-(sky + water) * max(0.0, uExposure));
+  gl_FragColor = vec4(color, 1.0);
+  #include <colorspace_fragment>
+}
+`;
+
+const FALLBACK_VERTEX_SHADER = glsl`
+precision highp float;
+
+const float PI = 3.141592653589793;
 
 varying vec3 vNormal;
-varying float vScalar;
+varying vec3 vWorldPosition;
+
+uniform float uTime;
+uniform float uWaveAmplitude;
+uniform float uWindDirectionDeg;
+uniform float uWindSpeed;
+uniform float uChoppiness;
+uniform float uDisplacementScale;
 
 void main() {
   vec3 base = position;
+  vec2 windDir = vec2(cos(radians(uWindDirectionDeg)), sin(radians(uWindDirectionDeg)));
+  float windRef = max(0.1, uWindSpeed);
+  float kpWind = 9.81 * pow(0.84 / windRef, 2.0);
+  float baseWavelength = clamp((2.0 * PI) / max(1e-4, kpWind), 12.0, 240.0);
+
   float dispZ = 0.0;
   vec2 dispXY = vec2(0.0);
   float slopeX = 0.0;
   float slopeY = 0.0;
-  float velX = 0.0;
-  float velY = 0.0;
-  float velZ = 0.0;
 
-  for (int i = 0; i < WAVE_MAX_COMPONENTS; i += 1) {
-    float componentMask = step(float(i) + 0.5, uActiveComponents);
+  for (int i = 0; i < 6; i += 1) {
+    float fi = float(i);
+    float octave = pow(1.65, fi);
+    float wavelength = max(2.0, baseWavelength / octave);
+    float k = 2.0 * PI / wavelength;
+    float omega = sqrt(9.81 * k);
+    float jitter = (fi - 2.5) * 0.46;
+    vec2 dir = normalize(vec2(
+      windDir.x * cos(jitter) - windDir.y * sin(jitter),
+      windDir.x * sin(jitter) + windDir.y * cos(jitter)
+    ));
 
-    float k = uWaveNumber[i];
-    float omega = uOmega[i];
-    float amp = uAmplitude[i] * componentMask;
-    vec2 dir = vec2(uDirX[i], uDirY[i]);
-
-    float theta = dot(dir, base.xy) * k + omega * uTime + uPhase[i];
+    float amp = uWaveAmplitude * (0.55 / octave) * (0.72 + 0.28 * sin(fi * 7.13 + 1.2));
+    float speedGain = 0.6 + 0.04 * max(0.0, uWindSpeed);
+    float theta = dot(dir, base.xy) * k + omega * uTime * speedGain + fi * 1.37;
     float s = sin(theta);
     float c = cos(theta);
 
     dispZ += amp * s;
-    dispXY += uChoppiness * amp * c * dir;
-
+    dispXY += max(0.0, uChoppiness) * amp * c * dir * 0.35;
     slopeX += amp * k * dir.x * c;
     slopeY += amp * k * dir.y * c;
-
-    velZ += amp * omega * c;
-    velX += -uChoppiness * amp * omega * s * dir.x;
-    velY += -uChoppiness * amp * omega * s * dir.y;
   }
 
-  vec3 displaced = vec3(base.x + dispXY.x, base.y + dispXY.y, base.z + dispZ * uVerticalScale);
-  vec3 derivedNormal = normalize(vec3(-slopeX * uVerticalScale, -slopeY * uVerticalScale, 1.0));
+  float verticalScale = max(0.01, uDisplacementScale) * 0.45;
+  vec3 displaced = vec3(base.xy + dispXY, base.z + dispZ * verticalScale);
+  vec3 localNormal = normalize(vec3(-slopeX * verticalScale, -slopeY * verticalScale, 1.0));
 
-  float scalar = dispZ * uVerticalScale;
-  if (uColorMode > 0.5 && uColorMode < 1.5) {
-    scalar = dispZ * uVerticalScale;
-  } else if (uColorMode >= 1.5 && uColorMode < 2.5) {
-    scalar = length(vec3(velX, velY, velZ * uVerticalScale));
-  } else if (uColorMode >= 2.5) {
-    float angleDeg = degrees(atan(velY, velX));
-    if (angleDeg < 0.0) {
-      angleDeg += 360.0;
-    }
-    scalar = angleDeg;
-  }
-
-  vScalar = scalar;
-  vNormal = normalize(normalMatrix * derivedNormal);
-
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+  vNormal = normalize(normalMatrix * localNormal);
+  vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
+  vWorldPosition = worldPosition.xyz;
+  gl_Position = projectionMatrix * viewMatrix * worldPosition;
 }
 `;
 
-const WAVE_FRAGMENT_SHADER = glsl`
+const FALLBACK_FRAGMENT_SHADER = glsl`
 precision highp float;
 
-uniform bool uUseSolidColor;
-uniform vec3 uSolidColor;
-uniform sampler2D uColormapTex;
-uniform bool uColormapInverted;
-uniform float uRangeMin;
-uniform float uInvRangeSpan;
-uniform float uColorMode;
-
 varying vec3 vNormal;
-varying float vScalar;
+varying vec3 vWorldPosition;
+
+uniform vec3 uOceanColor;
+uniform vec3 uSkyColor;
+uniform float uExposure;
+uniform vec3 uSunDirection;
 
 void main() {
-  float t = 0.5;
-  if (!uUseSolidColor) {
-    float scalar = vScalar;
-    if (scalar != scalar) {
-      scalar = 0.0;
-    }
-    if (uColorMode >= 2.5) {
-      t = clamp(scalar / 360.0, 0.0, 1.0);
-    } else {
-      t = clamp((scalar - uRangeMin) * max(0.0, uInvRangeSpan), 0.0, 1.0);
-    }
-    if (t != t) {
-      t = 0.5;
-    }
-    if (uColormapInverted) {
-      t = 1.0 - t;
-    }
-  }
+  vec3 normal = normalize(vNormal);
+  vec3 view = normalize(cameraPosition - vWorldPosition);
+  float fresnel = 0.02 + 0.98 * pow(clamp(1.0 - dot(normal, view), 0.0, 1.0), 5.0);
 
-  vec3 sampledColor = texture2D(uColormapTex, vec2(t, 0.5)).rgb;
-  float sampledEnergy = sampledColor.r + sampledColor.g + sampledColor.b;
-  if (sampledEnergy <= 1e-6 || sampledEnergy != sampledEnergy) {
-    sampledColor = uSolidColor;
-  }
-  vec3 baseColor = uUseSolidColor ? uSolidColor : sampledColor;
-  vec3 lightDir = normalize(vec3(0.28, 0.24, 0.92));
-  float ndotl = dot(normalize(vNormal), lightDir);
-  if (ndotl != ndotl) {
-    ndotl = 1.0;
-  }
-  float diffuse = 0.32 + 0.68 * max(ndotl, 0.0);
-  vec3 color = baseColor * diffuse;
+  float diffuse = clamp(dot(normal, normalize(uSunDirection)), 0.0, 1.0);
+  vec3 sky = fresnel * uSkyColor;
+  vec3 water = (1.0 - fresnel) * uOceanColor * uSkyColor * (0.35 + 0.65 * diffuse);
 
+  vec3 color = 1.0 - exp(-(sky + water) * max(0.0, uExposure));
   gl_FragColor = vec4(color, 1.0);
   #include <colorspace_fragment>
 }
@@ -202,6 +492,7 @@ void main() {
 export class WaveSimulation extends BaseSimulation {
   static APPLET_ID = "wave";
   static APPLET_RUNTIME = WAVE_APPLET_RUNTIME;
+
   static getColormapConfig({ params, simulation, continuousColormapOptions, continuousColormapGradients }) {
     return buildWaveColormapConfig({
       params,
@@ -216,91 +507,52 @@ export class WaveSimulation extends BaseSimulation {
 
     this.surfaceMesh = null;
     this.surfaceGeometry = null;
-    this.positionAttribute = null;
-    this.colorAttribute = null;
-    this.basePositions = null;
-    this.scalarScratch = null;
+    this.surfaceMaterial = null;
+    this.fallbackMaterial = null;
+
+    this.fullscreenScene = null;
+    this.fullscreenCamera = null;
+    this.fullscreenQuad = null;
+
+    this.initialSpectrumMaterial = null;
+    this.phaseMaterial = null;
+    this.spectrumMaterial = null;
+    this.horizontalSubtransformMaterial = null;
+    this.verticalSubtransformMaterial = null;
+    this.normalMaterial = null;
+
+    this.initialSpectrumTarget = null;
+    this.phasePingTarget = null;
+    this.phasePongTarget = null;
+    this.phaseActiveTarget = null;
+    this.spectrumTarget = null;
+    this.transformTargetA = null;
+    this.transformTargetB = null;
+    this.displacementTarget = null;
+    this.normalTarget = null;
+    this.phaseSeedTexture = null;
+
+    this.defaultDisplacementTexture = createPlaceholderTexture([0, 0, 0, 255]);
+    this.defaultNormalTexture = createPlaceholderTexture([128, 128, 255, 255]);
+
+    this.rendererSupportsFft = this.resolveFftSupport();
+    this.hardwareAccelerationEnabled = Boolean(this.params.hardwareAcceleration ?? true);
+    this.lastBackendLog = "";
+
+    this.fftResolution = 0;
+    this.pendingSpectrumRebuild = true;
+    this.randomSeed = Math.random() * 1000;
 
     this.timeSeconds = 0;
     this.statsAccumulatorSeconds = 0;
     this.vertexCount = 0;
-
-    this.waveComponents = [];
-    this.activeComponentCount = 0;
-    this.waveSignature = "";
-    this.waveSeed = Math.random() * WAVE_COMPONENT_PHASE_SEED_SCALE;
-
-    this.uniformAmplitude = new Float32Array(WAVE_MAX_COMPONENTS);
-    this.uniformWaveNumber = new Float32Array(WAVE_MAX_COMPONENTS);
-    this.uniformOmega = new Float32Array(WAVE_MAX_COMPONENTS);
-    this.uniformPhase = new Float32Array(WAVE_MAX_COMPONENTS);
-    this.uniformDirX = new Float32Array(WAVE_MAX_COMPONENTS);
-    this.uniformDirY = new Float32Array(WAVE_MAX_COMPONENTS);
-
-    this.colormapTextureCache = new Map();
-    this.solidColorValue = new THREE.Color(getWaveSolidColor(this.params));
-    this.tempColor = new THREE.Color();
-
-    this.scalarRanges = {
-      height: { min: -1, max: 1 },
-      speed: { min: 0, max: 1 },
-      direction: { ...WAVE_DIRECTION_RANGE },
-    };
-
     this.lastHeightRms = 0;
     this.lastSurfaceSpeed = 0;
 
-    this.evalScratch = {
-      dispX: 0,
-      dispY: 0,
-      dispZ: 0,
-      velX: 0,
-      velY: 0,
-      velZ: 0,
-      speed: 0,
-      directionDeg: 0,
-      heightScaled: 0,
-    };
-
-    this.hardwareAccelerationEnabled = Boolean(this.params.hardwareAcceleration ?? true);
-    this.useGpuPath = false;
-    this.lastBackendLog = "";
-
-    this.cpuMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      vertexColors: true,
-      toneMapped: false,
-      side: THREE.DoubleSide,
-    });
-
-    this.gpuMaterial = new THREE.ShaderMaterial({
-      vertexShader: WAVE_VERTEX_SHADER,
-      fragmentShader: WAVE_FRAGMENT_SHADER,
-      transparent: false,
-      depthTest: true,
-      depthWrite: true,
-      toneMapped: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uActiveComponents: { value: 0 },
-        uAmplitude: { value: this.uniformAmplitude },
-        uWaveNumber: { value: this.uniformWaveNumber },
-        uOmega: { value: this.uniformOmega },
-        uPhase: { value: this.uniformPhase },
-        uDirX: { value: this.uniformDirX },
-        uDirY: { value: this.uniformDirY },
-        uChoppiness: { value: 1 },
-        uVerticalScale: { value: 1 },
-        uUseSolidColor: { value: false },
-        uSolidColor: { value: new THREE.Color(getWaveSolidColor(this.params)) },
-        uColormapTex: { value: this.getOrCreateColormapTexture(this.params.colormap) },
-        uColormapInverted: { value: false },
-        uRangeMin: { value: -1 },
-        uInvRangeSpan: { value: 0.5 },
-        uColorMode: { value: 1 },
-      },
-    });
+    this.domainSize = new THREE.Vector2(220, 220);
+    this.windVector = new THREE.Vector2(1, 0);
+    this.oceanColor = new THREE.Color(getWaveOceanColor(this.params));
+    this.skyColor = new THREE.Color(getWaveSkyColor(this.params));
   }
 
   init() {
@@ -313,20 +565,36 @@ export class WaveSimulation extends BaseSimulation {
     }
   }
 
-  onTheme() {}
+  onTheme() {
+    this.syncMaterialUniforms();
+  }
 
   reset() {
     this.timeSeconds = 0;
     this.statsAccumulatorSeconds = WAVE_STATS_UPDATE_INTERVAL_SECONDS;
-    this.waveSeed = Math.random() * WAVE_COMPONENT_PHASE_SEED_SCALE;
-    this.ensureWaveComponents(true);
+    this.randomSeed = Math.random() * 1000;
+    this.pendingSpectrumRebuild = true;
+
     this.rebuildSurfaceMesh();
-    this.syncInstances();
+
+    if (this.rendererSupportsFft && this.hardwareAccelerationEnabled) {
+      this.ensureFftResources(true);
+      this.renderSpectrumFrame(0);
+      this.logBackend("GPU FFT");
+    } else if (this.rendererSupportsFft) {
+      this.logBackend("GPU FFT paused (hardware acceleration off)");
+    } else {
+      this.logBackend("Static fallback (WebGL2 + float color buffer unavailable)");
+    }
+
+    this.syncMaterialUniforms();
+    this.recomputeStatsEstimate();
     this.emitStats();
   }
 
   onWorldGeometryChanged() {
     this.rebuildSurfaceMesh();
+    this.markSpectrumDirty();
     this.syncInstances();
     this.emitStats();
   }
@@ -335,41 +603,101 @@ export class WaveSimulation extends BaseSimulation {
     this.onWorldGeometryChanged();
   }
 
-  setGridResolution(value) {
-    const next = THREE.MathUtils.clamp(
-      Math.round(Number(value) || this.params.gridResolution || 0),
-      WAVE_MIN_GRID_RESOLUTION,
-      WAVE_MAX_GRID_RESOLUTION,
-    );
-    if (next === this.params.gridResolution) {
-      return;
-    }
-    this.params.gridResolution = next;
-    this.reset();
-  }
-
-  setComponentCount(value) {
-    const next = THREE.MathUtils.clamp(
-      Math.round(Number(value) || this.params.componentCount || 0),
-      1,
-      WAVE_MAX_COMPONENTS,
-    );
-    if (next === this.params.componentCount) {
-      return;
-    }
-    this.params.componentCount = next;
-    this.reset();
-  }
-
   setHardwareAcceleration(enabled) {
-    this.params.hardwareAcceleration = Boolean(enabled);
     this.hardwareAccelerationEnabled = Boolean(enabled);
-    this.updateMaterialMode();
-    this.syncInstances();
+    this.params.hardwareAcceleration = this.hardwareAccelerationEnabled;
+    if (this.surfaceMesh) {
+      this.surfaceMesh.material = this.resolveSurfaceMaterial();
+    }
+    this.syncMaterialUniforms();
+    if (this.hardwareAccelerationEnabled) {
+      this.markSpectrumDirty();
+      this.renderSpectrumFrame(0);
+      this.logBackend("GPU FFT");
+      return;
+    }
+    this.logBackend("GPU FFT paused (hardware acceleration off)");
   }
 
   isHardwareAccelerationActive() {
-    return this.useGpuPath;
+    return this.rendererSupportsFft && this.hardwareAccelerationEnabled;
+  }
+
+  setFftResolution(value) {
+    const next = this.snapToNearestPowerOfTwo(
+      Number(value),
+      WAVE_MIN_FFT_RESOLUTION,
+      WAVE_MAX_FFT_RESOLUTION,
+      WAVE_DEFAULT_FFT_RESOLUTION,
+    );
+    if (next === this.resolveFftResolution()) {
+      return;
+    }
+    this.params.fftResolution = next;
+    this.reset();
+  }
+
+  setMeshResolution(value) {
+    const next = THREE.MathUtils.clamp(
+      Math.round(Number(value) || this.resolveMeshResolution()),
+      WAVE_MIN_MESH_RESOLUTION,
+      WAVE_MAX_MESH_RESOLUTION,
+    );
+    if (next === this.resolveMeshResolution()) {
+      return;
+    }
+    this.params.meshResolution = next;
+    this.rebuildSurfaceMesh();
+    this.markSpectrumDirty();
+    this.syncInstances();
+    this.emitStats();
+  }
+
+  setWindSpeed(value) {
+    this.setAndSyncDynamicParam("windSpeed", value, 0, 45);
+  }
+
+  setWindDirection(value) {
+    this.setAndSyncDynamicParam("windDirection", value, 0, 360);
+  }
+
+  setWaveAmplitude(value) {
+    this.setAndSyncDynamicParam("waveAmplitude", value, 0, 3.5);
+  }
+
+  setDirectionSpread(value) {
+    this.setAndSyncDynamicParam("directionSpread", value, 0, 180);
+  }
+
+  setChoppiness(value) {
+    this.setAndSyncDynamicParam("choppiness", value, 0, 1.6);
+  }
+
+  setDamping(value) {
+    this.setAndSyncDynamicParam("damping", value, 0, 3);
+  }
+
+  setDisplacementScale(value) {
+    this.setAndSyncDynamicParam("displacementScale", value, 0.1, 3);
+  }
+
+  setNormalStrength(value) {
+    this.setAndSyncDynamicParam("normalStrength", value, 0.1, 3);
+  }
+
+  setExposure(value) {
+    this.setAndSyncDynamicParam("exposure", value, 0.05, 2);
+  }
+
+  syncInstances() {
+    this.syncMaterialUniforms();
+    if (!this.rendererSupportsFft || !this.hardwareAccelerationEnabled) {
+      this.recomputeStatsEstimate();
+      return;
+    }
+    this.markSpectrumDirty();
+    this.renderSpectrumFrame(0);
+    this.recomputeStatsEstimate();
   }
 
   step(dt) {
@@ -378,15 +706,15 @@ export class WaveSimulation extends BaseSimulation {
       return;
     }
 
-    const stepDt = Math.min(0.2, dt);
+    const stepDt = Math.min(WAVE_MAX_STEP_SECONDS, dt);
     this.timeSeconds += stepDt;
 
-    this.ensureWaveComponents(false);
-
-    if (this.useGpuPath) {
-      this.updateGpuUniforms();
-    } else {
-      this.updateCpuSurface();
+    if (this.rendererSupportsFft && this.hardwareAccelerationEnabled) {
+      this.renderSpectrumFrame(stepDt);
+      this.recomputeStatsEstimate();
+    } else if (this.fallbackMaterial) {
+      this.fallbackMaterial.uniforms.uTime.value = this.timeSeconds;
+      this.recomputeStatsEstimate();
     }
 
     this.statsAccumulatorSeconds += stepDt;
@@ -396,84 +724,288 @@ export class WaveSimulation extends BaseSimulation {
     }
   }
 
-  syncInstances() {
-    this.ensureWaveComponents(false);
-    this.updateMaterialMode();
-    if (this.useGpuPath) {
-      this.updateGpuUniforms();
-    } else {
-      this.updateCpuSurface();
-    }
-  }
-
-  updateMaterialMode() {
-    const wasGpu = this.useGpuPath;
-    const { supported, reason } = this.resolveGpuSupport();
-    const shouldUseGpu = this.hardwareAccelerationEnabled && supported;
-    this.useGpuPath = shouldUseGpu;
-    if (this.surfaceMesh) {
-      this.surfaceMesh.material = this.useGpuPath ? this.gpuMaterial : this.cpuMaterial;
-    }
-    if (this.useGpuPath && !wasGpu) {
-      this.restoreBaseGeometryPositions();
-    }
-    this.logBackend(reason);
-  }
-
-  resolveGpuSupport() {
-    if (!this.renderer) {
-      return { supported: false, reason: "renderer missing" };
-    }
-    const hasWebGL2Capability = Boolean(this.renderer.capabilities?.isWebGL2);
-    let gl = null;
-    try {
-      gl = this.renderer.getContext?.();
-    } catch (_error) {
-      gl = null;
-    }
-    const hasWebGL2Context = (
-      typeof WebGL2RenderingContext !== "undefined"
-      && gl instanceof WebGL2RenderingContext
-    );
-    const supported = hasWebGL2Capability || hasWebGL2Context;
-    if (supported) {
-      return {
-        supported: true,
-        reason: hasWebGL2Capability ? "renderer=WebGL2" : "context=WebGL2",
-      };
-    }
-    if (gl) {
-      return { supported: false, reason: "renderer=WebGL1" };
-    }
-    return { supported: false, reason: "context unavailable" };
-  }
-
-  logBackend(reason) {
-    const state = this.useGpuPath ? `GPU (${reason})` : `CPU (${reason})`;
-    if (state === this.lastBackendLog) {
+  renderSpectrumFrame(deltaTimeSeconds) {
+    if (!this.rendererSupportsFft || !this.renderer || !this.hardwareAccelerationEnabled) {
       return;
     }
-    this.lastBackendLog = state;
-    console.log(`${WAVE_GPU_BACKEND_LOG_PREFIX} ${state}.`);
+
+    this.ensureFftResources(false);
+    if (
+      !this.initialSpectrumTarget
+      || !this.phasePingTarget
+      || !this.phasePongTarget
+      || !this.spectrumTarget
+      || !this.displacementTarget
+      || !this.normalTarget
+    ) {
+      return;
+    }
+
+    this.updateSpectrumUniforms();
+
+    if (this.pendingSpectrumRebuild) {
+      this.rebuildInitialSpectrum();
+    }
+
+    this.advancePhases(deltaTimeSeconds);
+    this.buildSpectrum();
+    this.runInverseFft();
+    this.buildNormalMap();
+    this.syncMaterialUniforms();
+  }
+
+  rebuildInitialSpectrum() {
+    if (!this.initialSpectrumMaterial || !this.initialSpectrumTarget) {
+      return;
+    }
+    this.renderFullscreen(this.initialSpectrumMaterial, this.initialSpectrumTarget);
+    this.pendingSpectrumRebuild = false;
+  }
+
+  advancePhases(deltaTimeSeconds) {
+    if (!this.phaseMaterial || !this.phasePingTarget || !this.phasePongTarget) {
+      return;
+    }
+    const sourceTexture = this.phaseActiveTarget
+      ? this.phaseActiveTarget.texture
+      : this.phaseSeedTexture;
+    if (!sourceTexture) {
+      return;
+    }
+    const target = this.phaseActiveTarget === this.phasePingTarget
+      ? this.phasePongTarget
+      : this.phasePingTarget;
+
+    this.phaseMaterial.uniforms.uPhases.value = sourceTexture;
+    this.phaseMaterial.uniforms.uDeltaTime.value = Math.max(0, Number(deltaTimeSeconds) || 0);
+    this.renderFullscreen(this.phaseMaterial, target);
+    this.phaseActiveTarget = target;
+  }
+
+  buildSpectrum() {
+    if (!this.spectrumMaterial || !this.spectrumTarget || !this.initialSpectrumTarget) {
+      return;
+    }
+    this.spectrumMaterial.uniforms.uPhases.value = this.phaseActiveTarget
+      ? this.phaseActiveTarget.texture
+      : this.phaseSeedTexture;
+    this.spectrumMaterial.uniforms.uInitialSpectrum.value = this.initialSpectrumTarget.texture;
+    this.renderFullscreen(this.spectrumMaterial, this.spectrumTarget);
+  }
+
+  runInverseFft() {
+    if (
+      !this.horizontalSubtransformMaterial
+      || !this.verticalSubtransformMaterial
+      || !this.spectrumTarget
+      || !this.transformTargetA
+      || !this.transformTargetB
+      || !this.displacementTarget
+    ) {
+      return;
+    }
+
+    const iterationsPerAxis = Math.round(Math.log2(this.fftResolution));
+    if (!Number.isFinite(iterationsPerAxis) || iterationsPerAxis <= 0) {
+      return;
+    }
+    const totalIterations = iterationsPerAxis * 2;
+    let sourceTexture = this.spectrumTarget.texture;
+
+    for (let i = 0; i < totalIterations; i += 1) {
+      const isHorizontal = i < iterationsPerAxis;
+      const stage = (i % iterationsPerAxis) + 1;
+      const material = isHorizontal
+        ? this.horizontalSubtransformMaterial
+        : this.verticalSubtransformMaterial;
+      material.uniforms.uInput.value = sourceTexture;
+      material.uniforms.uSubtransformSize.value = 2 ** stage;
+
+      const target = i === totalIterations - 1
+        ? this.displacementTarget
+        : (i % 2 === 0 ? this.transformTargetA : this.transformTargetB);
+
+      this.renderFullscreen(material, target);
+      sourceTexture = target.texture;
+    }
+  }
+
+  buildNormalMap() {
+    if (!this.normalMaterial || !this.normalTarget || !this.displacementTarget) {
+      return;
+    }
+    this.normalMaterial.uniforms.uDisplacementMap.value = this.displacementTarget.texture;
+    this.normalMaterial.uniforms.uDisplacementScale.value = this.getEffectiveDisplacementScale();
+    this.renderFullscreen(this.normalMaterial, this.normalTarget);
+  }
+
+  ensureFftResources(forceRebuild = false) {
+    if (!this.rendererSupportsFft) {
+      return;
+    }
+
+    const nextResolution = this.resolveFftResolution();
+    const needsRebuild = forceRebuild
+      || !this.initialSpectrumTarget
+      || nextResolution !== this.fftResolution;
+    if (!needsRebuild) {
+      return;
+    }
+
+    this.fftResolution = nextResolution;
+    this.disposeFftResources();
+    this.initializeFullscreenPassHelpers();
+
+    this.initialSpectrumTarget = createRenderTarget(nextResolution, nextResolution, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      wrapS: THREE.RepeatWrapping,
+      wrapT: THREE.RepeatWrapping,
+    });
+    this.phasePingTarget = createRenderTarget(nextResolution, nextResolution);
+    this.phasePongTarget = createRenderTarget(nextResolution, nextResolution);
+    this.spectrumTarget = createRenderTarget(nextResolution, nextResolution);
+    this.transformTargetA = createRenderTarget(nextResolution, nextResolution);
+    this.transformTargetB = createRenderTarget(nextResolution, nextResolution);
+    this.displacementTarget = createRenderTarget(nextResolution, nextResolution, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+    this.normalTarget = createRenderTarget(nextResolution, nextResolution, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+    });
+
+    this.phaseSeedTexture = createRandomPhaseTexture(nextResolution, this.randomSeed);
+    this.phaseActiveTarget = null;
+    this.pendingSpectrumRebuild = true;
+
+    this.createOrUpdateFftMaterials();
+    this.updateSpectrumUniforms();
+  }
+
+  initializeFullscreenPassHelpers() {
+    if (this.fullscreenScene && this.fullscreenCamera && this.fullscreenQuad) {
+      return;
+    }
+
+    this.fullscreenScene = new THREE.Scene();
+    this.fullscreenCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    this.fullscreenQuad = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    );
+    this.fullscreenScene.add(this.fullscreenQuad);
+  }
+
+  createOrUpdateFftMaterials() {
+    if (!this.initialSpectrumMaterial) {
+      this.initialSpectrumMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: INITIAL_SPECTRUM_FRAGMENT_SHADER,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uResolution: { value: this.fftResolution },
+          uDomainSize: { value: new THREE.Vector2(220, 220) },
+          uWind: { value: new THREE.Vector2(1, 0) },
+          uAmplitude: { value: 1.8 },
+          uDirectionalSpread: { value: 8 },
+          uShortWaveDamping: { value: 0.12 },
+        },
+      });
+    }
+
+    if (!this.phaseMaterial) {
+      this.phaseMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: PHASE_FRAGMENT_SHADER,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uPhases: { value: this.phaseSeedTexture },
+          uDeltaTime: { value: 0 },
+          uResolution: { value: this.fftResolution },
+          uDomainSize: { value: new THREE.Vector2(220, 220) },
+        },
+      });
+    }
+
+    if (!this.spectrumMaterial) {
+      this.spectrumMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: SPECTRUM_FRAGMENT_SHADER,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uResolution: { value: this.fftResolution },
+          uDomainSize: { value: new THREE.Vector2(220, 220) },
+          uPhases: { value: this.phaseSeedTexture },
+          uInitialSpectrum: { value: null },
+          uChoppiness: { value: 1.2 },
+        },
+      });
+    }
+
+    if (!this.horizontalSubtransformMaterial) {
+      this.horizontalSubtransformMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: `#define HORIZONTAL\n${SUBTRANSFORM_FRAGMENT_SHADER}`,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uInput: { value: null },
+          uTransformSize: { value: this.fftResolution },
+          uSubtransformSize: { value: 2 },
+        },
+      });
+    }
+
+    if (!this.verticalSubtransformMaterial) {
+      this.verticalSubtransformMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: SUBTRANSFORM_FRAGMENT_SHADER,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uInput: { value: null },
+          uTransformSize: { value: this.fftResolution },
+          uSubtransformSize: { value: 2 },
+        },
+      });
+    }
+
+    if (!this.normalMaterial) {
+      this.normalMaterial = new THREE.ShaderMaterial({
+        vertexShader: FULLSCREEN_VERTEX_SHADER,
+        fragmentShader: NORMAL_MAP_FRAGMENT_SHADER,
+        depthWrite: false,
+        depthTest: false,
+        toneMapped: false,
+        uniforms: {
+          uDisplacementMap: { value: null },
+          uResolution: { value: this.fftResolution },
+          uDomainSize: { value: new THREE.Vector2(220, 220) },
+          uDisplacementScale: { value: 1.0 },
+        },
+      });
+    }
+
+    this.horizontalSubtransformMaterial.uniforms.uTransformSize.value = this.fftResolution;
+    this.verticalSubtransformMaterial.uniforms.uTransformSize.value = this.fftResolution;
   }
 
   rebuildSurfaceMesh() {
-    const resolution = this.resolveGridResolution();
-    const segments = Math.max(1, resolution - 1);
-    const width = Math.max(2, Number(this.params.worldSizeX) || 2);
-    const height = Math.max(2, Number(this.params.worldSizeY) || 2);
-
-    // Wave surface lives in XY and displaces along Z.
+    const meshResolution = this.resolveMeshResolution();
+    const segments = Math.max(1, meshResolution - 1);
+    const width = Math.max(8, Number(this.params.worldSizeX) || 8);
+    const height = Math.max(8, Number(this.params.worldSizeY) || 8);
     const geometry = new THREE.PlaneGeometry(width, height, segments, segments);
-
-    const positionAttribute = geometry.getAttribute("position");
-    positionAttribute.setUsage(THREE.DynamicDrawUsage);
-
-    const vertexCount = positionAttribute.count;
-    const colorArray = new Float32Array(vertexCount * 3);
-    const colorAttribute = new THREE.BufferAttribute(colorArray, 3);
-    colorAttribute.setUsage(THREE.DynamicDrawUsage);
-    geometry.setAttribute("color", colorAttribute);
 
     if (this.surfaceMesh) {
       this.scene.remove(this.surfaceMesh);
@@ -481,407 +1013,296 @@ export class WaveSimulation extends BaseSimulation {
     }
 
     this.surfaceGeometry = geometry;
-    this.positionAttribute = positionAttribute;
-    this.colorAttribute = colorAttribute;
-    this.basePositions = new Float32Array(positionAttribute.array);
-    this.scalarScratch = new Float32Array(vertexCount);
-    this.vertexCount = vertexCount;
-
-    this.surfaceMesh = new THREE.Mesh(
-      geometry,
-      this.useGpuPath ? this.gpuMaterial : this.cpuMaterial,
-    );
+    this.vertexCount = geometry.getAttribute("position").count;
+    this.surfaceMesh = new THREE.Mesh(geometry, this.resolveSurfaceMaterial());
     this.surfaceMesh.frustumCulled = false;
     this.scene.add(this.surfaceMesh);
 
-    this.updateMaterialMode();
+    this.syncMaterialUniforms();
   }
 
-  restoreBaseGeometryPositions() {
-    if (!this.positionAttribute || !this.basePositions) {
-      return;
-    }
-    this.positionAttribute.array.set(this.basePositions);
-    this.positionAttribute.needsUpdate = true;
-  }
-
-  resolveGridResolution() {
-    const configured = Math.round(Number(this.params.gridResolution) || 0);
-    return THREE.MathUtils.clamp(
-      configured || WAVE_DEFAULT_GRID_RESOLUTION,
-      WAVE_MIN_GRID_RESOLUTION,
-      WAVE_MAX_GRID_RESOLUTION,
-    );
-  }
-
-  ensureWaveComponents(forceRebuild = false) {
-    const signature = [
-      Math.round(Number(this.params.componentCount) || 0),
-      Number(this.params.windSpeed || 0).toFixed(3),
-      Number(this.params.windDirection || 0).toFixed(3),
-      Number(this.params.waveAmplitude || 0).toFixed(3),
-      Number(this.params.baseWavelength || 0).toFixed(3),
-      Number(this.params.directionSpread || 0).toFixed(3),
-      Number(this.params.damping || 0).toFixed(4),
-      Number(this.waveSeed || 0).toFixed(3),
-    ].join("|");
-
-    if (!forceRebuild && signature === this.waveSignature) {
-      return;
+  resolveSurfaceMaterial() {
+    if (!this.rendererSupportsFft || !this.hardwareAccelerationEnabled) {
+      return this.getFallbackSurfaceMaterial();
     }
 
-    this.waveSignature = signature;
-    this.buildWaveSpectrum();
-    this.updateWaveUniformArrays();
-  }
-
-  buildWaveSpectrum() {
-    const componentCount = THREE.MathUtils.clamp(
-      Math.round(Number(this.params.componentCount) || 16),
-      1,
-      WAVE_MAX_COMPONENTS,
-    );
-    const windSpeed = Math.max(0, Number(this.params.windSpeed) || 0);
-    const windDirectionRad = THREE.MathUtils.degToRad(Number(this.params.windDirection) || 0);
-    const waveAmplitude = Math.max(0, Number(this.params.waveAmplitude) || 0);
-    const baseWavelength = Math.max(0.5, Number(this.params.baseWavelength) || 0.5);
-    const spreadRad = THREE.MathUtils.degToRad(Math.max(0, Number(this.params.directionSpread) || 0));
-    const damping = Math.max(0, Number(this.params.damping) || 0);
-    const random = createSeededRandom(this.waveSeed + componentCount * 131 + windDirectionRad * 17.0);
-
-    const windX = Math.cos(windDirectionRad);
-    const windY = Math.sin(windDirectionRad);
-
-    this.waveComponents.length = 0;
-    const componentNormalization = Math.sqrt(16 / Math.max(1, componentCount));
-
-    let sumAmplitude = 0;
-    let sumSpeedAmplitude = 0;
-
-    for (let i = 0; i < componentCount; i += 1) {
-      const u = componentCount > 1
-        ? (i + random()) / componentCount
-        : random();
-      const wavelengthBand = Math.pow(2, (u - 0.5) * WAVE_RANDOM_COMPONENT_BAND_EXPONENT);
-      const wavelength = baseWavelength * wavelengthBand;
-      const waveNumber = WAVE_TWO_PI / Math.max(0.2, wavelength);
-      const omega = Math.sqrt(WAVE_GRAVITY * waveNumber);
-
-      const windJitter = (random() - 0.5) * spreadRad;
-      const dominantAngle = windDirectionRad + windJitter;
-      const ambientAngle = random() * WAVE_TWO_PI;
-      const directionality = THREE.MathUtils.clamp(0.32 + windSpeed / 45, 0.32, 0.92);
-      const blend = THREE.MathUtils.clamp(directionality + (random() - 0.5) * 0.15, 0.18, 0.95);
-      let dirX = Math.cos(dominantAngle) * blend + Math.cos(ambientAngle) * (1 - blend);
-      let dirY = Math.sin(dominantAngle) * blend + Math.sin(ambientAngle) * (1 - blend);
-      const dirLen = Math.hypot(dirX, dirY);
-      if (dirLen > 0) {
-        dirX /= dirLen;
-        dirY /= dirLen;
-      } else {
-        dirX = windX;
-        dirY = windY;
-      }
-
-      const alignment = 0.5 * (1 + (dirX * windX + dirY * windY));
-      const directionalGain = 0.26 + 0.74 * Math.pow(THREE.MathUtils.clamp(alignment, 0, 1), 1.45);
-      const energyRollOff = 1 / Math.pow(1 + (i + random() * 0.75) * 0.35, 1.15);
-      const dampingGain = Math.exp(-damping * waveNumber * 0.45);
-      const windGain = THREE.MathUtils.clamp(windSpeed / WAVE_REFERENCE_WIND_SPEED, 0, 4);
-      const stochasticGain = 0.72 + 0.56 * random();
-
-      const amplitude = waveAmplitude
-        * directionalGain
-        * energyRollOff
-        * dampingGain
-        * windGain
-        * stochasticGain
-        * componentNormalization;
-      const phase = random() * WAVE_TWO_PI;
-
-      this.waveComponents.push({
-        amplitude,
-        waveNumber,
-        omega,
-        phase,
-        dirX,
-        dirY,
+    if (!this.surfaceMaterial) {
+      this.surfaceMaterial = new THREE.ShaderMaterial({
+        vertexShader: OCEAN_VERTEX_SHADER,
+        fragmentShader: OCEAN_FRAGMENT_SHADER,
+        depthTest: true,
+        depthWrite: true,
+        transparent: false,
+        side: THREE.FrontSide,
+        toneMapped: false,
+        uniforms: {
+          uDisplacementMap: { value: this.defaultDisplacementTexture },
+          uNormalMap: { value: this.defaultNormalTexture },
+          uDisplacementScale: { value: 1.0 },
+          uOceanColor: { value: new THREE.Color(getWaveOceanColor(this.params)) },
+          uSkyColor: { value: new THREE.Color(getWaveSkyColor(this.params)) },
+          uExposure: { value: 0.36 },
+          uSunDirection: { value: new THREE.Vector3(-0.55, 0.35, 1.0).normalize() },
+          uNormalStrength: { value: 1.0 },
+        },
       });
-
-      sumAmplitude += Math.abs(amplitude);
-      sumSpeedAmplitude += Math.abs(amplitude * omega);
     }
 
-    const verticalScale = 1;
-    const choppiness = Math.max(0, Number(this.params.choppiness) || 0);
-    const heightMax = Math.max(WAVE_MIN_HEIGHT_RANGE, sumAmplitude * verticalScale);
-    const speedMax = Math.max(
-      WAVE_MIN_SPEED_RANGE_MAX,
-      sumSpeedAmplitude * Math.sqrt(1 + choppiness * choppiness),
+    return this.surfaceMaterial;
+  }
+
+  getFallbackSurfaceMaterial() {
+    if (!this.fallbackMaterial) {
+      this.fallbackMaterial = new THREE.ShaderMaterial({
+        vertexShader: FALLBACK_VERTEX_SHADER,
+        fragmentShader: FALLBACK_FRAGMENT_SHADER,
+        depthTest: true,
+        depthWrite: true,
+        transparent: false,
+        side: THREE.FrontSide,
+        toneMapped: false,
+        uniforms: {
+          uTime: { value: 0 },
+          uWaveAmplitude: { value: 2.0 },
+          uWindDirectionDeg: { value: 35.0 },
+          uWindSpeed: { value: 12.0 },
+          uChoppiness: { value: 1.2 },
+          uDisplacementScale: { value: 1.0 },
+          uOceanColor: { value: new THREE.Color(getWaveOceanColor(this.params)) },
+          uSkyColor: { value: new THREE.Color(getWaveSkyColor(this.params)) },
+          uExposure: { value: 0.36 },
+          uSunDirection: { value: new THREE.Vector3(-0.55, 0.35, 1.0).normalize() },
+        },
+      });
+    }
+    return this.fallbackMaterial;
+  }
+
+  updateSpectrumUniforms() {
+    const width = Math.max(8, Number(this.params.worldSizeX) || 8);
+    const height = Math.max(8, Number(this.params.worldSizeY) || 8);
+    this.domainSize.set(width, height);
+
+    const windSpeed = Math.max(0, Number(this.params.windSpeed) || 0);
+    const windDirectionDeg = Number(this.params.windDirection) || 0;
+    const windDirectionRad = THREE.MathUtils.degToRad(windDirectionDeg);
+    this.windVector.set(Math.cos(windDirectionRad) * windSpeed, Math.sin(windDirectionRad) * windSpeed);
+    if (this.windVector.lengthSq() < 1e-6) {
+      this.windVector.set(0.001, 0);
+    }
+
+    const amplitude = THREE.MathUtils.clamp(Number(this.params.waveAmplitude) || 0, 0, 3.5);
+    const directionSpreadDeg = THREE.MathUtils.clamp(Number(this.params.directionSpread) || 0, 0, 180);
+    const spreadNormalized = directionSpreadDeg / 180;
+    const spreadExponent = THREE.MathUtils.lerp(14, 0.9, spreadNormalized);
+    const dampingBase = Math.max(0, Number(this.params.damping) || 0);
+    const resolutionRatio = Math.max(1, this.resolveFftResolution() / WAVE_DEFAULT_FFT_RESOLUTION);
+    const shortWaveDamping = THREE.MathUtils.clamp(
+      dampingBase * Math.pow(resolutionRatio, 0.5),
+      0,
+      2.4,
     );
 
-    this.scalarRanges.height = {
-      min: -heightMax,
-      max: heightMax,
-    };
-    this.scalarRanges.speed = {
-      min: 0,
-      max: speedMax,
-    };
-    this.scalarRanges.direction = { ...WAVE_DIRECTION_RANGE };
+    if (this.initialSpectrumMaterial) {
+      this.initialSpectrumMaterial.uniforms.uResolution.value = this.fftResolution;
+      this.initialSpectrumMaterial.uniforms.uDomainSize.value.copy(this.domainSize);
+      this.initialSpectrumMaterial.uniforms.uWind.value.copy(this.windVector);
+      this.initialSpectrumMaterial.uniforms.uAmplitude.value = amplitude;
+      this.initialSpectrumMaterial.uniforms.uDirectionalSpread.value = spreadExponent;
+      this.initialSpectrumMaterial.uniforms.uShortWaveDamping.value = shortWaveDamping;
+    }
 
-    this.activeComponentCount = this.waveComponents.length;
-  }
+    if (this.phaseMaterial) {
+      this.phaseMaterial.uniforms.uResolution.value = this.fftResolution;
+      this.phaseMaterial.uniforms.uDomainSize.value.copy(this.domainSize);
+    }
 
-  updateWaveUniformArrays() {
-    this.uniformAmplitude.fill(0);
-    this.uniformWaveNumber.fill(0);
-    this.uniformOmega.fill(0);
-    this.uniformPhase.fill(0);
-    this.uniformDirX.fill(0);
-    this.uniformDirY.fill(0);
+    if (this.spectrumMaterial) {
+      this.spectrumMaterial.uniforms.uResolution.value = this.fftResolution;
+      this.spectrumMaterial.uniforms.uDomainSize.value.copy(this.domainSize);
+      this.spectrumMaterial.uniforms.uChoppiness.value = THREE.MathUtils.clamp(
+        Number(this.params.choppiness) || 0,
+        0,
+        1.6,
+      );
+    }
 
-    for (let i = 0; i < this.waveComponents.length && i < WAVE_MAX_COMPONENTS; i += 1) {
-      const component = this.waveComponents[i];
-      this.uniformAmplitude[i] = component.amplitude;
-      this.uniformWaveNumber[i] = component.waveNumber;
-      this.uniformOmega[i] = component.omega;
-      this.uniformPhase[i] = component.phase;
-      this.uniformDirX[i] = component.dirX;
-      this.uniformDirY[i] = component.dirY;
+    if (this.normalMaterial) {
+      this.normalMaterial.uniforms.uResolution.value = this.fftResolution;
+      this.normalMaterial.uniforms.uDomainSize.value.copy(this.domainSize);
+      this.normalMaterial.uniforms.uDisplacementScale.value = this.getEffectiveDisplacementScale();
     }
   }
 
-  updateGpuUniforms() {
-    if (!this.gpuMaterial) {
+  syncMaterialUniforms() {
+    this.oceanColor.set(getWaveOceanColor(this.params));
+    this.skyColor.set(getWaveSkyColor(this.params));
+    const displacementScale = this.getEffectiveDisplacementScale();
+
+    if (this.surfaceMaterial) {
+      this.surfaceMaterial.uniforms.uDisplacementMap.value = this.displacementTarget?.texture || this.defaultDisplacementTexture;
+      this.surfaceMaterial.uniforms.uNormalMap.value = this.normalTarget?.texture || this.defaultNormalTexture;
+      this.surfaceMaterial.uniforms.uDisplacementScale.value = displacementScale;
+      this.surfaceMaterial.uniforms.uNormalStrength.value = Math.max(0.1, Number(this.params.normalStrength) || 1);
+      this.surfaceMaterial.uniforms.uExposure.value = Math.max(0.05, Number(this.params.exposure) || 0.36);
+      this.surfaceMaterial.uniforms.uOceanColor.value.copy(this.oceanColor);
+      this.surfaceMaterial.uniforms.uSkyColor.value.copy(this.skyColor);
+    }
+
+    if (this.fallbackMaterial) {
+      this.fallbackMaterial.uniforms.uWaveAmplitude.value = THREE.MathUtils.clamp(
+        Number(this.params.waveAmplitude) || 0,
+        0,
+        3.5,
+      );
+      this.fallbackMaterial.uniforms.uWindDirectionDeg.value = Number(this.params.windDirection) || 0;
+      this.fallbackMaterial.uniforms.uWindSpeed.value = Math.max(0, Number(this.params.windSpeed) || 0);
+      this.fallbackMaterial.uniforms.uChoppiness.value = THREE.MathUtils.clamp(
+        Number(this.params.choppiness) || 0,
+        0,
+        1.6,
+      );
+      this.fallbackMaterial.uniforms.uDisplacementScale.value = displacementScale;
+      this.fallbackMaterial.uniforms.uExposure.value = Math.max(0.05, Number(this.params.exposure) || 0.36);
+      this.fallbackMaterial.uniforms.uOceanColor.value.copy(this.oceanColor);
+      this.fallbackMaterial.uniforms.uSkyColor.value.copy(this.skyColor);
+    }
+  }
+
+  getEffectiveDisplacementScale() {
+    const baseScale = THREE.MathUtils.clamp(Number(this.params.displacementScale) || 1, 0.1, 3.0);
+    if (!this.isHardwareAccelerationActive()) {
+      return baseScale;
+    }
+    const resolutionRatio = Math.max(1, this.resolveFftResolution() / WAVE_DEFAULT_FFT_RESOLUTION);
+    const resolutionCompensation = 1.0 / Math.sqrt(resolutionRatio);
+    return baseScale * resolutionCompensation;
+  }
+
+  renderFullscreen(material, target) {
+    if (!this.renderer || !this.fullscreenScene || !this.fullscreenCamera || !this.fullscreenQuad) {
       return;
     }
 
-    const modeKey = String(this.params.colorMode || "height").trim();
-    const mode = getWaveColorModeIndex(modeKey);
-    const range = this.getColorRange(modeKey);
-    const span = Math.max(WAVE_MIN_VALUE_SPAN, range.max - range.min);
+    const renderer = this.renderer;
+    const previousTarget = renderer.getRenderTarget();
+    const previousAutoClear = renderer.autoClear;
+    const previousXrState = renderer.xr ? renderer.xr.enabled : false;
 
-    this.solidColorValue.set(getWaveSolidColor(this.params));
-
-    const uniforms = this.gpuMaterial.uniforms;
-    uniforms.uTime.value = this.timeSeconds;
-    uniforms.uActiveComponents.value = this.activeComponentCount;
-    uniforms.uAmplitude.value = this.uniformAmplitude;
-    uniforms.uWaveNumber.value = this.uniformWaveNumber;
-    uniforms.uOmega.value = this.uniformOmega;
-    uniforms.uPhase.value = this.uniformPhase;
-    uniforms.uDirX.value = this.uniformDirX;
-    uniforms.uDirY.value = this.uniformDirY;
-    uniforms.uChoppiness.value = Math.max(0, Number(this.params.choppiness) || 0);
-    uniforms.uVerticalScale.value = 1;
-    uniforms.uUseSolidColor.value = modeKey === "solid";
-    uniforms.uSolidColor.value.copy(this.solidColorValue);
-    uniforms.uColormapTex.value = this.getOrCreateColormapTexture(this.params.colormap);
-    uniforms.uColormapInverted.value = Boolean(this.params.colormapInverted);
-    uniforms.uRangeMin.value = range.min;
-    uniforms.uInvRangeSpan.value = 1 / span;
-    uniforms.uColorMode.value = mode;
-    this.gpuMaterial.uniformsNeedUpdate = true;
+    if (renderer.xr) {
+      renderer.xr.enabled = false;
+    }
+    renderer.autoClear = false;
+    this.fullscreenQuad.material = material;
+    renderer.setRenderTarget(target);
+    renderer.render(this.fullscreenScene, this.fullscreenCamera);
+    renderer.setRenderTarget(previousTarget);
+    renderer.autoClear = previousAutoClear;
+    if (renderer.xr) {
+      renderer.xr.enabled = previousXrState;
+    }
   }
 
-  updateCpuSurface() {
-    if (!this.positionAttribute || !this.colorAttribute || !this.basePositions || !this.scalarScratch) {
+  resolveFftSupport() {
+    if (!this.renderer) {
+      return false;
+    }
+    if (!this.renderer.capabilities?.isWebGL2) {
+      return false;
+    }
+
+    let gl = null;
+    try {
+      gl = this.renderer.getContext?.();
+    } catch (_error) {
+      gl = null;
+    }
+    if (!gl) {
+      return false;
+    }
+    return Boolean(gl.getExtension("EXT_color_buffer_float"));
+  }
+
+  resolveFftResolution() {
+    return this.snapToNearestPowerOfTwo(
+      Number(this.params.fftResolution),
+      WAVE_MIN_FFT_RESOLUTION,
+      WAVE_MAX_FFT_RESOLUTION,
+      WAVE_DEFAULT_FFT_RESOLUTION,
+    );
+  }
+
+  resolveMeshResolution() {
+    const raw = Number(this.params.meshResolution ?? this.params.gridResolution);
+    return THREE.MathUtils.clamp(
+      Math.round(raw || WAVE_DEFAULT_MESH_RESOLUTION),
+      WAVE_MIN_MESH_RESOLUTION,
+      WAVE_MAX_MESH_RESOLUTION,
+    );
+  }
+
+  snapToNearestPowerOfTwo(value, min, max, fallback) {
+    const finite = Number.isFinite(value) ? value : fallback;
+    const clamped = THREE.MathUtils.clamp(Math.round(finite), min, max);
+
+    let lower = min;
+    while (lower * 2 <= clamped) {
+      lower *= 2;
+    }
+    const upper = Math.min(max, lower * 2);
+
+    if (clamped === lower || upper === lower) {
+      return lower;
+    }
+    return (upper - clamped) < (clamped - lower) ? upper : lower;
+  }
+
+  setAndSyncDynamicParam(key, rawValue, min, max) {
+    const next = this.clampNumericParam(rawValue, min, max, this.params[key]);
+    if (Math.abs(Number(this.params[key]) - next) <= 1e-9) {
       return;
     }
-
-    const positionArray = this.positionAttribute.array;
-    const colorArray = this.colorAttribute.array;
-    const vertexCount = this.positionAttribute.count;
-    const verticalScale = 1;
-    const colorMode = String(this.params.colorMode || "height").trim();
-    const choppiness = Math.max(0, Number(this.params.choppiness) || 0);
-
-    this.solidColorValue.set(getWaveSolidColor(this.params));
-
-    let speedMin = Infinity;
-    let speedMax = -Infinity;
-    let heightMin = Infinity;
-    let heightMax = -Infinity;
-
-    let heightSqSum = 0;
-    let speedSum = 0;
-
-    for (let i = 0; i < vertexCount; i += 1) {
-      const base = i * 3;
-      const x = this.basePositions[base];
-      const y = this.basePositions[base + 1];
-      const state = this.evaluateWaveStateAt(x, y, this.timeSeconds, choppiness, verticalScale);
-
-      positionArray[base] = x + state.dispX;
-      positionArray[base + 1] = y + state.dispY;
-      positionArray[base + 2] = state.heightScaled;
-
-      this.scalarScratch[i] = getWaveScalarByMode(colorMode, state);
-
-      if (state.speed < speedMin) {
-        speedMin = state.speed;
-      }
-      if (state.speed > speedMax) {
-        speedMax = state.speed;
-      }
-      if (state.heightScaled < heightMin) {
-        heightMin = state.heightScaled;
-      }
-      if (state.heightScaled > heightMax) {
-        heightMax = state.heightScaled;
-      }
-
-      heightSqSum += state.heightScaled * state.heightScaled;
-      speedSum += state.speed;
-    }
-
-    this.lastHeightRms = vertexCount > 0 ? Math.sqrt(heightSqSum / vertexCount) : 0;
-    this.lastSurfaceSpeed = vertexCount > 0 ? speedSum / vertexCount : 0;
-
-    if (Number.isFinite(heightMin) && Number.isFinite(heightMax)) {
-      if (heightMax - heightMin < WAVE_MIN_HEIGHT_RANGE) {
-        const center = 0.5 * (heightMax + heightMin);
-        this.scalarRanges.height = {
-          min: center - WAVE_MIN_HEIGHT_RANGE,
-          max: center + WAVE_MIN_HEIGHT_RANGE,
-        };
-      } else {
-        this.scalarRanges.height = { min: heightMin, max: heightMax };
-      }
-    }
-
-    if (Number.isFinite(speedMin) && Number.isFinite(speedMax)) {
-      if (speedMax - speedMin < WAVE_MIN_SPEED_RANGE_MAX) {
-        this.scalarRanges.speed = {
-          min: Math.max(0, speedMin - 0.5 * WAVE_MIN_SPEED_RANGE_MAX),
-          max: speedMin + 0.5 * WAVE_MIN_SPEED_RANGE_MAX,
-        };
-      } else {
-        this.scalarRanges.speed = {
-          min: Math.max(0, speedMin),
-          max: speedMax,
-        };
-      }
-    }
-
-    if (colorMode === "solid") {
-      for (let i = 0; i < vertexCount; i += 1) {
-        const base = i * 3;
-        colorArray[base] = this.solidColorValue.r;
-        colorArray[base + 1] = this.solidColorValue.g;
-        colorArray[base + 2] = this.solidColorValue.b;
-      }
-    } else {
-      const range = this.getColorRange(colorMode);
-      const span = Math.max(WAVE_MIN_VALUE_SPAN, range.max - range.min);
-      for (let i = 0; i < vertexCount; i += 1) {
-        const scalar = this.scalarScratch[i];
-        let t;
-        if (colorMode === "direction") {
-          t = THREE.MathUtils.clamp(scalar / 360, 0, 1);
-        } else {
-          t = THREE.MathUtils.clamp((scalar - range.min) / span, 0, 1);
-        }
-        if (this.params.colormapInverted) {
-          t = 1 - t;
-        }
-        applyColormapValue(this.params, t, this.tempColor);
-        const base = i * 3;
-        colorArray[base] = this.tempColor.r;
-        colorArray[base + 1] = this.tempColor.g;
-        colorArray[base + 2] = this.tempColor.b;
-      }
-    }
-
-    this.positionAttribute.needsUpdate = true;
-    this.colorAttribute.needsUpdate = true;
+    this.params[key] = next;
+    this.markSpectrumDirty();
+    this.syncInstances();
   }
 
-  evaluateWaveStateAt(x, y, timeSeconds, choppiness, verticalScale) {
-    const out = this.evalScratch;
-    let dispX = 0;
-    let dispY = 0;
-    let dispZ = 0;
-    let velX = 0;
-    let velY = 0;
-    let velZ = 0;
-
-    for (let i = 0; i < this.waveComponents.length; i += 1) {
-      const component = this.waveComponents[i];
-      const theta = (component.dirX * x + component.dirY * y) * component.waveNumber
-        + component.omega * timeSeconds
-        + component.phase;
-      const s = Math.sin(theta);
-      const c = Math.cos(theta);
-
-      dispZ += component.amplitude * s;
-      dispX += choppiness * component.amplitude * c * component.dirX;
-      dispY += choppiness * component.amplitude * c * component.dirY;
-
-      velZ += component.amplitude * component.omega * c * verticalScale;
-      velX += -choppiness * component.amplitude * component.omega * s * component.dirX;
-      velY += -choppiness * component.amplitude * component.omega * s * component.dirY;
-    }
-
-    const speed = Math.hypot(velX, velY, velZ);
-    let directionDeg = THREE.MathUtils.radToDeg(Math.atan2(velY, velX));
-    if (!Number.isFinite(directionDeg)) {
-      directionDeg = 0;
-    }
-    if (directionDeg < 0) {
-      directionDeg += 360;
-    }
-
-    out.dispX = dispX;
-    out.dispY = dispY;
-    out.dispZ = dispZ;
-    out.velX = velX;
-    out.velY = velY;
-    out.velZ = velZ;
-    out.speed = speed;
-    out.directionDeg = directionDeg;
-    out.heightScaled = dispZ * verticalScale;
-    return out;
+  clampNumericParam(rawValue, min, max, fallbackValue = min) {
+    const numeric = Number(rawValue);
+    const fallback = Number.isFinite(Number(fallbackValue)) ? Number(fallbackValue) : min;
+    const finite = Number.isFinite(numeric) ? numeric : fallback;
+    return THREE.MathUtils.clamp(finite, min, max);
   }
 
-  sampleGpuStats() {
-    const halfX = Math.max(1, Number(this.params.worldSizeX || 1) * 0.5);
-    const halfY = Math.max(1, Number(this.params.worldSizeY || 1) * 0.5);
-    const grid = WAVE_SAMPLE_GRID_SIZE;
+  markSpectrumDirty() {
+    this.pendingSpectrumRebuild = true;
+  }
+
+  recomputeStatsEstimate() {
+    const windSpeed = Math.max(0, Number(this.params.windSpeed) || 0);
+    const amplitude = THREE.MathUtils.clamp(Number(this.params.waveAmplitude) || 0, 0, 3.5);
+    const spread = THREE.MathUtils.clamp(Number(this.params.directionSpread) || 0, 0, 180) / 180;
+    const damping = Math.max(0, Number(this.params.damping) || 0);
     const choppiness = Math.max(0, Number(this.params.choppiness) || 0);
-    const verticalScale = 1;
+    const displacementScale = this.getEffectiveDisplacementScale();
+    const resolutionScale = Math.sqrt(this.resolveFftResolution() / WAVE_DEFAULT_FFT_RESOLUTION);
 
-    let heightSqSum = 0;
-    let speedSum = 0;
-    let sampleCount = 0;
+    const windGain = Math.sqrt(Math.max(0.05, windSpeed / 12));
+    const spreadGain = THREE.MathUtils.lerp(1.2, 0.8, spread);
+    const dampingGain = Math.exp(-0.6 * damping);
+    const baseRms = amplitude * 0.22 * windGain * spreadGain * dampingGain * resolutionScale;
 
-    for (let iy = 0; iy < grid; iy += 1) {
-      const ty = grid <= 1 ? 0.5 : iy / (grid - 1);
-      const y = THREE.MathUtils.lerp(-halfY, halfY, ty);
-      for (let ix = 0; ix < grid; ix += 1) {
-        const tx = grid <= 1 ? 0.5 : ix / (grid - 1);
-        const x = THREE.MathUtils.lerp(-halfX, halfX, tx);
-        const state = this.evaluateWaveStateAt(x, y, this.timeSeconds, choppiness, verticalScale);
-        heightSqSum += state.heightScaled * state.heightScaled;
-        speedSum += state.speed;
-        sampleCount += 1;
-      }
-    }
-
-    this.lastHeightRms = sampleCount > 0 ? Math.sqrt(heightSqSum / sampleCount) : 0;
-    this.lastSurfaceSpeed = sampleCount > 0 ? speedSum / sampleCount : 0;
+    this.lastHeightRms = Math.max(0, baseRms * displacementScale);
+    const windRef = Math.max(0.1, windSpeed);
+    const peakK = WAVE_GRAVITY * ((0.84 / windRef) ** 2);
+    const omega = Math.sqrt(WAVE_GRAVITY * peakK);
+    this.lastSurfaceSpeed = Math.max(0, this.lastHeightRms * omega * (1 + 0.35 * choppiness));
   }
 
   emitStats() {
     if (typeof this.onStats !== "function") {
       return;
     }
-
-    if (this.useGpuPath) {
-      this.sampleGpuStats();
-    }
-
     this.onStats({
       gridNodes: this.vertexCount,
       heightRms: this.lastHeightRms,
@@ -889,145 +1310,65 @@ export class WaveSimulation extends BaseSimulation {
     });
   }
 
-  getColorRange(colorMode = this.params.colorMode) {
-    const mode = String(colorMode || "height").trim();
-    if (mode === "direction") {
-      return this.scalarRanges.direction;
-    }
-    if (mode === "speed") {
-      return this.scalarRanges.speed;
-    }
-    if (mode === "height") {
-      return this.scalarRanges.height;
-    }
-    return this.scalarRanges.height;
+  getColorRange() {
+    return { min: 0, max: 1 };
   }
 
-  getOrCreateColormapTexture(colormapKey) {
-    const key = String(colormapKey || "turbo").trim() || "turbo";
-    if (this.colormapTextureCache.has(key)) {
-      return this.colormapTextureCache.get(key);
-    }
+  disposeFftResources() {
+    this.disposeRenderTarget(this.initialSpectrumTarget);
+    this.disposeRenderTarget(this.phasePingTarget);
+    this.disposeRenderTarget(this.phasePongTarget);
+    this.disposeRenderTarget(this.spectrumTarget);
+    this.disposeRenderTarget(this.transformTargetA);
+    this.disposeRenderTarget(this.transformTargetB);
+    this.disposeRenderTarget(this.displacementTarget);
+    this.disposeRenderTarget(this.normalTarget);
 
-    const resolution = 256;
-    const data = new Uint8Array(resolution * 4);
-    for (let i = 0; i < resolution; i += 1) {
-      const t = i / Math.max(1, resolution - 1);
-      applyColormapValue({ colormap: key, colormapInverted: false }, t, this.tempColor);
-      const base = i * 4;
-      data[base] = Math.round(THREE.MathUtils.clamp(this.tempColor.r, 0, 1) * 255);
-      data[base + 1] = Math.round(THREE.MathUtils.clamp(this.tempColor.g, 0, 1) * 255);
-      data[base + 2] = Math.round(THREE.MathUtils.clamp(this.tempColor.b, 0, 1) * 255);
-      data[base + 3] = 255;
-    }
+    this.initialSpectrumTarget = null;
+    this.phasePingTarget = null;
+    this.phasePongTarget = null;
+    this.phaseActiveTarget = null;
+    this.spectrumTarget = null;
+    this.transformTargetA = null;
+    this.transformTargetB = null;
+    this.displacementTarget = null;
+    this.normalTarget = null;
 
-    const texture = new THREE.DataTexture(
-      data,
-      resolution,
-      1,
-      THREE.RGBAFormat,
-      THREE.UnsignedByteType,
-    );
-    texture.magFilter = THREE.LinearFilter;
-    texture.minFilter = THREE.LinearFilter;
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.generateMipmaps = false;
-    if (Object.prototype.hasOwnProperty.call(texture, "colorSpace") && THREE.NoColorSpace) {
-      texture.colorSpace = THREE.NoColorSpace;
-    }
-    texture.needsUpdate = true;
+    this.phaseSeedTexture?.dispose?.();
+    this.phaseSeedTexture = null;
+  }
 
-    this.colormapTextureCache.set(key, texture);
-    return texture;
+  disposeRenderTarget(target) {
+    if (!target) {
+      return;
+    }
+    target.texture?.dispose?.();
+    target.dispose?.();
+  }
+
+  logBackend(reason) {
+    const state = this.rendererSupportsFft ? `GPU FFT (${reason})` : reason;
+    if (state === this.lastBackendLog) {
+      return;
+    }
+    this.lastBackendLog = state;
+    console.log(`${WAVE_GPU_BACKEND_LOG_PREFIX} ${state}.`);
   }
 }
 
 function buildWaveColormapConfig({
-  params,
-  simulation,
   continuousColormapOptions,
-  continuousColormapGradients,
 }) {
-  const colorMode = params?.colorMode || "height";
-  const colormap = params?.colormap || "turbo";
-  const colorModeOption = getWaveColorModeOption(colorMode);
-  const unit = String(colorModeOption?.unit || "");
-
-  if (colorMode === "solid") {
-    return {
-      visible: false,
-      value: colormap,
-      options: continuousColormapOptions,
-      setValue() {},
-      legend: null,
-    };
-  }
-
-  const range = simulation?.getColorRange?.(colorMode)
-    ?? (colorMode === "direction" ? WAVE_DIRECTION_RANGE : { min: 0, max: 1 });
-
+  const options = Array.isArray(continuousColormapOptions) && continuousColormapOptions.length > 0
+    ? continuousColormapOptions
+    : [{ key: "none", label: "None" }];
   return {
-    visible: true,
-    value: colormap,
-    options: continuousColormapOptions,
-    setValue(value) {
-      params.colormap = value;
-      simulation?.syncInstances?.();
-    },
-    legend: {
-      gradient: continuousColormapGradients[colormap] || continuousColormapGradients.turbo,
-      minText: `min: ${Number(range.min).toFixed(2)}${unit ? ` ${unit}` : ""}`,
-      maxText: `max: ${Number(range.max).toFixed(2)}${unit ? ` ${unit}` : ""}`,
-    },
+    visible: false,
+    value: options[0].key,
+    options,
+    setValue() {},
+    legend: null,
   };
-}
-
-function getWaveColorModeOption(colorMode) {
-  const visualParams = Array.isArray(WAVE_APPLET_CONFIG.visual?.params)
-    ? WAVE_APPLET_CONFIG.visual.params
-    : [];
-  const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
-  const options = Array.isArray(colorModeParam?.options) ? colorModeParam.options : [];
-  return options.find((option) => String(option?.key ?? "").trim() === colorMode) || null;
-}
-
-function getWaveColorModeIndex(mode) {
-  switch (String(mode || "height").trim()) {
-    case "height":
-      return 1;
-    case "speed":
-      return 2;
-    case "direction":
-      return 3;
-    default:
-      return 0;
-  }
-}
-
-function getWaveScalarByMode(mode, state) {
-  const key = String(mode || "height").trim();
-  if (key === "speed") {
-    return state.speed;
-  }
-  if (key === "direction") {
-    return state.directionDeg;
-  }
-  if (key === "height") {
-    return state.heightScaled;
-  }
-  return state.heightScaled;
-}
-
-function getWaveSolidColorDefault() {
-  const entries = Array.isArray(WAVE_APPLET_CONFIG.visual?.color) ? WAVE_APPLET_CONFIG.visual.color : [];
-  const entry = entries.find((item) => String(item?.key || "").trim() === "water");
-  const fallback = entries[0]?.default || "#4da6ff";
-  return normalizeHexColor(entry?.default ?? fallback, "#4da6ff");
-}
-
-function getWaveSolidColor(params) {
-  return normalizeHexColor(params?.solidColorWater ?? getWaveSolidColorDefault(), getWaveSolidColorDefault());
 }
 
 function normalizeHexColor(value, fallback = "#ffffff") {
@@ -1038,52 +1379,84 @@ function normalizeHexColor(value, fallback = "#ffffff") {
   return fallback;
 }
 
-function buildColormapLUT(colormapEntries) {
-  const maps = {};
-  const entries = Array.isArray(colormapEntries) ? colormapEntries : [];
-  entries.forEach((entry) => {
-    const key = String(entry?.key || "").trim();
-    const stops = Array.isArray(entry?.value) ? entry.value : [];
-    if (!key || stops.length === 0) {
-      return;
-    }
-    maps[key] = stops.map((hex) => new THREE.Color(hex));
-  });
-  return maps;
+function getWaveOceanColor(params) {
+  return normalizeHexColor(params?.solidColorOcean ?? "#0b3a74", "#0b3a74");
 }
 
-function applyColormapValue(params, normalized, outColor) {
-  const mapKey = String(params?.colormap || "turbo").trim();
-  const colors = WAVE_COLORMAPS[mapKey] || WAVE_COLORMAPS.turbo;
-  if (!colors || colors.length === 0) {
-    outColor.set(0xffffff);
-    return outColor;
-  }
-  if (colors.length === 1) {
-    outColor.copy(colors[0]);
-    return outColor;
-  }
-
-  const t = THREE.MathUtils.clamp(normalized, 0, 1);
-  const scaled = t * (colors.length - 1);
-  const index = Math.min(colors.length - 2, Math.floor(scaled));
-  const frac = scaled - index;
-
-  waveLerpA.copy(colors[index]);
-  waveLerpB.copy(colors[index + 1]);
-  outColor.copy(waveLerpA).lerp(waveLerpB, frac);
-  return outColor;
+function getWaveSkyColor(params) {
+  return normalizeHexColor(params?.solidColorSky ?? "#7dc3ff", "#7dc3ff");
 }
 
-function createSeededRandom(seedValue) {
-  let seed = Math.floor(Number(seedValue) || 0) >>> 0;
-  if (seed === 0) {
-    seed = 0x9e3779b9;
+function createPlaceholderTexture(rgba = [0, 0, 0, 255]) {
+  const data = new Uint8Array(rgba);
+  const texture = new THREE.DataTexture(
+    data,
+    1,
+    1,
+    THREE.RGBAFormat,
+    THREE.UnsignedByteType,
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  if (Object.prototype.hasOwnProperty.call(texture, "colorSpace") && THREE.NoColorSpace) {
+    texture.colorSpace = THREE.NoColorSpace;
   }
-  return () => {
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createRandomPhaseTexture(resolution, seedBase = 0) {
+  const size = Math.max(1, Math.floor(resolution));
+  const data = new Float32Array(size * size * 4);
+  let seed = (Math.floor(seedBase * 100000) ^ 0x9e3779b9) >>> 0;
+  for (let i = 0; i < size * size; i += 1) {
     seed = (seed + 0x6d2b79f5) >>> 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
     t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+    const random = ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    data[i * 4] = random * WAVE_TWO_PI;
+    data[i * 4 + 1] = 0;
+    data[i * 4 + 2] = 0;
+    data[i * 4 + 3] = 0;
+  }
+
+  const texture = new THREE.DataTexture(
+    data,
+    size,
+    size,
+    THREE.RGBAFormat,
+    THREE.FloatType,
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  if (Object.prototype.hasOwnProperty.call(texture, "colorSpace") && THREE.NoColorSpace) {
+    texture.colorSpace = THREE.NoColorSpace;
+  }
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createRenderTarget(width, height, overrides = {}) {
+  const target = new THREE.WebGLRenderTarget(width, height, {
+    format: THREE.RGBAFormat,
+    type: THREE.FloatType,
+    depthBuffer: false,
+    stencilBuffer: false,
+    minFilter: THREE.NearestFilter,
+    magFilter: THREE.NearestFilter,
+    wrapS: THREE.ClampToEdgeWrapping,
+    wrapT: THREE.ClampToEdgeWrapping,
+    ...overrides,
+  });
+  target.texture.generateMipmaps = false;
+  if (Object.prototype.hasOwnProperty.call(target.texture, "colorSpace") && THREE.NoColorSpace) {
+    target.texture.colorSpace = THREE.NoColorSpace;
+  }
+  return target;
 }

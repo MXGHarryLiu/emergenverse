@@ -534,7 +534,7 @@ function deriveSliderHubConfigFromSlider(sliderConfig) {
     return null;
   }
 
-  const title = String(sliderConfig.label || sliderConfig.id || "Parameter");
+  const title = normalizeSliderLabel(String(sliderConfig.label || sliderConfig.id || "Parameter"));
   const valueText = String(
     sliderConfig.valueText ??
     sliderConfig.value ??
@@ -555,6 +555,11 @@ function deriveSliderHubConfigFromSlider(sliderConfig) {
   };
 }
 
+function normalizeSliderLabel(value) {
+  const text = String(value ?? "").trim();
+  return text.replace(/^\d+\.\s*/, "");
+}
+
 function createSliderRow(templates, appletId, slider, options = {}) {
   const fragment = templates.sliderRow.content.cloneNode(true);
   const sliderInputId = options.inputId || getSimulationSliderInputId(appletId, slider);
@@ -573,7 +578,7 @@ function createSliderRow(templates, appletId, slider, options = {}) {
     : `<span data-slider-label-text></span>`;
   const labelTextNode = labelName.querySelector("[data-slider-label-text]");
   if (labelTextNode) {
-    labelTextNode.textContent = slider.label;
+    labelTextNode.textContent = normalizeSliderLabel(slider.label);
     if (options.renderMath !== false) {
       renderInlineMathIfAvailable(labelTextNode);
     }
@@ -815,7 +820,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   stateColorsHost.setAttribute("data-shared-state-colors-host", appletId);
   body.appendChild(stateColorsHost);
 
-  realismSliders.forEach((slider, index) => {
+  realismSliders.forEach((slider) => {
     const row = createSliderRow(templates, appletId, {
       ...slider,
       icon: "",

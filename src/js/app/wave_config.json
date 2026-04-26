@@ -6,14 +6,14 @@
     "thumbnail": "bi-water"
   },
   "intro": {
-    "summary": "Wind-driven surface waves over a dynamic water field",
+    "summary": "FFT-based directional ocean surface synthesis",
     "paragraphs": [
-      "This app models a wind-driven water surface as a sum of propagating wave components with deep-water dispersion.",
-      "Wind speed and direction shape the spectrum, while choppiness and damping control crest sharpness and energy roll-off."
+      "This app models open-ocean waves in frequency space, then reconstructs the surface with a 2D inverse FFT each step.",
+      "Wind speed and direction drive the spectrum directly, while directional spread, damping, and choppiness shape crest sharpness and anisotropy."
     ]
   },
   "model": {
-    "subtitle": "Spectral-style multi-component surface wave synthesis with wind-coupled parameters.",
+    "subtitle": "Directional spectral ocean simulation with phase evolution and GPU FFT reconstruction.",
     "references": [
       {
         "label": "dli/waves (WebGL ocean)",
@@ -22,44 +22,46 @@
       {
         "label": "Tessendorf: Simulating Ocean Water",
         "url": "https://people.computing.clemson.edu/~jtessen/reports/papers_files/coursenotes2002.pdf"
+      },
+      {
+        "label": "JONSWAP Wave Spectrum",
+        "url": "https://en.wikipedia.org/wiki/JONSWAP"
       }
     ],
     "items": [
       {
-        "title": "Surface Height",
-        "equation": "$$\\eta(\\mathbf{x},t)=\\sum_{i=1}^{N}A_i\\sin(\\mathbf{k}_i\\cdot\\mathbf{x}+\\omega_i t+\\phi_i)$$",
-        "explanation": "The water surface is synthesized from multiple traveling wave components with different wavelengths, directions, and phases.",
+        "title": "Surface Reconstruction",
+        "equation": "$$\\eta(\\mathbf{x},t)=\\sum_{\\mathbf{k}}\\hat{h}(\\mathbf{k},t)e^{i\\mathbf{k}\\cdot\\mathbf{x}}$$",
+        "explanation": "The ocean surface is reconstructed from complex Fourier amplitudes over a 2D wave-number grid.",
         "parameters": [
-          "<strong>Component Count</strong> (\\(N\\)) sets spectral richness.",
-          "<strong>Wave Amplitude Scale</strong> (\\(A_0\\)) scales vertical displacement energy."
+          "<strong>FFT Resolution</strong> (\\(N\\)) controls spectral detail.",
+          "<strong>Mesh Resolution</strong> controls visible geometric tessellation."
+        ]
+      },
+      {
+        "title": "Complex Amplitude Evolution",
+        "equation": "$$\\hat{h}(\\mathbf{k},t)=h_0(\\mathbf{k})e^{i\\omega t}+h_0^*(-\\mathbf{k})e^{-i\\omega t}$$",
+        "explanation": "Each frequency evolves by rotating phase with dispersion, combining conjugate modes to keep real-valued displacement.",
+        "parameters": [
+          "<strong>Time Step</strong> controls phase advance per simulation update."
         ]
       },
       {
         "title": "Dispersion",
-        "equation": "$$\\omega_i=\\sqrt{g\\,k_i},\\qquad k_i=\\frac{2\\pi}{\\lambda_i}$$",
-        "explanation": "Each component follows deep-water dispersion so shorter wavelengths propagate with different phase speed than longer waves.",
+        "equation": "$$\\omega(k)=\\sqrt{gk\\left(1+\\left(\\frac{k}{k_m}\\right)^2\\right)},\\qquad k_p=g\\left(\\frac{\\Omega}{U_{10}}\\right)^2$$",
+        "explanation": "Higher wave numbers propagate differently from long swells, producing physically plausible mixed-sea motion.",
         "parameters": [
-          "<strong>Base Wavelength</strong> (\\(\\lambda_0\\)) anchors the component wavelength band."
+          "<strong>Wind Speed</strong> shifts dominant wave-number band through the wind-coupled peak wave number."
         ]
       },
       {
-        "title": "Wind-Coupled Directional Spectrum",
-        "equation": "$$A_i=A_0\\,f(U,\\theta_w,\\Delta\\theta,\\lambda_i)\\,e^{-\\zeta k_i},\\quad \\mathbf{\\hat k}_i\\sim\\mathcal{D}(\\theta_w,\\Delta\\theta)$$",
-        "explanation": "Wind speed and direction bias component orientation and energy. Direction spread broadens or narrows the directional distribution, while damping attenuates higher-wave-number components.",
+        "title": "Directional Spectrum + Choppiness",
+        "equation": "$$h_0(\\mathbf{k})\\propto\\sqrt{S(k,\\theta)}\\,\\xi,\\qquad \\mathbf{x}'=\\mathbf{x}+\\chi\\,\\nabla\\eta$$",
+        "explanation": "Wind-aligned directional energy and stochastic phase seed the spectrum; horizontal displacement sharpens crests.",
         "parameters": [
-          "<strong>Wind Speed</strong> (\\(U\\)) increases energy input.",
-          "<strong>Wind Direction</strong> (\\(\\theta_w\\)) sets dominant propagation direction.",
-          "<strong>Direction Spread</strong> (\\(\\Delta\\theta\\)) controls angular spread around wind direction.",
-          "<strong>Damping</strong> (\\(\\zeta\\)) controls high-frequency energy attenuation."
-        ]
-      },
-      {
-        "title": "Choppy Horizontal Displacement",
-        "equation": "$$\\mathbf{x}'=\\mathbf{x}+\\chi\\sum_{i=1}^{N}A_i\\cos(\\mathbf{k}_i\\cdot\\mathbf{x}+\\omega_i t+\\phi_i)\\,\\hat{\\mathbf{k}}_i$$",
-        "explanation": "A choppiness factor adds horizontal crest skew to create sharper, more realistic wave profiles.",
-        "parameters": [
-          "<strong>Choppiness</strong> (\\(\\chi\\)) controls crest sharpening.",
-          "<strong>Damping</strong> attenuates high-frequency contribution."
+          "<strong>Wind Speed</strong> and <strong>Wind Direction</strong> set dominant energy flow.",
+          "<strong>Direction Spread</strong> controls angular broadness around wind direction.",
+          "<strong>Spectrum Scale</strong>, <strong>Damping</strong>, and <strong>Choppiness</strong> tune sea state energy and crest sharpness."
         ]
       }
     ]
@@ -127,30 +129,33 @@
         }
       },
       {
-        "key": "gridResolution",
-        "label": "Grid Resolution",
-        "default": 224,
+        "key": "fftResolution",
+        "label": "FFT Resolution (\\(N\\))",
+        "default": "128",
         "group": "initial",
-        "uiMin": 32,
-        "uiMax": 320,
         "control": {
-          "type": "slider",
+          "type": "select",
           "icon": "bi-grid-3x3-gap-fill",
-          "step": 8,
           "simulationAction": "reset"
-        }
+        },
+        "options": [
+          { "key": "64", "label": "64" },
+          { "key": "128", "label": "128" },
+          { "key": "256", "label": "256" },
+          { "key": "512", "label": "512" }
+        ]
       },
       {
-        "key": "componentCount",
-        "label": "Component Count (\\(N\\))",
-        "default": 24,
+        "key": "meshResolution",
+        "label": "Mesh Resolution",
+        "default": 192,
         "group": "initial",
-        "uiMin": 4,
-        "uiMax": 32,
+        "uiMin": 48,
+        "uiMax": 384,
         "control": {
           "type": "slider",
-          "icon": "bi-diagram-3-fill",
-          "step": 1,
+          "icon": "bi-border-all",
+          "step": 16,
           "simulationAction": "reset"
         }
       },
@@ -184,36 +189,21 @@
       },
       {
         "key": "waveAmplitude",
-        "label": "Wave Amplitude Scale (\\(A_0\\))",
-        "default": 1.8,
-        "unit": "m",
+        "label": "Spectrum Scale",
+        "default": 0.9,
         "group": "dynamic",
-        "uiMin": 0.1,
-        "uiMax": 8,
+        "uiMin": 0.05,
+        "uiMax": 3.5,
         "control": {
           "type": "slider",
-          "icon": "bi-arrows-vertical",
+          "icon": "bi-graph-up-arrow",
           "step": 0.05
         }
       },
       {
-        "key": "baseWavelength",
-        "label": "Base Wavelength (\\(\\lambda_0\\))",
-        "default": 22.0,
-        "unit": "m",
-        "group": "dynamic",
-        "uiMin": 2,
-        "uiMax": 120,
-        "control": {
-          "type": "slider",
-          "icon": "bi-rulers",
-          "step": 0.5
-        }
-      },
-      {
         "key": "directionSpread",
-        "label": "Direction Spread (\\(\\Delta\\theta\\))",
-        "default": 42,
+        "label": "Direction Spread",
+        "default": 80,
         "unit": "deg",
         "group": "dynamic",
         "uiMin": 0,
@@ -227,10 +217,10 @@
       {
         "key": "choppiness",
         "label": "Choppiness (\\(\\chi\\))",
-        "default": 1.0,
+        "default": 0.55,
         "group": "dynamic",
         "uiMin": 0,
-        "uiMax": 2.4,
+        "uiMax": 1.6,
         "control": {
           "type": "slider",
           "icon": "bi-lightning-fill",
@@ -239,15 +229,53 @@
       },
       {
         "key": "damping",
-        "label": "Damping (\\(\\zeta\\))",
-        "default": 0.12,
-        "unit": "1/s",
+        "label": "Short-wave Damping",
+        "default": 0.18,
         "group": "dynamic",
         "uiMin": 0,
-        "uiMax": 1,
+        "uiMax": 1.2,
         "control": {
           "type": "slider",
           "icon": "bi-slash-circle",
+          "step": 0.01
+        }
+      },
+      {
+        "key": "displacementScale",
+        "label": "Displacement Scale",
+        "default": 0.9,
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 3.0,
+        "control": {
+          "type": "slider",
+          "icon": "bi-arrows-vertical",
+          "step": 0.01
+        }
+      },
+      {
+        "key": "normalStrength",
+        "label": "Normal Strength",
+        "default": 1.0,
+        "group": "dynamic",
+        "uiMin": 0.2,
+        "uiMax": 2.5,
+        "control": {
+          "type": "slider",
+          "icon": "bi-badge-3d-fill",
+          "step": 0.01
+        }
+      },
+      {
+        "key": "exposure",
+        "label": "Exposure",
+        "default": 0.36,
+        "group": "dynamic",
+        "uiMin": 0.05,
+        "uiMax": 1.4,
+        "control": {
+          "type": "slider",
+          "icon": "bi-sun-fill",
           "step": 0.01
         }
       }
@@ -255,106 +283,40 @@
   },
   "visual": {
     "gpu": true,
-    "colormap": [
-      {
-        "key": "turbo",
-        "value": [
-          "#30123b",
-          "#4145ab",
-          "#4685f4",
-          "#39c6c5",
-          "#77df6e",
-          "#b8de29",
-          "#f9ba38",
-          "#ee6a24",
-          "#c91f16"
-        ]
-      },
-      {
-        "key": "viridis",
-        "value": [
-          "#440154",
-          "#3b528b",
-          "#21918c",
-          "#5ec962",
-          "#fde725"
-        ]
-      },
-      {
-        "key": "magma",
-        "value": [
-          "#000004",
-          "#3b0f70",
-          "#8c2981",
-          "#de4968",
-          "#fe9f6d",
-          "#fcfdbf"
-        ]
-      },
-      {
-        "key": "cividis",
-        "value": [
-          "#00204c",
-          "#424086",
-          "#6c6b8e",
-          "#9aa47a",
-          "#d5d66b",
-          "#ffffe0"
-        ]
-      }
-    ],
     "params": [
       {
         "key": "colorMode",
-        "default": "height",
+        "default": "solid",
         "options": [
           {
             "key": "solid",
-            "label": "Single color",
+            "label": "Ocean Shading",
             "unit": "",
             "type": "single"
-          },
-          {
-            "key": "height",
-            "label": "Height",
-            "unit": "m",
-            "type": "continuous"
-          },
-          {
-            "key": "speed",
-            "label": "Surface Speed",
-            "unit": "m/s",
-            "type": "continuous"
-          },
-          {
-            "key": "direction",
-            "label": "Direction",
-            "unit": "deg",
-            "type": "continuous"
           }
         ]
-      },
-      {
-        "key": "colormap",
-        "default": "turbo"
-      },
-      {
-        "key": "colormapInverted",
-        "default": false
       }
     ],
     "color": [
       {
-        "key": "water",
-        "default": "#4da6ff"
+        "key": "ocean",
+        "label": "Ocean Tint",
+        "default": "#0b3a74"
+      },
+      {
+        "key": "sky",
+        "label": "Sky Reflection",
+        "default": "#7dc3ff"
       }
     ]
   },
   "camera": {
+    "distance": 960,
+    "height": 360,
     "params": [
       {
         "key": "projection",
-        "default": "orthographic",
+        "default": "perspective",
         "unit": ""
       },
       {
@@ -364,7 +326,7 @@
       },
       {
         "key": "moveSpeed",
-        "default": 160,
+        "default": 420,
         "unit": "m/s",
         "uiMin": 1,
         "uiMax": 100000,
@@ -389,34 +351,34 @@
     "params": [
       {
         "key": "x",
-        "default": 220,
+        "default": 1200,
         "unit": "m",
-        "uiMin": 60,
-        "uiMax": 600,
-        "step": 2
+        "uiMin": 200,
+        "uiMax": 4000,
+        "step": 10
       },
       {
         "key": "y",
-        "default": 220,
+        "default": 1200,
         "unit": "m",
-        "uiMin": 20,
-        "uiMax": 260,
-        "step": 2
+        "uiMin": 200,
+        "uiMax": 4000,
+        "step": 10
       },
       {
         "key": "z",
-        "default": 80,
+        "default": 320,
         "unit": "m",
-        "uiMin": 60,
-        "uiMax": 600,
-        "step": 2
+        "uiMin": 80,
+        "uiMax": 1200,
+        "step": 10
       },
       {
         "key": "gridSize",
-        "default": 10,
+        "default": 40,
         "unit": "m",
-        "uiMin": 2,
-        "uiMax": 80,
+        "uiMin": 5,
+        "uiMax": 200,
         "step": 1
       }
     ]

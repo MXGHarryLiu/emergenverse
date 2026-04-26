@@ -1011,7 +1011,9 @@ function animate() {
   spaceshipHud.update();
   updateOrientationIndicator();
 
-  renderer.render(scene, cameraController.getActiveCamera());
+  const activeCamera = cameraController.getActiveCamera();
+  simulationManager.beforeRender({ camera: activeCamera });
+  renderer.render(scene, activeCamera);
 }
 
 function updateFpsMetric(dt, stepsThisFrame = 0) {

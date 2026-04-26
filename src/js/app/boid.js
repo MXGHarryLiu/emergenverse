@@ -391,6 +391,13 @@ export class BoidSimulation extends BaseSimulation {
     this.emitStats(speedSum, neighborSum);
   }
 
+  beforeRender({ camera } = {}) {
+    if (!this.isRealismActive || !camera) {
+      return;
+    }
+    this.realismSkyDome.position.copy(camera.position);
+  }
+
   spawn(count) {
     this.boids.length = 0;
     this.random = createSeededRandomGenerator(this.params?.randomSeed);
@@ -531,7 +538,6 @@ export class BoidSimulation extends BaseSimulation {
     shadowCam.updateProjectionMatrix();
 
     const skyRadius = Math.max(10, maxExtent * 6);
-    this.realismSkyDome.position.set(0, 0, 0);
     this.realismSkyDome.scale.setScalar(skyRadius);
     this.realismSkyDome.material.uniforms.uSunDir.value.copy(this.realismSunDirection);
     this.realismShadowCatcher.position.set(0, 0, -halfZ + 0.02);
@@ -708,10 +714,13 @@ function createBoidRealismSkyMaterial({
         vec3 sunDir = normalize(uSunDir);
         float upMix = clamp(viewDir.z * 0.5 + 0.5, 0.0, 1.0);
         float rawSunAlt = clamp(sunDir.z, -1.0, 1.0);
+        float sunAltDeg = degrees(asin(rawSunAlt));
         float sunAlt = clamp(rawSunAlt, 0.0, 1.0);
         float lowSun = 1.0 - sunAlt;
-        float dayFactor = smoothstep(0.06, 0.45, rawSunAlt);
-        float nightFactor = 1.0 - smoothstep(-0.28, -0.04, rawSunAlt);
+        // Realistic twilight bands by solar elevation:
+        // civil twilight ends near -6 deg, nautical near -12 deg, astronomical near -18 deg.
+        float dayFactor = smoothstep(-6.0, 3.0, sunAltDeg);
+        float nightFactor = 1.0 - smoothstep(-18.0, -6.0, sunAltDeg);
         float twilightFactor = clamp(1.0 - dayFactor - nightFactor, 0.0, 1.0);
         float sunVisibility = step(0.0, rawSunAlt);
         float sunFacing = max(dot(viewDir, sunDir), 0.0);
@@ -749,10 +758,11 @@ function createBoidRealismSkyMaterial({
         float nearSun = pow(sunFacing, 2.2);
         float nearSunCore = pow(sunFacing, 9.0);
         vec3 sunSideDay = mix(verticalColor, daySunside, nearSun * 0.55 * dayFactor);
+        float twilightGlow = nearSun * (0.45 + 0.35 * lowSun) * twilightFactor;
         vec3 sunSideTwilight = mix(
           verticalColor,
           mix(twSunGlow, twSunCore, nearSunCore),
-          nearSun * (0.45 + 0.35 * lowSun)
+          twilightGlow
         );
         vec3 skyColor = mix(sunSideTwilight, sunSideDay, dayFactor);
 
@@ -761,7 +771,11 @@ function createBoidRealismSkyMaterial({
         float earthShadowBand = exp(-pow((upMix - 0.455) / 0.040, 2.0));
         float beltStrength = twilightFactor * pow(antiSunFacing, 1.7) * beltBand;
         float earthShadowStrength = twilightFactor * pow(antiSunFacing, 1.35) * earthShadowBand;
-        vec3 beltColor = mix(vec3(0.72, 0.56, 0.76), vec3(0.96, 0.73, 0.79), smoothstep(-0.10, 0.08, rawSunAlt));
+        vec3 beltColor = mix(
+          vec3(0.72, 0.56, 0.76),
+          vec3(0.96, 0.73, 0.79),
+          smoothstep(-12.0, 0.0, sunAltDeg)
+        );
         skyColor = mix(skyColor, beltColor, beltStrength * 0.55);
         skyColor = mix(skyColor, vec3(0.10, 0.14, 0.24), earthShadowStrength * 0.62);
 
