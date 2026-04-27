@@ -31,37 +31,50 @@
     "items": [
       {
         "title": "Surface Reconstruction",
-        "equation": "$$\\eta(\\mathbf{x},t)=\\sum_{\\mathbf{k}}\\hat{h}(\\mathbf{k},t)e^{i\\mathbf{k}\\cdot\\mathbf{x}}$$",
-        "explanation": "The ocean surface is reconstructed from complex Fourier amplitudes over a 2D wave-number grid.",
+        "equation": "$$\\begin{aligned}\\mathbf{k}_{n,m}&=2\\pi\\left(\\frac{n}{L_x},\\frac{m}{L_y}\\right),\\qquad n,m\\in[-N/2,N/2)\\\\\\eta(\\mathbf{x},t)&=\\operatorname{Re}\\sum_{n,m}\\hat{h}(\\mathbf{k}_{n,m},t)e^{i\\mathbf{k}_{n,m}\\cdot\\mathbf{x}}\\end{aligned}$$",
+        "explanation": "The ocean surface is reconstructed from complex Fourier amplitudes on a periodic wave-number grid, then sampled by the rendered mesh.",
         "parameters": [
-          "<strong>FFT Resolution</strong> (\\(N\\)) controls spectral detail.",
+          "<strong>FFT Resolution</strong> (\\(N\\)) controls the number of frequency samples on each axis.",
+          "<strong>World Sizes</strong> (\\(L_x,L_y\\)) set the physical domain and therefore the wave-number spacing.",
           "<strong>Mesh Resolution</strong> controls visible geometric tessellation."
         ]
       },
       {
         "title": "Complex Amplitude Evolution",
-        "equation": "$$\\hat{h}(\\mathbf{k},t)=h_0(\\mathbf{k})e^{i\\omega t}+h_0^*(-\\mathbf{k})e^{-i\\omega t}$$",
-        "explanation": "Each frequency evolves by rotating phase with dispersion, combining conjugate modes to keep real-valued displacement.",
+        "equation": "$$\\begin{aligned}\\phi_{\\mathbf{k}}(t+\\Delta t)&=\\left(\\phi_{\\mathbf{k}}(t)+\\omega(k)\\Delta t\\right)\\bmod 2\\pi\\\\\\hat{h}(\\mathbf{k},t)&=h_0(\\mathbf{k})e^{i\\phi_{\\mathbf{k}}(t)}+h_0^*(-\\mathbf{k})e^{-i\\phi_{\\mathbf{k}}(t)}\\end{aligned}$$",
+        "explanation": "Each frequency advances by its dispersion phase each simulation step, while the conjugate pair keeps the reconstructed surface real-valued.",
         "parameters": [
-          "<strong>Time Step</strong> controls phase advance per simulation update."
+          "<strong>Time Step</strong> (\\(\\Delta t\\)) controls phase advance per simulation update."
         ]
       },
       {
         "title": "Dispersion",
         "equation": "$$\\omega(k)=\\sqrt{gk\\left(1+\\left(\\frac{k}{k_m}\\right)^2\\right)},\\qquad k_p=g\\left(\\frac{\\Omega}{U_{10}}\\right)^2$$",
-        "explanation": "Higher wave numbers propagate differently from long swells, producing physically plausible mixed-sea motion.",
+        "explanation": "The shader uses finite-depth-style capillary correction for angular frequency and a wind-coupled peak wave number for spectrum shaping.",
         "parameters": [
-          "<strong>Wind Speed</strong> shifts dominant wave-number band through the wind-coupled peak wave number."
+          "<strong>Wind Speed</strong> (\\(U_{10}\\)) shifts the dominant wave-number band through \\(k_p\\)."
         ]
       },
       {
-        "title": "Directional Spectrum + Choppiness",
-        "equation": "$$h_0(\\mathbf{k})\\propto\\sqrt{S(k,\\theta)}\\,\\xi,\\qquad \\mathbf{x}'=\\mathbf{x}+\\chi\\,\\nabla\\eta$$",
-        "explanation": "Wind-aligned directional energy and stochastic phase seed the spectrum; horizontal displacement sharpens crests.",
+        "title": "Directional Spectrum",
+        "equation": "$$\\begin{aligned}\\tilde{S}(\\mathbf{k})&=A\\,E(U_{10})\\,S(k;U_{10})\\,D(\\theta-\\theta_w,\\sigma_\\theta)\\,e^{-d_s^2k^2}\\\\h_0(\\mathbf{k})&=\\sqrt{\\frac{1}{2}\\tilde{S}(\\mathbf{k})\\,\\Delta k_x\\Delta k_y}\\end{aligned}$$",
+        "explanation": "Wind speed sets the energy scale and peak band, wind direction orients the directional lobe, and short-wave damping suppresses high-frequency ripples.",
         "parameters": [
-          "<strong>Wind Speed</strong> and <strong>Wind Direction</strong> set dominant energy flow.",
-          "<strong>Direction Spread</strong> controls angular broadness around wind direction.",
-          "<strong>Spectrum Scale</strong>, <strong>Damping</strong>, and <strong>Choppiness</strong> tune sea state energy and crest sharpness."
+          "<strong>Spectrum Scale</strong> (\\(A\\)) multiplies the wave energy.",
+          "<strong>Wind Speed</strong> (\\(U_{10}\\)) sets \\(E(U_{10})\\) and the spectrum shape \\(S(k;U_{10})\\).",
+          "<strong>Wind Direction</strong> (\\(\\theta_w\\)) aims the directional spectrum.",
+          "<strong>Direction Spread</strong> (\\(\\sigma_\\theta\\)) controls the angular broadness of \\(D\\).",
+          "<strong>Short-wave Damping</strong> (\\(d_s\\)) attenuates high wave numbers."
+        ]
+      },
+      {
+        "title": "Choppy Displacement",
+        "equation": "$$\\begin{aligned}\\mathbf{x}'&=\\mathbf{x}+s_d\\left(\\eta_x,\\eta_y,\\eta\\right),\\qquad (\\eta_x,\\eta_y)\\propto -i\\chi\\frac{\\mathbf{k}}{\\lVert\\mathbf{k}\\rVert}\\hat{h}(\\mathbf{k},t)\\\\\\mathbf{n}'&=\\operatorname{normalize}\\left((q_n n_x,\\,q_n n_y,\\,n_z)\\right)\\end{aligned}$$",
+        "explanation": "Horizontal displacement is derived in frequency space from the wave direction, then scaled with the height field to sharpen crests. Normal strength only adjusts shading normals.",
+        "parameters": [
+          "<strong>Choppiness</strong> (\\(\\chi\\)) controls horizontal crest skew.",
+          "<strong>Displacement Scale</strong> (\\(s_d\\)) scales the final surface displacement.",
+          "<strong>Normal Strength</strong> (\\(q_n\\)) adjusts rendered shading normals without changing the simulated height field."
         ]
       }
     ]
@@ -160,6 +173,20 @@
         }
       },
       {
+        "key": "randomSeed",
+        "label": "Random Seed",
+        "default": 1,
+        "uiMin": 0,
+        "uiMax": 32768,
+        "group": "initial",
+        "control": {
+          "type": "slider",
+          "icon": "bi-shuffle",
+          "step": 1,
+          "simulationAction": "reset"
+        }
+      },
+      {
         "key": "windSpeed",
         "label": "Wind Speed (\\(U\\))",
         "default": 12.0,
@@ -189,7 +216,7 @@
       },
       {
         "key": "waveAmplitude",
-        "label": "Spectrum Scale",
+        "label": "Spectrum Scale (\\(A\\))",
         "default": 0.9,
         "group": "dynamic",
         "uiMin": 0.05,
@@ -202,7 +229,7 @@
       },
       {
         "key": "directionSpread",
-        "label": "Direction Spread",
+        "label": "Direction Spread (\\(\\sigma_\\theta\\))",
         "default": 80,
         "unit": "deg",
         "group": "dynamic",
@@ -229,7 +256,7 @@
       },
       {
         "key": "damping",
-        "label": "Short-wave Damping",
+        "label": "Short-wave Damping (\\(d_s\\))",
         "default": 0.18,
         "group": "dynamic",
         "uiMin": 0,
@@ -242,7 +269,7 @@
       },
       {
         "key": "displacementScale",
-        "label": "Displacement Scale",
+        "label": "Displacement Scale (\\(s_d\\))",
         "default": 0.9,
         "group": "dynamic",
         "uiMin": 0.2,
@@ -255,7 +282,7 @@
       },
       {
         "key": "normalStrength",
-        "label": "Normal Strength",
+        "label": "Normal Strength (\\(q_n\\))",
         "default": 1.0,
         "group": "dynamic",
         "uiMin": 0.2,
@@ -265,12 +292,16 @@
           "icon": "bi-badge-3d-fill",
           "step": 0.01
         }
-      },
+      }
+    ]
+  },
+  "visual": {
+    "gpu": true,
+    "params": [
       {
         "key": "exposure",
         "label": "Exposure",
         "default": 0.36,
-        "group": "dynamic",
         "uiMin": 0.05,
         "uiMax": 1.4,
         "control": {
@@ -278,12 +309,7 @@
           "icon": "bi-sun-fill",
           "step": 0.01
         }
-      }
-    ]
-  },
-  "visual": {
-    "gpu": true,
-    "params": [
+      },
       {
         "key": "colorMode",
         "default": "solid",

@@ -1486,7 +1486,7 @@ function bindAppletVisualTimingControls() {
     const simulation = simulations[appletId];
     const visualConfig = APPLET_CONFIGS[appletId]?.visual;
     const gpuSupported = Boolean(visualConfig?.gpu);
-    const { switches } = getSectionInputControls(visualConfig);
+    const { sliders: visualSliders, switches } = getSectionInputControls(visualConfig);
     const realismSliders = getSectionInputControls(visualConfig?.realism).sliders || [];
 
     switches.forEach((switchConfig) => {
@@ -1546,29 +1546,40 @@ function bindAppletVisualTimingControls() {
       });
     });
 
-    const slider = getAppletTargetFrameRateSlider(appletId);
-    if (slider) {
+    visualSliders.forEach((slider) => {
+      const paramKey = inferSliderParamKey(appletId, slider);
+      if (!paramKey) {
+        return;
+      }
       const inputId = getSimulationSliderInputId(appletId, slider);
       const valueId = getSimulationSliderValueId(appletId, slider);
       const input = document.getElementById(inputId);
       const output = document.getElementById(valueId);
-      if (input && output) {
-        const initialValue = THREE.MathUtils.clamp(
-          Number.isFinite(Number(appletParams.targetFrameRate))
-            ? Number(appletParams.targetFrameRate)
-            : getAppletTargetFrameRateDefault(appletId),
-          1,
-          60,
-        );
-        appletParams.targetFrameRate = initialValue;
-        input.value = String(getSliderDisplayValue(appletId, slider, initialValue));
-
-        bindRange(inputId, valueId, (value) => {
-          const displayValue = handleAppletSliderInput(appletId, slider, value);
-          return formatAppletSliderDisplayValue(appletId, slider, displayValue);
-        });
+      if (!input || !output) {
+        return;
       }
-    }
+
+      const min = Number(slider.uiMin);
+      const max = Number(slider.uiMax);
+      const defaultValue = paramKey === "targetFrameRate"
+        ? getAppletTargetFrameRateDefault(appletId)
+        : Number(slider.value ?? slider.default ?? min ?? 0);
+      const raw = Number(appletParams[paramKey]);
+      const initialValue = THREE.MathUtils.clamp(
+        Number.isFinite(raw) ? raw : defaultValue,
+        Number.isFinite(min) ? min : defaultValue,
+        Number.isFinite(max) ? max : defaultValue,
+      );
+      appletParams[paramKey] = initialValue;
+      input.value = String(getSliderDisplayValue(appletId, slider, initialValue));
+
+      applySliderChangeToSimulation({ slider, paramKey, value: initialValue, simulation });
+
+      bindRange(inputId, valueId, (value) => {
+        const displayValue = handleAppletSliderInput(appletId, slider, value);
+        return formatAppletSliderDisplayValue(appletId, slider, displayValue);
+      });
+    });
 
     realismSliders.forEach((realismSlider) => {
       const realismInputId = getSimulationSliderInputId(appletId, realismSlider);

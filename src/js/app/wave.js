@@ -415,6 +415,7 @@ uniform float uWindDirectionDeg;
 uniform float uWindSpeed;
 uniform float uChoppiness;
 uniform float uDisplacementScale;
+uniform float uPhaseSeed;
 
 void main() {
   vec3 base = position;
@@ -442,7 +443,7 @@ void main() {
 
     float amp = uWaveAmplitude * (0.55 / octave) * (0.72 + 0.28 * sin(fi * 7.13 + 1.2));
     float speedGain = 0.6 + 0.04 * max(0.0, uWindSpeed);
-    float theta = dot(dir, base.xy) * k + omega * uTime * speedGain + fi * 1.37;
+    float theta = dot(dir, base.xy) * k + omega * uTime * speedGain + fi * 1.37 + uPhaseSeed * (0.73 + fi * 0.19);
     float s = sin(theta);
     float c = cos(theta);
 
@@ -541,7 +542,8 @@ export class WaveSimulation extends BaseSimulation {
 
     this.fftResolution = 0;
     this.pendingSpectrumRebuild = true;
-    this.randomSeed = Math.random() * 1000;
+    this.randomSeed = resolveWaveRandomSeed(this.params);
+    this.params.randomSeed = this.randomSeed;
 
     this.timeSeconds = 0;
     this.statsAccumulatorSeconds = 0;
@@ -572,7 +574,8 @@ export class WaveSimulation extends BaseSimulation {
   reset() {
     this.timeSeconds = 0;
     this.statsAccumulatorSeconds = WAVE_STATS_UPDATE_INTERVAL_SECONDS;
-    this.randomSeed = Math.random() * 1000;
+    this.randomSeed = resolveWaveRandomSeed(this.params);
+    this.params.randomSeed = this.randomSeed;
     this.pendingSpectrumRebuild = true;
 
     this.rebuildSurfaceMesh();
@@ -1068,6 +1071,7 @@ export class WaveSimulation extends BaseSimulation {
           uWindSpeed: { value: 12.0 },
           uChoppiness: { value: 1.2 },
           uDisplacementScale: { value: 1.0 },
+          uPhaseSeed: { value: this.randomSeed },
           uOceanColor: { value: new THREE.Color(getWaveOceanColor(this.params)) },
           uSkyColor: { value: new THREE.Color(getWaveSkyColor(this.params)) },
           uExposure: { value: 0.36 },
@@ -1163,6 +1167,7 @@ export class WaveSimulation extends BaseSimulation {
         1.6,
       );
       this.fallbackMaterial.uniforms.uDisplacementScale.value = displacementScale;
+      this.fallbackMaterial.uniforms.uPhaseSeed.value = this.randomSeed;
       this.fallbackMaterial.uniforms.uExposure.value = Math.max(0.05, Number(this.params.exposure) || 0.36);
       this.fallbackMaterial.uniforms.uOceanColor.value.copy(this.oceanColor);
       this.fallbackMaterial.uniforms.uSkyColor.value.copy(this.skyColor);
@@ -1385,6 +1390,14 @@ function getWaveOceanColor(params) {
 
 function getWaveSkyColor(params) {
   return normalizeHexColor(params?.solidColorSky ?? "#7dc3ff", "#7dc3ff");
+}
+
+function resolveWaveRandomSeed(params) {
+  const raw = Number(params?.randomSeed);
+  if (!Number.isFinite(raw)) {
+    return 1;
+  }
+  return THREE.MathUtils.clamp(Math.round(raw), 0, 32768);
 }
 
 function createPlaceholderTexture(rgba = [0, 0, 0, 255]) {

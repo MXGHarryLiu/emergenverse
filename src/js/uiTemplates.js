@@ -760,6 +760,7 @@ function buildVisualSection(appletId, visualAdapter, templates) {
     : [];
   const { sliders: visualSliders, switches: visualSwitches } = getSectionInputControls(appletConfig.visual);
   const targetFrameRateSlider = visualSliders.find((entry) => String(entry?.key || entry?.paramKey || "").trim() === "targetFrameRate");
+  const renderedVisualSliders = visualSliders.filter((entry) => String(entry?.key || entry?.paramKey || "").trim() !== "targetFrameRate");
   const realismSliders = getSectionInputControls(appletConfig.visual?.realism).sliders || [];
   const colorModeParam = visualParams.find((entry) => entry?.key === "colorMode");
   const solidColorParam = visualParams.find((entry) => entry?.key === "solidColor");
@@ -782,6 +783,10 @@ function buildVisualSection(appletId, visualAdapter, templates) {
   if (targetFrameRateSlider) {
     body.appendChild(createSliderRow(templates, appletId, targetFrameRateSlider));
   }
+
+  renderedVisualSliders.forEach((slider) => {
+    body.appendChild(createSliderRow(templates, appletId, slider));
+  });
 
   visualSwitches.forEach((switchConfig, index) => {
     body.appendChild(createVisualSwitchRow(appletId, switchConfig, index));

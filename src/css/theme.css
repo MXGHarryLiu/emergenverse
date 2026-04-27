@@ -475,7 +475,7 @@ body[data-theme="light"] .btn-outline-theme:focus-visible {
 }
 
 body[data-theme="light"] .simulation-order-btn {
-  border-radius: 0.22rem;
+  border-radius: 0.18rem;
 }
 
 body[data-theme="light"] .controls-modal {
